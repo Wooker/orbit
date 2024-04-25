@@ -1,7 +1,7 @@
 /// Resource interface to SoC peripherals, provided by either HAL or PAC
-pub(crate) trait Resource: Sized {}
+pub trait Resource: Sized {}
 
-pub(crate) struct Kernel<R>
+pub struct Kernel<R>
 where
     R: Resource,
 {
@@ -14,6 +14,10 @@ where
 {
     pub fn new(resources: R) -> Self {
         Self { resources }
+    }
+
+    pub fn get_resources(&self) -> &R {
+        &self.resources
     }
 }
 
