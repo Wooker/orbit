@@ -1,46 +1,21 @@
-/// Resource interface to SoC peripherals, provided by either HAL or PAC
-pub trait Resource: Sized {}
+use crate::multiplexer::Multiplexer;
 
-pub struct Kernel<R>
-where
-    R: Resource,
-{
-    pub(crate) resources: R,
+/// Main communication layer between HALs and LibOSes
+pub struct Kernel {
+    pub multiplexer: Multiplexer,
 }
 
-impl<R> Kernel<R>
-where
-    R: Resource,
-{
-    pub fn new(resources: R) -> Self {
-        Self { resources }
-    }
+// static ALLOCATOR: esp_alloc::EspHeap = esp_alloc::EspHeap::empty();
+// static mut HEAP: core::mem::MaybeUninit<[u8; 1024]> = core::mem::MaybeUninit::uninit();
 
-    pub fn get_resources(&self) -> &R {
-        &self.resources
+use esp_hal::peripherals::*;
+
+impl Kernel {
+    pub fn new() -> Self {
+        let multiplexer = Multiplexer::new();
+        Self { multiplexer }
     }
 }
 
-trait Application {}
-
-trait ResourceManagement<Res, App>
-where
-    Res: Resource,
-    App: Application,
-{
-    type Error;
-    fn claim(res: Res, who: App) -> Result<(), Self::Error>;
-}
-
+#[allow(dead_code)]
 enum KernelError {}
-impl<'res, Res, App> ResourceManagement<Res, App> for Kernel<Res>
-where
-    Res: Resource,
-    App: Application,
-{
-    type Error = KernelError;
-
-    fn claim(res: Res, who: App) -> Result<(), Self::Error> {
-        todo!()
-    }
-}
