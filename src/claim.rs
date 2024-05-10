@@ -1,3 +1,10 @@
+use esp_hal::{
+    peripheral::{Peripheral, PeripheralRef},
+    peripherals::{AES, SYSTEM},
+};
+
+use crate::resource::Resource;
+
 pub trait Claim {
     type Item;
 
@@ -21,4 +28,3 @@ impl Claim for Resource<'static, SYSTEM> {
         self.inner
     }
 }
-
