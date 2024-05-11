@@ -3,7 +3,7 @@ use esp_hal::{
     peripherals::{AES, SYSTEM},
 };
 
-use crate::resource::Resource;
+use crate::resources::resource::Resource;
 
 pub trait Claim {
     type Item;

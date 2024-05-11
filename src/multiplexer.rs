@@ -3,6 +3,8 @@ use esp_hal::{
     peripherals::{Peripherals, AES, DMA, SYSTEM},
 };
 
+use crate::resources::Resources;
+
 pub struct Multiplexer {
     aes: PeripheralRef<'static, AES>,
     dma: PeripheralRef<'static, DMA>,
@@ -10,19 +12,18 @@ pub struct Multiplexer {
 }
 
 impl Multiplexer {
-    pub fn new(peripherals: &mut Option<Peripherals>) -> Self {
-        let peripherals = Option::take(peripherals).unwrap();
+    pub fn new(resources: Resources) -> Self {
         Multiplexer {
             // peripherals: Option::take(peripherals).unwrap(),
-            dma: peripherals.DMA.into_ref(),
-            aes: peripherals.AES.into_ref(),
+            dma: resources.DMA.into_ref(),
+            aes: resources.AES.into_ref(),
         }
     }
 }
 
 impl Multiplexer {
-    // pub fn system<T: Peripheral<P = SYSTEM>>(self) -> PeripheralRef<'static, SYSTEM> {
-    //     self.peripherals.SYSTEM.into_ref()
+    // pub fn system(&self) -> &PeripheralRef<'static, SYSTEM> {
+    //     &self.system
     // }
 
     pub fn aes(&self) -> &PeripheralRef<'static, AES> {
