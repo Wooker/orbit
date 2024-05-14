@@ -5,6 +5,7 @@ use esp_hal::{
 
 use crate::resources::resource::Resource;
 
+/*
 pub trait Claim {
     type Item;
 
@@ -28,3 +29,4 @@ impl Claim for Resource<'static, SYSTEM> {
         self.inner
     }
 }
+*/

@@ -1,25 +1,32 @@
 #![no_std]
 #![no_main]
 
-use core::cell::RefCell;
-
-use esp_backtrace as _;
-pub use esp_hal::peripherals::Peripherals;
-use esp_hal::{clock::ClockControl, entry, peripherals::*};
-use esp_println::println;
-use orbit::kernel::Kernel;
-
-pub use esp_hal::adc::ADC;
-use orbit::efuse;
+use orbit::{
+    esp_backtrace as _,
+    hal::{
+        clock::ClockControl,
+        efuse, entry,
+        peripherals::{AES, SYSTEM},
+        prelude::*,
+        Delay,
+    },
+    kernel::Kernel,
+    println::println,
+};
 
 #[entry]
+#[no_mangle]
 fn main() -> ! {
-    let peripherals = Peripherals::take();
-    let kernel = Kernel::new(peripherals);
+    let kernel = Kernel::new();
     println!("Kernel initialized.");
 
-    let system: &SYSTEM = &kernel.get_resources().SYSTEM;
-    // let clocks = ClockControl::max(.clock_control).freeze();
+    let system = kernel.multiplexer.system().split();
+    let clocks = ClockControl::max(system.clock_control).freeze();
+    let delay = Delay::new(&clocks);
+
+    let aes = kernel.multiplexer.aes();
+    let dma = kernel.multiplexer.dma();
+    let aes2 = kernel.multiplexer.aes();
 
     let mac = efuse::Efuse::get_mac_address();
     println!(
@@ -29,5 +36,8 @@ fn main() -> ! {
 
     // println!("Available resources:\n{:?}", kernel.resources);
 
-    loop {}
+    loop {
+        println!("In a loop");
+        delay.delay_micros(1000 * 1000);
+    }
 }

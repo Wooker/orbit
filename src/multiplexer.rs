@@ -8,6 +8,7 @@ use crate::resources::Resources;
 pub struct Multiplexer {
     aes: PeripheralRef<'static, AES>,
     dma: PeripheralRef<'static, DMA>,
+    // system: PeripheralRef<'static, SYSTEM>,
     // peripherals: Peripherals,
 }
 
@@ -17,6 +18,7 @@ impl Multiplexer {
             // peripherals: Option::take(peripherals).unwrap(),
             dma: resources.DMA.into_ref(),
             aes: resources.AES.into_ref(),
+            // system: resources.SYSTEM.into_ref(),
         }
     }
 }

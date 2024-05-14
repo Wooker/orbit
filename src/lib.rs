@@ -7,7 +7,6 @@ pub mod kernel;
 
 mod claim;
 pub mod multiplexer;
-mod resource_manager;
 mod resources;
 
 /*
