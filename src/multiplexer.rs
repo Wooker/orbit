@@ -1,38 +1,45 @@
+use core::hash::Hash;
+
 use esp_hal::{
-    peripheral::{Peripheral, PeripheralRef},
+    clock::Clocks,
+    peripheral::{Peripheral },
     peripherals::{Peripherals, AES, DMA, SYSTEM},
+    system::SystemClockControl,
 };
 
-use crate::resources::Resources;
+use crate::resources::{resource::Resource, Resources};
 
 pub struct Multiplexer {
-    aes: PeripheralRef<'static, AES>,
-    dma: PeripheralRef<'static, DMA>,
-    // system: PeripheralRef<'static, SYSTEM>,
+    table: [u8; 2],
+    aes: Resource<'static, AES>,
+    dma: Resource<'static, DMA>,
+    // clocks: Resource<'static, Clocks<'static>>,
     // peripherals: Peripherals,
 }
 
 impl Multiplexer {
     pub fn new(resources: Resources) -> Self {
         Multiplexer {
+            table: [],
             // peripherals: Option::take(peripherals).unwrap(),
             dma: resources.DMA.into_ref(),
             aes: resources.AES.into_ref(),
-            // system: resources.SYSTEM.into_ref(),
+            // clocks: resources.clocks,
         }
     }
 }
 
 impl Multiplexer {
-    // pub fn system(&self) -> &PeripheralRef<'static, SYSTEM> {
+    // pub fn system(&self) -> &Resource<'static, SYSTEM> {
     //     &self.system
     // }
 
-    pub fn aes(&self) -> &PeripheralRef<'static, AES> {
+    pub fn aes(&self) -> &Resource<'static, AES> {
         &self.aes
+        self.table
     }
 
-    pub fn dma(&self) -> &PeripheralRef<'static, DMA> {
+    pub fn dma(&self) -> &Resource<'static, DMA> {
         &self.dma
     }
 }

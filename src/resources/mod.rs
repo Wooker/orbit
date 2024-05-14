@@ -1,13 +1,13 @@
 use esp_hal::{
-    clock::ClockControl,
+    clock::{ClockControl, Clocks},
     peripherals::{AES, DMA, SYSTEM},
+    system::SystemClockControl,
 };
 
 pub mod resource;
 
-pub struct Resources<'d> {
+pub struct Resources {
     pub AES: AES,
     pub DMA: DMA,
-    pub CLOCK_CONTROL: ClockControl<'d>,
-    // pub SYSTEM: SYSTEM,
+    // pub clocks: Clocks<'res>,
 }

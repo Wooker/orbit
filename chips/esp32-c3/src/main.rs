@@ -1,6 +1,8 @@
 #![no_std]
 #![no_main]
 
+use core::time::Duration;
+
 use orbit::{
     esp_backtrace as _,
     hal::{
@@ -19,10 +21,9 @@ use orbit::{
 fn main() -> ! {
     let kernel = Kernel::new();
     println!("Kernel initialized.");
-
-    let system = kernel.multiplexer.system().split();
-    let clocks = ClockControl::max(system.clock_control).freeze();
-    let delay = Delay::new(&clocks);
+    // let cc = kernel.multiplexer.clock_control();
+    // let system = kernel.multiplexer.system().split();
+    // let clocks = ClockControl::max(cc).freeze();
 
     let aes = kernel.multiplexer.aes();
     let dma = kernel.multiplexer.dma();
@@ -38,6 +39,7 @@ fn main() -> ! {
 
     loop {
         println!("In a loop");
-        delay.delay_micros(1000 * 1000);
+        // delay.delay_micros(1000 * 1000);
+        kernel.delay(Duration::from_secs(1));
     }
 }

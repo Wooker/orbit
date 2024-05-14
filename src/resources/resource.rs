@@ -3,6 +3,8 @@ use core::{
     ops::{Deref, DerefMut},
 };
 
+use esp_hal::peripheral::{Peripheral, PeripheralRef};
+
 pub struct Resource<'res, T> {
     inner: T,
     _lifetime: PhantomData<&'res mut T>,
@@ -34,3 +36,15 @@ impl<'res, T> DerefMut for Resource<'res, T> {
         &mut self.inner
     }
 }
+
+// impl<'r, T> From<PeripheralRef<'r, T>> for Resource<'r, T>
+// where
+//     T: Peripheral<P = T>,
+// {
+//     fn from(value: PeripheralRef<'r, T>) -> Self {
+//         Self {
+//             inner: unsafe { value.deref() },
+//             _lifetime: PhantomData,
+//         }
+//     }
+// }
