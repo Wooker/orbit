@@ -1,18 +1,19 @@
 #![no_std]
 #![no_main]
 
-use core::time::Duration;
+use core::{ops::Deref, time::Duration};
 
 use orbit::{
     esp_backtrace as _,
     hal::{
         clock::ClockControl,
         efuse, entry,
-        peripherals::{AES, SYSTEM},
+        peripherals::{AES, GPIO, IO_MUX, SYSTEM},
         prelude::*,
-        Delay,
+        Delay, IO,
     },
     kernel::Kernel,
+    multiplexer::Multiplex,
     println::println,
 };
 
@@ -25,9 +26,13 @@ fn main() -> ! {
     // let system = kernel.multiplexer.system().split();
     // let clocks = ClockControl::max(cc).freeze();
 
-    let aes = kernel.multiplexer.aes();
-    let dma = kernel.multiplexer.dma();
-    let aes2 = kernel.multiplexer.aes();
+    // let aes = kernel.multiplexer.aes();
+    // let dma = kernel.multiplexer.dma();
+    // let aes2 = kernel.multiplexer.aes();
+    let gpio = Multiplex::<GPIO>::claim(&kernel.multiplexer);
+    let io_mux = Multiplex::<IO_MUX>::claim(&kernel.multiplexer);
+
+    let io = IO::new(*gpio.deref(), *io_mux.deref());
 
     let mac = efuse::Efuse::get_mac_address();
     println!(

@@ -32,6 +32,8 @@ impl<'k> Kernel<'k> {
         let resources = Resources {
             AES: peripherals.AES,
             DMA: peripherals.DMA,
+            GPIO: peripherals.GPIO,
+            IO_MUX: peripherals.IO_MUX,
         };
 
         let multiplexer = Multiplexer::new(resources);
