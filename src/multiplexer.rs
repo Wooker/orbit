@@ -2,6 +2,7 @@ use core::{hash::Hash, pin};
 
 use esp_hal::{
     clock::Clocks,
+    gpio::{GpioPin, GpioProperties},
     peripheral::{Peripheral, PeripheralRef},
     peripherals::{Peripherals, AES, DMA, GPIO, IO_MUX, SYSTEM},
     system::SystemClockControl,
@@ -19,11 +20,11 @@ where
     fn claim(&self) -> &Self::Reference<T>;
 }
 pub struct Multiplexer {
-    table: [bool; 2],
+    _table: [bool; 2],
     aes: Resource<'static, AES>,
     dma: Resource<'static, DMA>,
-    gpio: Resource<'static, GPIO>,
-    io_mux: Resource<'static, IO_MUX>,
+    // gpio: Resource<'static, GPIO>,
+    // io_mux: Resource<'static, IO_MUX>,
     // clocks: Resource<'static, Clocks<'static>>,
     // peripherals: Peripherals,
 }
@@ -31,12 +32,12 @@ pub struct Multiplexer {
 impl Multiplexer {
     pub fn new(resources: Resources) -> Self {
         Multiplexer {
-            table: [false; 2],
+            _table: [false; 2],
             // peripherals: Option::take(peripherals).unwrap(),
-            dma: Resource::new(pin::pin!(resources.DMA)),
-            aes: Resource::new(pin::pin!(resources.AES)),
-            gpio: Resource::new(resources.GPIO),
-            io_mux: Resource::new(resources.IO_MUX),
+            dma: Resource::new(resources.DMA),
+            aes: Resource::new(resources.AES),
+            // gpio: Resource::new(resources.GPIO),
+            // io_mux: Resource::new(resources.IO_MUX),
             // clocks: resources.clocks,
         }
     }
@@ -64,18 +65,13 @@ impl Multiplex<DMA> for Multiplexer {
     }
 }
 
-impl Multiplex<GPIO> for Multiplexer {
-    type Reference<R> = Resource<'static, GPIO>;
+impl<M: 'static, const N: u8> Multiplex<GpioPin<M, N>> for Multiplexer
+where
+    GpioPin<M, N>: GpioProperties,
+{
+    type Reference<R> = Resource<'static, GpioPin<M, N>>;
 
-    fn claim(&self) -> &Self::Reference<GPIO> {
-        &self.gpio
-    }
-}
-
-impl Multiplex<IO_MUX> for Multiplexer {
-    type Reference<R> = Resource<'static, IO_MUX>;
-
-    fn claim(&self) -> &Self::Reference<IO_MUX> {
-        &self.io_mux
+    fn claim(&self) -> &Self::Reference<GpioPin<M, N>> {
+        todo!()
     }
 }

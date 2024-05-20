@@ -29,7 +29,7 @@ esp-wifi = { version = "0.4.0", features = [
 ], optional = true}
 
 [workspace]
-members = [
+exclude = [
     "chips/esp32-c3"
 ]
 

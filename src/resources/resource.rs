@@ -9,21 +9,21 @@ use esp_hal::peripheral::{Peripheral, PeripheralRef};
 
 #[derive(Clone)]
 pub struct Resource<'res, T> {
-    inner: Pin<&'res T>,
+    inner: T,
     _lifetime: PhantomData<&'res mut T>,
 }
 
 impl<'res, T> Resource<'res, T> {
     #[inline]
-    pub fn new(inner: Pin<&'res mut T>) -> Self {
-        let inner = inner.into_ref();
+    pub fn new(inner: T) -> Self {
+        // let inner = inner.into_ref();
         Self {
             inner,
             _lifetime: PhantomData,
         }
     }
 
-    pub fn inner(self) -> Pin<&'res T> {
+    pub fn inner(self) -> T {
         self.inner
     }
 }
