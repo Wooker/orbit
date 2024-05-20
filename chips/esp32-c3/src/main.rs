@@ -1,19 +1,10 @@
 #![no_std]
 #![no_main]
 
-use core::{ops::Deref, time::Duration};
-
 use orbit::{
     esp_backtrace as _,
-    hal::{
-        clock::ClockControl,
-        efuse, entry,
-        peripherals::{AES, GPIO, IO_MUX, SYSTEM},
-        prelude::*,
-        Delay, IO,
-    },
+    hal::{efuse, entry, gpio::IO, peripherals::Peripherals},
     kernel::Kernel,
-    multiplexer::Multiplex,
     println::println,
 };
 
@@ -22,17 +13,11 @@ use orbit::{
 fn main() -> ! {
     let kernel = Kernel::new();
     println!("Kernel initialized.");
-    // let cc = kernel.multiplexer.clock_control();
-    // let system = kernel.multiplexer.system().split();
-    // let clocks = ClockControl::max(cc).freeze();
 
-    // let aes = kernel.multiplexer.aes();
-    // let dma = kernel.multiplexer.dma();
-    // let aes2 = kernel.multiplexer.aes();
-    let gpio = Multiplex::<GPIO>::claim(&kernel.multiplexer);
-    let io_mux = Multiplex::<IO_MUX>::claim(&kernel.multiplexer);
-
-    let io = IO::new(*gpio.deref(), *io_mux.deref());
+    let peripherals = Peripherals::take();
+    let gpio = peripherals.GPIO;
+    let io_mux = peripherals.IO_MUX;
+    let io = IO::new(gpio, io_mux);
 
     let mac = efuse::Efuse::get_mac_address();
     println!(
@@ -42,9 +27,9 @@ fn main() -> ! {
 
     // println!("Available resources:\n{:?}", kernel.resources);
 
-    loop {
-        println!("In a loop");
-        // delay.delay_micros(1000 * 1000);
-        kernel.delay(Duration::from_secs(1));
-    }
+    kernel.run(a);
+}
+
+fn a() -> i32 {
+    42
 }
