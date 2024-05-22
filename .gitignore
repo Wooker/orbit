@@ -2,3 +2,4 @@
 specification/**.tlacache/
 specification/**/metadir/
 specification/**/states/
+Cargo.lock
