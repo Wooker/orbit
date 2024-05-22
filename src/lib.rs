@@ -3,29 +3,52 @@
 #![no_std]
 #![no_main]
 
-pub mod kernel;
+use core::marker::PhantomData;
 
-mod claim;
-pub mod multiplexer;
-mod resources;
-
-/*
-#[cfg(feature = "esp32-c3")]
+use esp32c3::Peripherals;
+use esp_alloc::EspHeap;
 pub use esp_backtrace;
-#[cfg(feature = "esp32-c3")]
-pub use esp_hal as hal;
-#[cfg(feature = "esp32-c3")]
-pub use esp_println as println;
-#[cfg(feature = "esp32-c3")]
-impl Resource for hal::peripherals::Peripherals {
-    fn claim() -> Rc<Self> {
-        let rf = Rc::new(Peripherals::take());
-        let per = rf.
-        rf
+
+static HEAP: EspHeap = EspHeap::empty();
+
+pub struct Kernel<'k> {
+    multiplexer: Multiplexer<'k>,
+}
+impl<'k> Kernel<'k> {
+    pub fn new() -> Self {
+        let peripherals = unsafe { Peripherals::steal() };
+        let multiplexer = Multiplexer::new(peripherals);
+
+        Self { multiplexer }
     }
 }
-*/
 
-pub use esp_backtrace;
-pub use esp_hal as hal;
-pub use esp_println as println;
+pub struct Multiplexer<'m> {
+    peripherals: Peripherals,
+    table: ResourceTable<15>,
+    _m: PhantomData<&'m bool>,
+}
+
+impl<'m> Multiplexer<'m> {
+    fn new(peripherals: Peripherals) -> Self {
+        Self {
+            peripherals,
+            table: ResourceTable::new(),
+            _m: PhantomData,
+        }
+    }
+}
+
+struct ResourceTable<const N: usize> {
+    count: usize,
+    list: [bool; N],
+}
+
+impl<const N: usize> ResourceTable<N> {
+    fn new() -> Self {
+        Self {
+            count: N,
+            list: [false; N],
+        }
+    }
+}
