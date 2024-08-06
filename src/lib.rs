@@ -3,13 +3,24 @@
 #![no_std]
 #![no_main]
 
-use core::marker::PhantomData;
+use core::{arch::asm, marker::PhantomData, panic::PanicInfo};
 
+#[cfg(feature = "esp32c3")]
 use esp32c3::Peripherals;
-use esp_alloc::EspHeap;
-pub use esp_backtrace;
+#[cfg(feature = "esp32c3")]
+use esp_riscv_rt;
+// use esp_alloc::EspHeap;
+// pub use esp_backtrace;
 
-static HEAP: EspHeap = EspHeap::empty();
+// #[cfg(feature = "stm32f103")]
+// use panic_halt as _;
+
+#[cfg(feature = "stm32f103")]
+pub use cortex_m_rt::entry;
+#[cfg(feature = "stm32f103")]
+pub use stm32f1::stm32f103::Peripherals;
+
+// static HEAP: EspHeap = EspHeap::empty();
 
 pub struct Kernel<'k> {
     multiplexer: Multiplexer<'k>,
@@ -50,5 +61,12 @@ impl<const N: usize> ResourceTable<N> {
             count: N,
             list: [false; N],
         }
+    }
+}
+
+#[panic_handler]
+unsafe fn panic<'a, 'b>(_info: &'a PanicInfo<'b>) -> ! {
+    loop {
+        asm!("nop")
     }
 }
