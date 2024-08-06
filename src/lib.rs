@@ -16,9 +16,14 @@ use esp_riscv_rt;
 // use panic_halt as _;
 
 #[cfg(feature = "stm32f103")]
-pub use cortex_m_rt::entry;
+pub use cortex_m::Peripherals as CPeripherals;
 #[cfg(feature = "stm32f103")]
-pub use stm32f1::stm32f103::Peripherals;
+pub use cortex_m_rt::entry;
+
+#[cfg(feature = "stm32f103")]
+pub use stm32f1xx_hal::gpio::GpioExt;
+#[cfg(feature = "stm32f103")]
+pub use stm32f1xx_hal::pac::Peripherals as DPeripherals;
 
 // static HEAP: EspHeap = EspHeap::empty();
 
@@ -27,7 +32,7 @@ pub struct Kernel<'k> {
 }
 impl<'k> Kernel<'k> {
     pub fn new() -> Self {
-        let peripherals = unsafe { Peripherals::steal() };
+        let peripherals = unsafe { DPeripherals::steal() };
         let multiplexer = Multiplexer::new(peripherals);
 
         Self { multiplexer }
@@ -35,13 +40,13 @@ impl<'k> Kernel<'k> {
 }
 
 pub struct Multiplexer<'m> {
-    peripherals: Peripherals,
+    peripherals: DPeripherals,
     table: ResourceTable<15>,
     _m: PhantomData<&'m bool>,
 }
 
 impl<'m> Multiplexer<'m> {
-    fn new(peripherals: Peripherals) -> Self {
+    fn new(peripherals: DPeripherals) -> Self {
         Self {
             peripherals,
             table: ResourceTable::new(),
