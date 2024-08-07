@@ -9,7 +9,7 @@ edition = "2021"
 [features]
 default = []
 esp32c3 = ["dep:esp32c3", "dep:esp-riscv-rt"]
-stm32f103 = ["stm32f1xx-hal/stm32f103", "dep:cortex-m", "dep:cortex-m-rt", "dep:panic-halt"]
+stm32f103 = ["stm32f1xx-hal/stm32f103", "dep:cortex-m", "dep:cortex-m-rt", "dep:nb"]
 
 [dependencies]
 # log = { version = "0.4.20" }
@@ -27,7 +27,9 @@ esp-riscv-rt = { version = "0.8.0", optional = true }
 stm32f1xx-hal = { version = "0.10.0", optional = true }
 cortex-m = { version = "0.7.7", optional = true }
 cortex-m-rt = { version = "0.7.3", optional = true }
-panic-halt = { version = "0.2.0", optional = true }
+cortex-m-semihosting = { version = "0.5.0", optional = true }
+nb = { version = "1", optional = true }
+# panic-halt = { version = "0.2.0", optional = true }
 
 [workspace]
 exclude = [

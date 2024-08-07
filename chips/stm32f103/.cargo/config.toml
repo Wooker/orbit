@@ -1,5 +1,5 @@
 [target.thumbv7m-none-eabi]
-runner = 'arm-none-eabi-gdb'
+runner = 'cargo flash --chip STM32F103C8 --release --path'
 rustflags = [
   "-C", "link-arg=-Tlink.x",
 ]

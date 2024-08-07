@@ -1,18 +1,32 @@
 #![no_std]
 #![no_main]
 
-use orbit::{entry, CPeripherals, DPeripherals, GpioExt, Kernel};
+use core::arch::asm;
+use orbit::{entry, CPeripherals, FlashExt, GpioExt, Kernel, Peripherals, RccExt, Timer, *};
 
 #[entry]
 fn main() -> ! {
-    let kernel = Kernel::new();
-    // println!("Kernel initialized.");
+    // let kernel = Kernel::new();
+    // hprintln!("Kernel initialized.");
 
-    let peripherals = DPeripherals::take().unwrap();
-    let mut gpioc = peripherals.GPIOC.split();
+    let dp = Peripherals::take().unwrap();
+    let cp = CPeripherals::take().unwrap();
+
+    let mut flash = dp.FLASH.constrain();
+    let rcc = dp.RCC.constrain();
+
+    let clocks = rcc.cfgr.freeze(&mut flash.acr);
+
+    let mut gpioc = dp.GPIOC.split();
     let mut led = gpioc.pc13.into_push_pull_output(&mut gpioc.crh);
 
-    led.set_high();
+    let mut timer = Timer::syst(cp.SYST, &clocks).counter_hz();
+    timer.start(1.Hz()).unwrap();
 
-    loop {}
+    loop {
+        timer.wait().unwrap();
+        led.set_high();
+        timer.wait().unwrap();
+        led.set_low();
+    }
 }

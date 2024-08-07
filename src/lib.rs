@@ -19,40 +19,25 @@ use esp_riscv_rt;
 pub use cortex_m::Peripherals as CPeripherals;
 #[cfg(feature = "stm32f103")]
 pub use cortex_m_rt::entry;
-
 #[cfg(feature = "stm32f103")]
-pub use stm32f1xx_hal::gpio::GpioExt;
+pub use nb::block;
+// #[cfg(feature = "stm32f103")]
+// pub use cortex_m_semihosting::hprintln;
 #[cfg(feature = "stm32f103")]
-pub use stm32f1xx_hal::pac::Peripherals as DPeripherals;
+pub use stm32f1xx_hal::{
+    flash::FlashExt, gpio::GpioExt, pac::Peripherals, prelude::*, rcc::RccExt, timer::Timer,
+};
 
 // static HEAP: EspHeap = EspHeap::empty();
 
 pub struct Kernel<'k> {
     multiplexer: Multiplexer<'k>,
 }
-impl<'k> Kernel<'k> {
-    pub fn new() -> Self {
-        let peripherals = unsafe { DPeripherals::steal() };
-        let multiplexer = Multiplexer::new(peripherals);
-
-        Self { multiplexer }
-    }
-}
 
 pub struct Multiplexer<'m> {
-    peripherals: DPeripherals,
+    peripherals: Peripherals,
     table: ResourceTable<15>,
     _m: PhantomData<&'m bool>,
-}
-
-impl<'m> Multiplexer<'m> {
-    fn new(peripherals: DPeripherals) -> Self {
-        Self {
-            peripherals,
-            table: ResourceTable::new(),
-            _m: PhantomData,
-        }
-    }
 }
 
 struct ResourceTable<const N: usize> {
@@ -65,6 +50,25 @@ impl<const N: usize> ResourceTable<N> {
         Self {
             count: N,
             list: [false; N],
+        }
+    }
+}
+
+impl<'k> Kernel<'k> {
+    pub fn new() -> Self {
+        let peripherals = unsafe { Peripherals::steal() };
+        let multiplexer = Multiplexer::new(peripherals);
+
+        Self { multiplexer }
+    }
+}
+
+impl<'m> Multiplexer<'m> {
+    fn new(peripherals: Peripherals) -> Self {
+        Self {
+            peripherals,
+            table: ResourceTable::new(),
+            _m: PhantomData,
         }
     }
 }
