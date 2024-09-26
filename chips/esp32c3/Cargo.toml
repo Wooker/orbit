@@ -1,0 +1,32 @@
+[package]
+name = "orbit-esp32c3"
+version = "0.1.0"
+authors = ["wooker <zakhar.semyonov@gmail.com>"]
+edition = "2021"
+include = [
+  "build.rs",
+  "device.x"
+]
+
+[features]
+default = ["esp32c3"]
+esp32c3 = []
+
+[package.metadata.docs.rs]
+default-target = "riscv32imac-unknown-none-elf"
+features       = ["embedded-hal", "esp32c3"]
+
+# See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
+
+[dependencies]
+# heapless = { version = "0.7.17", default-features = false }
+# serde = { version = "1.0", default-features = false, features = ["derive"] }
+# postcard = "1.0.0"
+orbit = { path= "../../" }
+
+[build-dependencies]
+basic-toml   = "0.1.9"
+cfg-if       = "1.0.0"
+esp-build    = { version = "0.1.0"}
+esp-metadata = { version = "0.1.0"}
+serde        = { version = "1.0.197"}
