@@ -1,3 +1,4 @@
 **/target
-specification/.tlacache/**
-specification/metadir/**
+specification/**.tlacache/
+specification/**/metadir/
+specification/**/states/
