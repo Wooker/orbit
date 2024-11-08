@@ -1,0 +1,13 @@
+[package]
+name = "orbit-libos"
+version = "0.1.0"
+edition = "2021"
+
+[dependencies]
+orbit-kernel = { path = "../orbit-kernel", features = ["ch32v208"]}
+
+ch32-hal = { git = "https://github.com/ch32-rs/ch32-hal.git", rev = "749577aa60421ea1dcd37a8b1821444f0ff0f06e", default-features = true, features = ["ch32v208wbu6"], optional = true }
+
+[features]
+ch32-hal = ["dep:ch32-hal"]
+

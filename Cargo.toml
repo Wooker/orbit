@@ -1,20 +1,8 @@
-[package]
-name = "orbit"
-version = "0.1.0"
-authors = ["wooker <zakhar.semyonov@gmail.com>"]
-edition = "2021"
-
-# See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
-
-[dependencies]
-log = { version = "0.4.20" }
-esp32c3 = { version = "0.22.0" }
-esp-backtrace = { version = "0.11.1", features = ["esp32c3", "defmt"] }
-# hashbrown = { version = "0.14.5", features = [""] }
-esp-alloc = "0.3.0"
-
 [workspace]
 exclude = [
-    "chips/esp32-c3"
+    "chips/esp32c3"
 ]
+resolver = "2"
+
+members = [ "orbit-arch", "orbit-kernel", "orbit-libos", "orbit-app" ]
 

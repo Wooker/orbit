@@ -1,5 +1,5 @@
 [package]
-name = "esp32-c3"
+name = "esp32c3"
 version = "0.1.0"
 authors = ["wooker <zakhar.semyonov@gmail.com>"]
 edition = "2021"

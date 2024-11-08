@@ -1,0 +1,7 @@
+[package]
+name = "orbit-app"
+version = "0.1.0"
+edition = "2021"
+
+[dependencies]
+orbit-libos = { path = "../orbit-libos", features = [] }

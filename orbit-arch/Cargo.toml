@@ -1,0 +1,17 @@
+[package]
+name = "orbit-arch"
+version = "0.1.0"
+edition = "2021"
+
+[dependencies]
+
+[target.'cfg(all(target_arch = "riscv32", target_os = "none"))'.dependencies]
+qingke = "0.4.0"
+# qingke-rt = "0.4.0"
+
+[target.'cfg(all(target_arch = "arm", target_os = "none"))'.dependencies]
+cortex-m = "0.7.4"
+# cortex-m-rt = "0.7.3"
+
+[features]
+"qingkev4" = []
