@@ -1,85 +1,82 @@
----------------------------- MODULE Exokernel ----------------------------
+---- MODULE Exokernel ----
 
 EXTENDS Naturals, Sequences
 
 (* Parameters and constants *)
 CONSTANT TaskCount, ResourceCount
-VARIABLE tasks, resources, allocations
+VARIABLE exokernel
 
-(* Tasks are modeled as a sequence of task IDs, where each task has an index. *)
-Tasks == 1..TaskCount
+(* TaskId are modeled as a sequence of task IDs, where each task has an index. *)
+TaskId == 1..TaskCount
 
-(* Resources are modeled as a sequence of resource IDs, where each resource has an index. *)
-Resources == 1..ResourceCount
+(* ResourceId are modeled as a sequence of resource IDs, where each resource has an index. *)
+ResourceId == 1..ResourceCount
 
 TaskState == {"waiting", "running"}
-Availability == {TRUE, FALSE}
+Availability == {"free", "busy"}
 
 (**************************************************************)
 (* Type invariant of the specification                        *)
 (*                                                            *)
-(* tasks: function mapping from Tasks to TaskState            *)
-(* resources: function mapping from Resources to Availability *)
-(* resources: function mapping from Resources to Availability *)
+(* exokernel: record with fields tasks, resources, and allocations *)
 (**************************************************************)
-TypeInvariant ==
-  /\ tasks \in [Tasks -> TaskState]
-  /\ resources \in [Resources -> Availability]
-  /\ allocations \in [Tasks -> [Resources -> {TRUE, FALSE}]]
+ExokernelTypeInvariant ==
+  /\ exokernel.tasks \in [TaskId -> TaskState]
+  /\ exokernel.resources \in [ResourceId -> Availability]
+  /\ exokernel.allocations \in [TaskId -> [ResourceId -> BOOLEAN ] ]
 
 ----
 
-(* The state of the system is represented by the current allocation of resources to tasks.*)
-(* allocations[i][j] = TRUE means task i is using resource j.*)
-Init == 
-  /\ tasks = [ t \in Tasks |-> "waiting" ] 
-  /\ resources = [ r \in Resources |-> TRUE ] (* All resources are available *)
-  /\ allocations = [ t \in Tasks |-> [ r \in Resources |-> FALSE ] ]
+(* Define Exokernel state as a record containing tasks, resources, and allocations *)
+ExokernelInit ==
+  exokernel = [
+    tasks |-> [ t \in TaskId |-> "waiting" ],
+    resources |-> [ r \in ResourceId |-> "free" ],
+    allocations |-> [ t \in TaskId |-> [ r \in ResourceId |-> FALSE ] ]
+  ]
 
 (* A task can request access to a resource if it's not already in use. *)
 RequestResource(t, r) ==
-  /\ resources[r] = TRUE
-  /\ allocations[t][r] = FALSE
-  /\ tasks[t] = "waiting"
-  /\ tasks' = [tasks EXCEPT ![t] = "running"]
-  /\ resources' = [resources EXCEPT ![r] = FALSE]
-  /\ allocations' = [allocations EXCEPT ![t][r] = TRUE]
+  /\ exokernel.resources[r] = "free"
+  /\ exokernel.allocations[t][r] = FALSE
+  /\ exokernel.tasks[t] = "waiting"
+  /\ exokernel' = 
+       [ tasks |-> [exokernel.tasks EXCEPT ![t] = "running"],
+          resources |-> [exokernel.resources EXCEPT ![r] = "busy"],
+          allocations |-> [exokernel.allocations EXCEPT ![t][r] = TRUE]
+       ]
 
 (* A task can release a resource when it has finished using it. *)
 ReleaseResource(t, r) ==
-  /\ allocations[t][r] = TRUE
-  /\ tasks[t] = "running"
-  /\ tasks' = [tasks EXCEPT ![t] = "waiting"]
-  /\ resources' = [resources EXCEPT ![r] = TRUE]
-  /\ allocations' = [allocations EXCEPT ![t][r] = FALSE]
-
-(* Task behavior: tasks can either request or release resources *)
-TaskAction == 
-  \E t \in Tasks, r \in Resources : 
-    (RequestResource(t, r) \/ ReleaseResource(t, r))
-
-DoNothing == UNCHANGED <<tasks, resources, allocations>>
+  /\ exokernel.allocations[t][r] = TRUE
+  /\ exokernel.tasks[t] = "running"
+  /\ exokernel' = 
+       [ tasks |-> [exokernel.tasks EXCEPT ![t] = "waiting"],
+          resources |-> [exokernel.resources EXCEPT ![r] = "free"],
+          allocations |-> [exokernel.allocations EXCEPT ![t][r] = FALSE]
+       ]
 
 (* The next-state relation defines valid state transitions *)
-Next == TaskAction \/ DoNothing
+ExokernelNext ==
+  \E t \in TaskId, r \in ResourceId : 
+    (RequestResource(t, r) \/ ReleaseResource(t, r))
 
 ----
 
 (* Specification of the overall system behavior *)
-Spec == Init /\ [][Next]_<<tasks, resources, allocations>>
+ExokernelSpec == ExokernelInit /\ [][ExokernelNext]_exokernel
 
-\* vars == <<tasks, resources>>
+\* vars == <<exokernel>>
 \* (* Fairness: Ensure that each task eventually gets a chance to request resources *)
 \* Fairness == WF_vars(TaskAction)
 
 (* Invariant: No two tasks can hold the same resource simultaneously *)
-\* ResourceExclusivity == 
-\*   \A r \in Resources : 
-\*     \A t1, t2 \in Tasks : (t1 # t2) => ~(allocations[t1][r] /\ allocations[t2][r])
+ResourceExclusivity == 
+  \A r \in ResourceId : 
+    \A t1, t2 \in TaskId : (t1 # t2) => ~(exokernel.allocations[t1][r] /\ exokernel.allocations[t2][r])
 
-\* ASSUME Assumption == tasks \in [Tasks -> TaskState] 
+\* ASSUME Assumption == exokernel.tasks \in [TaskId -> TaskState] 
 
 \* THEOREM Init => Fairness
 \* BY DEF Init, Fairness
 =============================================================================
-
