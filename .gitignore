@@ -2,4 +2,6 @@
 specification/**.tlacache/
 specification/**/metadir/
 specification/**/states/
+specification/**/*.pdf
+specification/**/*TTrace*
 Cargo.lock
