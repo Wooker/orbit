@@ -1,66 +1,49 @@
 ---- MODULE Node ----
 
-EXTENDS Exokernel, Naturals, Sequences
+EXTENDS Naturals, Sequences
 
 (* Parameters and constants specific to the node *)
-CONSTANT NumNodes
-VARIABLE nodes
+CONSTANT Message, BufLength, TaskCount, ResourceCount
+VARIABLES in, out, tasks, resources, allocations
 
-(* NodeId represents a unique identifier for each node. *)
-NodeId == 1..NumNodes
+InCh == INSTANCE Channel WITH Data <- Message, Length <- BufLength, buffer <- in
+OutCh == INSTANCE Channel WITH Data <- Message, Length <- BufLength, buffer <- out
+Kernel == INSTANCE Exokernel
 
-(**************************************************************)
-(* NodeState: record containing a local instance of Exokernel *)
-(*            and information on node status.                 *)
-(**************************************************************)
-NodeState ==
-  [ exokernel: ExokernelTypeInvariant,
-    status: {"active", "inactive"} 
-  ]
-
-(* Type invariant for nodes *)
-NodeTypeInvariant ==
-  /\ nodes \in [NodeId -> NodeState]
-  /\ \A n \in NodeId : ExokernelTypeInvariant
-
-(* Initialize each node with its own Exokernel instance and set status to active *)
 NodeInit ==
-  nodes = [ n \in NodeId |-> [ exokernel |-> ExokernelInit, status |-> "active" ] ]
+  /\ InCh!ChInit
+  \* /\ in = <<"b", "request">>
+  /\ OutCh!ChInit
+  /\ Kernel!ExokernelInit
 
-(* A node can request a resource locally or communicate with other nodes for remote resources *)
-NodeRequestResource(n, t, r) ==
-  /\ n \in NodeId
-  /\ t \in TaskId
-  /\ r \in ResourceId
-  /\ nodes[n].exokernel.resources[r] = "free"
-  /\ nodes' = [nodes EXCEPT ![n].exokernel.tasks[t] = "running",
-                               ![n].exokernel.resources[r] = "busy",
-                               ![n].exokernel.allocations[t][r] = TRUE ]
+----
 
-(* A node can release a resource it holds *)
-NodeReleaseResource(n, t, r) ==
-  /\ n \in NodeId
-  /\ t \in TaskId
-  /\ r \in ResourceId
-  /\ nodes[n].exokernel.allocations[t][r] = TRUE
-  /\ nodes' = [nodes EXCEPT ![n].exokernel.tasks[t] = "waiting",
-                               ![n].exokernel.resources[r] = "free",
-                               ![n].exokernel.allocations[t][r] = FALSE ]
+HandleMessage ==
+  LET m == Head(in)
+  IN
+  CASE m = "request" -> Kernel!OccupyResource
+    [] m = "revoke" -> UNCHANGED <<out, tasks, resources, allocations>>
+    [] OTHER -> UNCHANGED <<out, tasks, resources, allocations>>
 
-(* Define valid state transitions for nodes *)
+----
+
+NodeRead ==
+  /\ InCh!Incoming
+  /\ HandleMessage
+  /\ in' = Tail(in)
+  /\ UNCHANGED <<out, tasks, allocations>>
+
+NodeWrite(d) ==
+  /\ OutCh!Write(d)
+  /\ UNCHANGED <<in, tasks, resources, allocations>>
+
 NodeNext ==
-  \E n \in NodeId, t \in TaskId, r \in ResourceId : 
-    (NodeRequestResource(n, t, r) \/ NodeReleaseResource(n, t, r))
+  \/ NodeRead
+  \/ \E d \in Message : NodeWrite(d)
 
-(* Overall specification of node behavior *)
-NodeSpec == NodeInit /\ [][NodeNext]_nodes
+----
 
-(* Invariant for resource exclusivity across all nodes *)
-DistributedResourceExclusivity ==
-  \A n1, n2 \in NodeId : n1 /= n2 =>
-    \A r \in ResourceId : 
-      ~(\E t1 \in TaskId : nodes[n1].exokernel.allocations[t1][r]) /\
-      ~(\E t2 \in TaskId : nodes[n2].exokernel.allocations[t2][r])
+NodeSpec == NodeInit /\ [][NodeNext]_<<in,out,tasks,resources,allocations>>
 
 ====
 
