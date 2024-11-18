@@ -12,7 +12,6 @@ Kernel == INSTANCE Exokernel
 
 NodeInit ==
   /\ InCh!ChInit
-  \* /\ in = <<"b", "request">>
   /\ OutCh!ChInit
   /\ Kernel!ExokernelInit
 
