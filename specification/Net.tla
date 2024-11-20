@@ -36,6 +36,7 @@ Read(n) ==
  /\ UNCHANGED <<tasks, resources, allocations>>
 
 Write(n, d) ==
+ /\ IF d = "revoke" THEN \E r \in ResourceID: resources[n][r] = "busy" ELSE TRUE
  /\ Len(ch[n]) < BufLength
  /\ ch' = [ ch EXCEPT ![n] = Append(@, d) ]
  /\ UNCHANGED <<tasks, resources, allocations>>
@@ -104,7 +105,20 @@ Next ==
 (***)
 (* Safety and Liveness *)
 (***)
-Reads == \A n \in NodeID: (Len(ch[n]) > 0) => (Len(ch[n]) < Len(ch[n])')
+Reads ==
+ \A n \in NodeID:
+  LET L == Len(ch[n]) IN
+   LET LNext == Len(ch[n]') IN
+    (L > 0) => ((L < LNext) \/ (L > LNext))
+
 ReadsIncoming == [][Reads]_<<ch>>
+
+----
+\* Fairness ==
+\*  /\ 
+
+Liveness ==
+ /\ \A d \in Message: d \in {"request"} ~>
+  \E r \in ResourceID: \E n \in NodeID: resources[n][r] = "busy"
 
 ====
