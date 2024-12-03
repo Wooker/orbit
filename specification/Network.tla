@@ -1,6 +1,6 @@
 ---- MODULE Network ----
 
-EXTENDS Naturals, Sequences
+EXTENDS Naturals, Sequences, TLC
 
 CONSTANTS NodeCount, TaskCount, ResourceCount, BufLength, Message
 VARIABLES ch, tasks, resources, allocations
@@ -96,19 +96,14 @@ HandleMessage(n) ==
            /\ UNCHANGED <<tasks, resources, allocations>>  \* No changes to other state variables
 
 ----
-(***)
-(* Node step *)
-(***)
-
-\* NodeStep(n) ==
-
-----
 
 Init ==
  /\ ch = [ n \in NodeID |-> << >> ]
  /\ tasks = [ n \in NodeID |-> [ t \in TaskID |-> "waiting" ] ]
  /\ resources = [ n \in NodeID |-> [ r \in ResourceID |-> "free" ] ]
  /\ allocations = [ n \in NodeID |-> [ t \in TaskID |-> [ r \in ResourceID |-> FALSE ] ] ]
+ /\ PrintT(ch)
+ /\ PrintT(tasks)
 
 
 Next ==
@@ -140,7 +135,8 @@ ReadsIncoming == [][Reads]_<<ch>>
 (* Ensures that resources are exclusively allocated to one task at a time within a given node. *)
 ExclusiveAllocationSafety ==
 \A n \in NodeID, r \in ResourceID:
-  \E t \in TaskID: allocations[n][t][r] = TRUE => \A tn \in TaskID \ {t}: allocations[n][tn][r] = FALSE
+  \E t \in TaskID:
+    allocations[n][t][r] = TRUE => \A tn \in TaskID \ {t}: allocations[n][tn][r] = FALSE
 
 (***)
 (* Ensures that the message queue (or buffer) for each node *)
@@ -168,17 +164,20 @@ TaskStateConsistencySafety ==
 vars == <<ch, tasks, resources, allocations>>
 
 FairResourceAllocation ==
-  WF_vars(\E n \in NodeID, t \in TaskID, r \in ResourceID:
-            tasks[n][t] = "waiting" /\ resources[n][r] = "free")
+ WF_vars(\E n \in NodeID, t \in TaskID, r \in ResourceID:
+  tasks[n][t] = "waiting" /\ resources[n][r] = "free")
 
 FairNodeSteps ==
-  SF_vars(\E n \in NodeID:
-            \E t \in TaskID, r \in ResourceID, d \in Message: 
-              RequestResource(n, t, r) \/ RevokeResource(n, t, r) \/ HandleMessage(n) \/ Write(n, d))
+ SF_vars(\E n \in NodeID:
+  \E t \in TaskID, r \in ResourceID, d \in Message: 
+   \/ RequestResource(n, t, r)
+   \/ RevokeResource(n, t, r)
+   \/ HandleMessage(n)
+   \/ Write(n, d))
             
 FairBufferSpace ==
-  SF_vars(\E n \in NodeID, d \in Message:
-            Len(ch[n]) < BufLength)
+ SF_vars(\E n \in NodeID, d \in Message:
+  Len(ch[n]) < BufLength)
 
 ----
 
