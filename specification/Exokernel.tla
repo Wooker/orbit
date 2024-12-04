@@ -66,17 +66,4 @@ ExokernelNext ==
 (* Specification of the overall system behavior *)
 ExokernelSpec == ExokernelInit /\ [][ExokernelNext]_<<tasks, resources, allocations>>
 
-\* vars == <<exokernel>>
-\* (* Fairness: Ensure that each task eventually gets a chance to request resources *)
-\* Fairness == WF_vars(TaskAction)
-
-(* Invariant: No two tasks can hold the same resource simultaneously *)
-ResourceExclusivity == 
-  \A r \in ResourceId : 
-    \A t1, t2 \in TaskId : (t1 # t2) => ~(allocations[t1][r] /\ allocations[t2][r])
-
-\* ASSUME Assumption == tasks \in [TaskId -> TaskState] 
-
-\* THEOREM Init => Fairness
-\* BY DEF Init, Fairness
 =============================================================================

@@ -19,25 +19,9 @@ Availability == {"free", "busy"}
 
 TypeInvariant ==
  /\ ch \in [NodeID -> Seq(Message)] 
- /\ tasks \in [NodeID -> [TaskID -> TaskState]]                       (*****************)
- /\ resources \in [NodeID -> [ResourceID -> Availability]]            (* shtsathshtnhe *)
- /\ allocations \in [NodeID -> [TaskID -> [ResourceID -> BOOLEAN ] ]] (*****************)
-
-----
-(***)
-(* Channel states *)
-(***)
-
-Read(n) ==
- /\ Len(ch[n]) > 0
- /\ ch' = [ ch EXCEPT ![n] = Tail(@) ]
- /\ UNCHANGED <<tasks, resources, allocations>>
-
-Write(n, d) ==
- /\ IF d = "revoke" THEN \E r \in ResourceID: resources[n][r] = "busy" ELSE TRUE
- /\ Len(ch[n]) < BufLength
- /\ ch' = [ ch EXCEPT ![n] = Append(@, d) ]
- /\ UNCHANGED <<tasks, resources, allocations>>
+ /\ tasks \in [NodeID -> [TaskID -> TaskState]]                       
+ /\ resources \in [NodeID -> [ResourceID -> Availability]]            
+ /\ allocations \in [NodeID -> [TaskID -> [ResourceID -> BOOLEAN ] ]] 
 
 ----
 (***)
@@ -51,7 +35,6 @@ RequestResource(n, t, r) ==
  /\ tasks' = [ tasks EXCEPT ![n][t] = "running" ]
  /\ resources' = [ resources EXCEPT ![n][r] = "busy" ]
  /\ allocations' = [ allocations EXCEPT ![n][t][r] = TRUE ]
- /\ UNCHANGED <<ch>>
 
 RevokeResource(n, t, r) ==
  /\ tasks[n][t] = "running"
@@ -60,40 +43,35 @@ RevokeResource(n, t, r) ==
  /\ tasks' = [ tasks EXCEPT ![n][t] = "waiting" ]
  /\ resources' = [ resources EXCEPT ![n][r] = "free" ]
  /\ allocations' = [ allocations EXCEPT ![n][t][r] = FALSE ]
- /\ UNCHANGED <<ch>>
 
 ----
 (***)
-(* Message Handling *)
+(* Channel states *)
 (***)
 
-HandleMessage(n) ==
-  /\ Read(n)  \* Ensure that the channel is non-empty
+Read(n) ==
+  /\ Len(ch[n]) > 0
   /\ LET m == Head(ch[n]) IN
        CASE 
          m = "request" ->
            \E t \in TaskID, r \in ResourceID:
-             /\ tasks[n][t] = "waiting"
-             /\ resources[n][r] = "free"
-             /\ allocations[n][t][r] = FALSE
-             /\ tasks' = [tasks EXCEPT ![n][t] = "running"]
-             /\ resources' = [resources EXCEPT ![n][r] = "busy"]
-             /\ allocations' = [allocations EXCEPT ![n][t][r] = TRUE]
-             /\ ch' = [ch EXCEPT ![n] = Tail(@)] \* Remove the processed message
+            /\ RequestResource(n, t, r)
+            /\ ch' = [ch EXCEPT ![n] = Tail(@)]
 
-         [] m = "revoke" ->
+         [] m = "revoke" -> 
            \E t \in TaskID, r \in ResourceID:
-             /\ tasks[n][t] = "running"
-             /\ resources[n][r] = "busy"
-             /\ allocations[n][t][r] = TRUE
-             /\ tasks' = [tasks EXCEPT ![n][t] = "waiting"]
-             /\ resources' = [resources EXCEPT ![n][r] = "free"]
-             /\ allocations' = [allocations EXCEPT ![n][t][r] = FALSE]
-             /\ ch' = [ch EXCEPT ![n] = Tail(@)] \* Remove the processed message
+            /\ RevokeResource(n, t, r)
+            /\ ch' = [ch EXCEPT ![n] = Tail(@)]
 
-         [] OTHER ->
-           /\ ch' = [ch EXCEPT ![n] = Tail(@)] \* Remove the message if it doesn't match expected types
-           /\ UNCHANGED <<tasks, resources, allocations>>  \* No changes to other state variables
+         [] OTHER -> (* read the message and do nothing *)
+           /\ ch' = [ch EXCEPT ![n] = Tail(@)]
+
+Write(n, d) ==
+ /\ IF d = "request" THEN \E r \in ResourceID: resources[n][r] = "free" ELSE TRUE
+ /\ IF d = "revoke" THEN \E r \in ResourceID: resources[n][r] = "busy" ELSE TRUE
+ /\ Len(ch[n]) < BufLength
+ /\ ch' = [ ch EXCEPT ![n] = Append(@, d) ]
+ /\ UNCHANGED <<tasks, resources, allocations>>
 
 ----
 
@@ -102,32 +80,14 @@ Init ==
  /\ tasks = [ n \in NodeID |-> [ t \in TaskID |-> "waiting" ] ]
  /\ resources = [ n \in NodeID |-> [ r \in ResourceID |-> "free" ] ]
  /\ allocations = [ n \in NodeID |-> [ t \in TaskID |-> [ r \in ResourceID |-> FALSE ] ] ]
- /\ PrintT(ch)
- /\ PrintT(tasks)
 
 
 Next ==
  \E n \in NodeID:
-  \/ (\E t \in TaskID: \E r \in ResourceID: RequestResource(n, t, r) \/ RevokeResource(n, t, r))
-  \/ HandleMessage(n)
+  \/ Read(n)
   \/ \E d \in Message: Write(n, d)
 
-\* UNCHANGED<<in, out, tasks, resources, allocations>>
-
 ----
-(***)
-(* Safety and Liveness *)
-(***)
-Reads ==
- \A n \in NodeID:
-  LET L == Len(ch[n]) IN
-   LET LNext == Len(ch[n]') IN
-    (L > 0) => ((L < LNext) \/ (L > LNext))
-
-ReadsIncoming == [][Reads]_<<ch>>
-
-----
-
 (***)
 (* Safety properties *)
 (***)
@@ -163,21 +123,40 @@ TaskStateConsistencySafety ==
 
 vars == <<ch, tasks, resources, allocations>>
 
+(***)
+(* Ensures that tasks waiting for free resources will *)
+(* eventually be considered for resource allocation.*)
+(***)
 FairResourceAllocation ==
  WF_vars(\E n \in NodeID, t \in TaskID, r \in ResourceID:
   tasks[n][t] = "waiting" /\ resources[n][r] = "free")
 
+(***)
+(* Guarantees that each node will eventually execute one of its *)
+(* possible actions, such as requesting or revoking resources,  *)
+(* handling messages, or writing to the buffer.                 *)
+(***)
 FairNodeSteps ==
  SF_vars(\E n \in NodeID:
   \E t \in TaskID, r \in ResourceID, d \in Message: 
    \/ RequestResource(n, t, r)
    \/ RevokeResource(n, t, r)
-   \/ HandleMessage(n)
+   \/ Read(n)
    \/ Write(n, d))
             
+(***)
+(* Ensures that nodes will eventually have space available *)
+(* in their message buffer to send new messages. *)
+(***)
 FairBufferSpace ==
  SF_vars(\E n \in NodeID, d \in Message:
   Len(ch[n]) < BufLength)
+
+----
+
+(* Ensures that every message written to a channel leads to reading it *)
+MessageReadLiveness ==
+  \A n \in NodeID: \A d \in Message: (d \in ch[n]) ~> (d \notin ch[n])
 
 ----
 
