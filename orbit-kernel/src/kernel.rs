@@ -8,6 +8,7 @@ pub trait Kernel {
 
 use orbit_arch::arch::qingke::qingke_v4::Core;
 
+#[used]
 #[link_section = ".kernel"]
 pub(crate) static KERNEL: Kernel = Kernel::new();
 
@@ -17,7 +18,8 @@ pub struct Kernel {
 
 impl Kernel {
     pub const fn new() -> Self {
-        let a = 2;
         Self { core: Core::new() }
     }
+
+    pub fn initialize() {}
 }

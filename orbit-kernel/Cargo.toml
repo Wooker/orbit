@@ -4,7 +4,7 @@ version = "0.1.0"
 edition = "2021"
 
 [dependencies]
-orbit-arch = { path = "../orbit-arch" }
+orbit-arch = { path = "../orbit-arch"}
 
 [features]
-ch32v208 = ["orbit-arch/qingkev4"]
+ch32v208 = ["orbit-arch/qingke_v4"]

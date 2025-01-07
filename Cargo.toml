@@ -4,5 +4,10 @@ exclude = [
 ]
 resolver = "2"
 
-members = [ "orbit-arch", "orbit-kernel", "orbit-libos", "orbit-app" ]
+members = [
+    "orbit-arch",
+    "orbit-kernel",
+    "orbit-libos",
+    "orbit-app",
+]
 

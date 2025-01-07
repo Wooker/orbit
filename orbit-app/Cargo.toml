@@ -5,3 +5,7 @@ edition = "2021"
 
 [dependencies]
 orbit-libos = { path = "../orbit-libos", features = [] }
+# ch32-hal = { git = "https://github.com/ch32-rs/ch32-hal.git", rev = "3ccf0c87ed952b2d8bef7b9e6193e5059a00101c", default-features = false, features = ["ch32v208wbu6", "memory-x", "rt"] }
+
+[profile.dev]
+opt-level=0

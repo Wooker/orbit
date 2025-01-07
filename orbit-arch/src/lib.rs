@@ -2,6 +2,8 @@
 #![no_main]
 #![feature(const_trait_impl)]
 
+pub mod arch_error;
+
 #[cfg(all(target_arch = "riscv32", target_os = "none"))]
 pub mod riscv32;
 #[cfg(all(target_arch = "riscv32", target_os = "none"))]

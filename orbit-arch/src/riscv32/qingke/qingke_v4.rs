@@ -1,21 +1,13 @@
-use crate::arch::PrivilegeMode;
-
 pub struct Core {
-    mode: PrivilegeMode,
+    // csr: CSR,
+    // csr_ext: CSR_Ext,
 }
 
 impl Core {
     pub const fn new() -> Self {
         Self {
-            mode: PrivilegeMode::Machine,
+            // csr: CSR::new(),
+            // csr_ext: CSR_Ext::new(),
         }
-    }
-
-    fn set_freq() {
-        todo!()
-    }
-
-    fn init() {
-        todo!()
     }
 }

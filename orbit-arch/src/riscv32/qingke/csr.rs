@@ -46,8 +46,12 @@ impl gintenr {
     }
 }
 
-pub struct ExtendedCSR();
-impl ExtendedCSR {
+pub struct CSR_Ext();
+impl CSR_Ext {
+    pub const fn new() -> Self {
+        Self {}
+    }
+
     fn read(reg: Extentions) -> usize {
         match reg {
             Extentions::corecfgr => register::corecfgr::read(),
