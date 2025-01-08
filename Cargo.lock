@@ -24,13 +24,8 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "46afbd2983a5d5a7bd740ccb198caf5b82f45c40c09c0eed36052d91cb92e719"
 
 [[package]]
-name = "ch32-metapac"
+name = "chips"
 version = "0.1.0"
-source = "git+https://github.com/ch32-rs/ch32-metapac.git?rev=ch32-data-ea7624e62a0c2faf0a239db14e676f3767a0601b#68c8892d358dc7b7941ef7e71edf5efb210df546"
-dependencies = [
- "riscv 0.11.1",
- "vcell",
-]
 
 [[package]]
 name = "cortex-m"
@@ -100,7 +95,7 @@ dependencies = [
 name = "orbit-kernel"
 version = "0.1.0"
 dependencies = [
- "ch32-metapac",
+ "chips",
  "orbit-arch",
 ]
 
@@ -133,7 +128,7 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "f626759202434af781f805f39816be09a9172b339eb0aabc196da7a3643a1c79"
 dependencies = [
  "bit_field",
- "riscv 0.12.1",
+ "riscv",
 ]
 
 [[package]]
@@ -143,16 +138,6 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "b5b9d34b8991d19d98081b46eacdd8eb58c6f2b201139f7c5f643cc155a633af"
 dependencies = [
  "proc-macro2",
-]
-
-[[package]]
-name = "riscv"
-version = "0.11.1"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "2f5c1b8bf41ea746266cdee443d1d1e9125c86ce1447e1a2615abd34330d33a9"
-dependencies = [
- "critical-section",
- "embedded-hal 1.0.0",
 ]
 
 [[package]]
