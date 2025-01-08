@@ -1,6 +1,8 @@
 #![no_std]
 #![no_main]
 #![feature(const_trait_impl)]
+#![allow(unused)]
+#![allow(non_camel_case_types)]
 
 pub mod arch_error;
 

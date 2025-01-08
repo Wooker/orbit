@@ -46,7 +46,7 @@ name = "ch32-hal"
 version = "0.1.0"
 source = "git+https://github.com/ch32-rs/ch32-hal.git?rev=749577aa60421ea1dcd37a8b1821444f0ff0f06e#749577aa60421ea1dcd37a8b1821444f0ff0f06e"
 dependencies = [
- "ch32-metapac",
+ "ch32-metapac 0.1.0 (git+https://github.com/ch32-rs/ch32-metapac?rev=43066e18cf51106dff448f679dfff368a41431d7)",
  "critical-section",
  "embassy-futures",
  "embassy-hal-internal",
@@ -72,6 +72,15 @@ dependencies = [
 name = "ch32-metapac"
 version = "0.1.0"
 source = "git+https://github.com/ch32-rs/ch32-metapac?rev=43066e18cf51106dff448f679dfff368a41431d7#43066e18cf51106dff448f679dfff368a41431d7"
+dependencies = [
+ "riscv 0.11.1",
+ "vcell",
+]
+
+[[package]]
+name = "ch32-metapac"
+version = "0.1.0"
+source = "git+https://github.com/ch32-rs/ch32-metapac.git?rev=ch32-data-ea7624e62a0c2faf0a239db14e676f3767a0601b#68c8892d358dc7b7941ef7e71edf5efb210df546"
 dependencies = [
  "riscv 0.11.1",
  "vcell",
@@ -356,13 +365,13 @@ version = "0.1.0"
 dependencies = [
  "cortex-m",
  "qingke",
- "qingke-rt",
 ]
 
 [[package]]
 name = "orbit-kernel"
 version = "0.1.0"
 dependencies = [
+ "ch32-metapac 0.1.0 (git+https://github.com/ch32-rs/ch32-metapac.git?rev=ch32-data-ea7624e62a0c2faf0a239db14e676f3767a0601b)",
  "orbit-arch",
 ]
 
