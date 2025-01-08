@@ -2,8 +2,7 @@
 #![no_main]
 #![allow(unused)]
 
-#[allow(unused_imports)]
-use orbit_libos::panic_handler as _;
+use orbit_kernel::panic_handler as _;
 
 #[no_mangle]
 fn main() {

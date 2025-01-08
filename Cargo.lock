@@ -80,7 +80,7 @@ checksum = "8d5439c4ad607c3c23abf66de8c8bf57ba8adcd1f129e699851a6e43935d339d"
 name = "orbit-app"
 version = "0.1.0"
 dependencies = [
- "orbit-libos",
+ "orbit-kernel",
 ]
 
 [[package]]
