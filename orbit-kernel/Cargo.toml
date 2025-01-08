@@ -2,6 +2,7 @@
 name = "orbit-kernel"
 version = "0.1.0"
 edition = "2021"
+description = "Orbit kernel crate"
 
 [dependencies]
 orbit-arch = { path = "../orbit-arch"}

@@ -1,0 +1,11 @@
+[package]
+name = "chips"
+version = "0.1.0"
+edition = "2024"
+description = "Library crate containing linker scripts for a given microcontroller"
+
+[dependencies]
+
+[features]
+esp32c3 = []
+ch32v208wbu6 = []

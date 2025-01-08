@@ -2,6 +2,7 @@
 name = "orbit-libos"
 version = "0.1.0"
 edition = "2021"
+description = "Crate contaning operating system libraries"
 
 [dependencies]
 orbit-kernel = { path = "../orbit-kernel", features = ["ch32v208"]}
