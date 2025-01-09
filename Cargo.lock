@@ -24,8 +24,22 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "46afbd2983a5d5a7bd740ccb198caf5b82f45c40c09c0eed36052d91cb92e719"
 
 [[package]]
+name = "ch32v2"
+version = "0.1.6"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "ff036e5870277b3a729a7593963a5506eeb68cb7644e8998e1267ac8cab5d884"
+dependencies = [
+ "critical-section",
+ "riscv 0.10.1",
+ "vcell",
+]
+
+[[package]]
 name = "chips"
 version = "0.1.0"
+dependencies = [
+ "ch32v2",
+]
 
 [[package]]
 name = "cortex-m"
@@ -128,7 +142,8 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "f626759202434af781f805f39816be09a9172b339eb0aabc196da7a3643a1c79"
 dependencies = [
  "bit_field",
- "riscv",
+ "critical-section",
+ "riscv 0.12.1",
 ]
 
 [[package]]
@@ -138,6 +153,17 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "b5b9d34b8991d19d98081b46eacdd8eb58c6f2b201139f7c5f643cc155a633af"
 dependencies = [
  "proc-macro2",
+]
+
+[[package]]
+name = "riscv"
+version = "0.10.1"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "aa3145d2fae3778b1e31ec2e827b228bdc6abd9b74bb5705ba46dcb82069bc4f"
+dependencies = [
+ "bit_field",
+ "critical-section",
+ "embedded-hal 0.2.7",
 ]
 
 [[package]]

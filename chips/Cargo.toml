@@ -5,7 +5,8 @@ edition = "2024"
 description = "Library crate containing linker scripts for a given microcontroller"
 
 [dependencies]
+ch32v2 = { version = "0.1.6", optional = true }
 
 [features]
 esp32c3 = []
-ch32v208wbu6 = []
+ch32v208wbu6 = [ "ch32v2/ch32v20x", "ch32v2/critical-section" ]

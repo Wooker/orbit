@@ -3,9 +3,10 @@
 
 use core::arch::global_asm;
 
+use orbit_kernel::kernel::Kernel;
+
 #[cfg(feature = "ch32v208")]
 // use orbit_arch::arch::qingke::entry;
-use orbit_kernel::panic_handler as _;
 
 global_asm!(
     "
@@ -17,11 +18,17 @@ global_asm!(
 "
 );
 
+use orbit_kernel::kernel::KERNEL;
+
 #[allow(unused)]
-// #[entry]
 #[no_mangle]
 fn kernel_main() -> ! {
-    let a = 0;
+    let p = KERNEL.initialize();
+    let gpiob = &p.GPIOB;
+    gpiob.cfghr.modify(|r, w| unsafe { w.bits(r.bits() | 3) });
+    gpiob
+        .outdr
+        .modify(|r, w| unsafe { w.bits(r.bits() | 0x0ff) });
 
     loop {}
 }
