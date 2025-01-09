@@ -4,6 +4,11 @@ runner = "espflash flash --monitor"
 [env]
 ESP_LOGLEVEL="INFO"
 
+[alias]
+kernel-size = "size --bin orbit-kernel"
+kernel-section-size = "size --bin orbit-kernel -- -A -x"
+kernel-objdump = "objdump --bin orbit-kernel -- -d --demangle"
+
 [build]
 rustflags = [
   # "-C", "link-arg=-Tlinkall.x",
