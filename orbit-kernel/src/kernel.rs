@@ -12,7 +12,11 @@ static KERNEL_MINOR: u8 = 1;
 #[link_section = ".kernel"]
 pub static KERNEL: Kernel = Kernel::new();
 
+#[cfg(feature = "ch32v208")]
 use chips::ch32v208wbu6::Peripherals;
+
+#[cfg(feature = "ch592")]
+use chips::ch592::Peripherals;
 
 pub struct Kernel {
     core: Core,

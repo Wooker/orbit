@@ -3,8 +3,6 @@
 
 use core::arch::global_asm;
 
-use orbit_kernel::kernel::Kernel;
-
 #[cfg(feature = "ch32v208")]
 // use orbit_arch::arch::qingke::entry;
 
@@ -24,11 +22,25 @@ use orbit_kernel::kernel::KERNEL;
 #[no_mangle]
 fn kernel_main() -> ! {
     let p = KERNEL.initialize();
-    let gpiob = &p.GPIOB;
-    gpiob.cfghr.modify(|r, w| unsafe { w.bits(r.bits() | 3) });
-    gpiob
-        .outdr
-        .modify(|r, w| unsafe { w.bits(r.bits() | 0x0ff) });
+    unsafe {
+        p.GPIO.pa_pd_drv.modify(|_, w| w.bits(1 << 4));
+        p.GPIO.pa_dir.modify(|_, w| w.bits(1 << 4));
 
-    loop {}
+        p.GPIO.pb_pd_drv.modify(|_, w| w.bits(1 << 23));
+        p.GPIO.pb_dir.modify(|_, w| w.bits(1 << 23));
+
+        p.GPIO.pb_out.modify(|r, w| w.bits(r.bits() ^ (1 << 23)));
+    }
+
+    loop {
+        // unsafe {
+        //     p.GPIOA
+        //         .pa_out
+        //         .modify(|r, w| w.pa_out().bits(r.pa_out().bits() ^ (1 << 4)));
+        //     p.GPIOA
+        //         .pb_out
+        //         .modify(|r, w| w.pb_out().bits(r.pb_out().bits() ^ (1 << 23)));
+        //     riscv::asm::delay(100000);
+        // }
+    }
 }

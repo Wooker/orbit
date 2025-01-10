@@ -35,10 +35,22 @@ dependencies = [
 ]
 
 [[package]]
+name = "ch59x"
+version = "0.1.8"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "e36713ebfb779613552416fbffe71d612404736d2a7fbf1d7b671870c0bc6cf5"
+dependencies = [
+ "critical-section",
+ "riscv 0.10.1",
+ "vcell",
+]
+
+[[package]]
 name = "chips"
 version = "0.1.0"
 dependencies = [
  "ch32v2",
+ "ch59x",
 ]
 
 [[package]]
