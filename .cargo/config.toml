@@ -9,18 +9,16 @@ kernel-size = "size --bin orbit-kernel"
 kernel-section-size = "size --bin orbit-kernel -- -A -x"
 kernel-objdump = "objdump --bin orbit-kernel -- -d --demangle"
 
-[build]
-rustflags = [
-  # "-C", "link-arg=-Tlinkall.x",
+# [build]
+# rustflags = [
+#   # "-C", "link-arg=-Tlinkall.x",
 
-  # "-C", "link-arg=-Trom_functions.x",
+#   # "-C", "link-arg=-Trom_functions.x",
 
-  # Required to obtain backtraces (e.g. when using the "esp-backtrace" crate.)
-  # NOTE: May negatively impact performance of produced code
-  # "-C", "force-frame-pointers",
-]
-
-target = "riscv32imc-unknown-none-elf"
+#   # Required to obtain backtraces (e.g. when using the "esp-backtrace" crate.)
+#   # NOTE: May negatively impact performance of produced code
+#   # "-C", "force-frame-pointers",
+# ]
 
 [unstable]
 build-std = ["alloc", "core"]

@@ -1,6 +1,11 @@
 [build]
 rustflags = [
   # "-C", "link-args=-Torbit-kernel/kernel.x",
+  # "-C", "link-args=-Tmemory.x",
+  # "-C", "link-args=-Tdevice.x",
+  "-C", "link-args=-Tlink.x",
+  # "-C", "link-arg=-Wl",
   "-C", "link-args=--verbose",
-  "-C", "link-args=--error-limit=0",
+  # "-C", "link-args=--error-limit=0",
 ]
+target = "riscv32imc-unknown-none-elf"

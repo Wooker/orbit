@@ -17,5 +17,5 @@ cortex-m = "0.7.4"
 # cortex-m-rt = "0.7.3"
 
 [features]
-"qingke_v4" = [ "dep:qingke", "qingke/critical-section-impl" ]
+"qingke_v4" = [ "dep:qingke", "qingke/critical-section-impl", "dep:qingke-rt", "qingke-rt/v4" ]
 "riscv" = [ "dep:riscv", "riscv/critical-section-single-hart", "dep:riscv-rt" ]

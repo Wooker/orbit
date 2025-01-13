@@ -11,6 +11,3 @@ pub fn panic_handler<'a, 'b>(_: &'a core::panic::PanicInfo<'b>) -> ! {
         // arch::qingke::riscv::asm::wfi();
     }
 }
-
-#[no_mangle]
-pub fn ExceptionHandler() {}

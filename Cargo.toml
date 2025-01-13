@@ -1,7 +1,4 @@
 [workspace]
-exclude = [
-    "chips/esp32c3"
-]
 resolver = "2"
 
 members = [
