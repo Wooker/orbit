@@ -17,8 +17,12 @@ use orbit_arch::arch;
 use orbit_kernel::kernel::KERNEL;
 
 #[cfg(feature = "ch592")]
+use orbit_arch::arch::qingke_rt::entry;
+
+#[cfg(feature = "ch592")]
 #[allow(unused)]
 #[no_mangle]
+#[entry]
 fn kernel_main() -> ! {
     let p = KERNEL.initialize();
     unsafe {
@@ -48,7 +52,7 @@ fn kernel_main() -> ! {
 }
 
 #[cfg(feature = "ch32v208wbu6")]
-use orbit_arch::entry;
+use orbit_arch::arch::qingke_rt::entry;
 
 #[cfg(feature = "ch32v208wbu6")]
 #[allow(unused)]
@@ -63,17 +67,20 @@ fn kernel_main() -> ! {
 
         // Enable GPIO PORT B
         p.RCC.apb2pcenr.modify(|_, w| w.bits(1 << 3));
+
         // Set PB8 as output with 50Mhz speed
-        p.GPIOB.cfghr.modify(|_, w| w.bits(0b0111));
+        p.GPIOB.cfghr.modify(|_, w| w.bits(0b0101));
+
+        p.GPIOB.bshr.write(|w| w.bits(1 << 24));
     }
 
     loop {
         unsafe {
-            p.GPIOB.outdr.modify(|_, w| w.bits(1 << 8));
-            arch::qingke::riscv::asm::delay(100000);
+            p.GPIOB.bshr.write(|w| w.bits(1 << 8));
+            arch::qingke::riscv::asm::delay(1000000);
 
-            p.GPIOB.outdr.modify(|r, w| w.bits(r.bits() ^ !(1 << 8)));
-            arch::qingke::riscv::asm::delay(100000);
+            p.GPIOB.bshr.write(|w| w.bits(1 << 24));
+            arch::qingke::riscv::asm::delay(1000000);
         }
     }
 }

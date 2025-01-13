@@ -11,9 +11,6 @@ pub mod riscv32;
 #[cfg(all(target_arch = "riscv32", target_os = "none"))]
 pub use crate::riscv32 as arch;
 
-#[cfg(feature = "qingke_v4")]
-pub use qingke_rt::entry;
-
 #[cfg(all(target_arch = "arm", target_os = "none"))]
 pub mod cortex_m;
 #[cfg(all(target_arch = "arm", target_os = "none"))]
