@@ -5,6 +5,7 @@ runner = "espflash flash --monitor"
 ESP_LOGLEVEL="INFO"
 
 [alias]
+kernel = "build -p orbit-kernel"
 kernel-size = "size --bin orbit-kernel"
 kernel-section-size = "size --bin orbit-kernel -- -A -x"
 kernel-objdump = "objdump --bin orbit-kernel -- -d --demangle"
