@@ -7,10 +7,9 @@ description = "Orbit kernel crate"
 [dependencies]
 orbit-arch = { path = "../orbit-arch"}
 chips = { path = "../chips" }
-# ch32-metapac = { git = "https://github.com/ch32-rs/ch32-metapac.git", rev = "ch32-data-ea7624e62a0c2faf0a239db14e676f3767a0601b" }
 
 [features]
 default = []
-# ch32v208 = ["orbit-arch/qingke_v4", "ch32-metapac/ch32v208wbu6","ch32-metapac/rt","ch32-metapac/memory-x"]
-ch32v208 = [ "orbit-arch/qingke_v4", "chips/ch32v208wbu6" ]
+ch32v208wbu6 = [ "orbit-arch/qingke_v4", "chips/ch32v208wbu6" ]
 ch592 = [ "orbit-arch/qingke_v4", "chips/ch592" ]
+esp32c3 = [ "orbit-arch/riscv", "chips/esp32c3" ]

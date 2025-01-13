@@ -1,5 +1,3 @@
-use orbit_arch::arch::qingke::qingke_v4::Core;
-
 #[used]
 #[link_section = ".kernel"]
 static KERNEL_MAJOR: u8 = 0;
@@ -12,21 +10,28 @@ static KERNEL_MINOR: u8 = 1;
 #[link_section = ".kernel"]
 pub static KERNEL: Kernel = Kernel::new();
 
-#[cfg(feature = "ch32v208")]
+#[cfg(feature = "ch32v208wbu6")]
 use chips::ch32v208wbu6::Peripherals;
+#[cfg(feature = "ch32v208wbu6")]
+use orbit_arch::arch::qingke::qingke_v4::Core;
 
 #[cfg(feature = "ch592")]
 use chips::ch592::Peripherals;
+#[cfg(feature = "ch592")]
+use orbit_arch::arch::qingke::qingke_v4::Core;
+
+#[cfg(feature = "esp32c3")]
+use chips::esp32c3::Peripherals;
 
 pub struct Kernel {
-    core: Core,
+    // core: Core,
 }
 
 unsafe impl Sync for Kernel {}
 
 impl Kernel {
     pub const fn new() -> Self {
-        Self { core: Core::new() }
+        Self {/* core: Core::new() */}
     }
 
     pub fn initialize(&self) -> Peripherals {

@@ -7,12 +7,15 @@ description = "Architecture-dependent library crate"
 [dependencies]
 
 [target.'cfg(all(target_arch = "riscv32", target_os = "none"))'.dependencies]
-qingke = { version = "0.4.0", optional = true }
-# qingke-rt = { version = "0.4.0", optional = true }
+qingke = { version = "0.5.0", optional = true }
+qingke-rt = { version = "0.5.0", optional = true }
+riscv = { version = "0.12.1", optional = true }
+riscv-rt = { version = "0.13.0", optional = true }
 
 [target.'cfg(all(target_arch = "arm", target_os = "none"))'.dependencies]
 cortex-m = "0.7.4"
 # cortex-m-rt = "0.7.3"
 
 [features]
-"qingke_v4" = ["dep:qingke", "qingke/critical-section-impl"]
+"qingke_v4" = [ "dep:qingke", "qingke/critical-section-impl" ]
+"riscv" = [ "dep:riscv", "riscv/critical-section-single-hart", "dep:riscv-rt" ]

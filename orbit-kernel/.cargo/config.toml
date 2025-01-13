@@ -1,5 +1,6 @@
 [build]
 rustflags = [
   # "-C", "link-args=-Torbit-kernel/kernel.x",
-  # "-C", "link-args=--verbose",
+  "-C", "link-args=--verbose",
+  "-C", "link-args=--error-limit=0",
 ]
