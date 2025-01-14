@@ -42,11 +42,11 @@ fn kernel_main() -> ! {
         unsafe {
             p.GPIO.pa_out.modify(|r, w| w.bits(r.bits() ^ (1 << 8)));
             p.GPIO.pb_out.modify(|r, w| w.bits(r.bits() ^ (1 << 23)));
-            arch::qingke::riscv::asm::delay(100000);
+            arch::qingke::riscv::asm::delay(10000);
 
             p.GPIO.pa_out.modify(|r, w| w.bits(r.bits() ^ (0 << 8)));
             p.GPIO.pb_out.modify(|r, w| w.bits(r.bits() ^ (0 << 23)));
-            arch::qingke::riscv::asm::delay(100000);
+            arch::qingke::riscv::asm::delay(10000);
         }
     }
 }

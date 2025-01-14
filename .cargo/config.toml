@@ -14,7 +14,7 @@ kernel-objdump = "objdump --bin orbit-kernel -- -d --demangle"
 rustflags = [
 #   # "-C", "link-arg=-Tlinkall.x",
 
-  # "-C", "link-args=-Tmemory.x",
+  "-C", "link-args=-Tmemory.x",
   # "-C", "link-args=-Tdevice.x",
   "-C", "link-args=-Tlink.x",
   "-C", "link-args=--verbose",

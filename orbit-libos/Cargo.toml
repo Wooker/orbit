@@ -12,3 +12,8 @@ orbit-kernel = { path = "../orbit-kernel", features = []}
 # [features]
 # ch32-hal = ["dep:ch32-hal"]
 
+[workspace]
+members = [
+  "gpio",
+]
+
