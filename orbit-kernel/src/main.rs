@@ -2,7 +2,6 @@
 #![no_main]
 
 use core::arch::global_asm;
-use orbit_arch::arch;
 
 // global_asm!(
 //     "
@@ -52,7 +51,7 @@ fn kernel_main() -> ! {
 }
 
 #[cfg(feature = "ch32v208wbu6")]
-use orbit_arch::arch::qingke_rt::entry;
+use orbit_arch::entry;
 
 #[cfg(feature = "ch32v208wbu6")]
 #[allow(unused)]
@@ -77,10 +76,10 @@ fn kernel_main() -> ! {
     loop {
         unsafe {
             p.GPIOB.bshr.write(|w| w.bits(1 << 8));
-            arch::qingke::riscv::asm::delay(1000000);
+            orbit_arch::qingke::riscv::asm::delay(1000000);
 
             p.GPIOB.bshr.write(|w| w.bits(1 << 24));
-            arch::qingke::riscv::asm::delay(1000000);
+            orbit_arch::qingke::riscv::asm::delay(1000000);
         }
     }
 }

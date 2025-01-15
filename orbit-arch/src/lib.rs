@@ -9,7 +9,7 @@ pub mod arch_error;
 #[cfg(all(target_arch = "riscv32", target_os = "none"))]
 pub mod riscv32;
 #[cfg(all(target_arch = "riscv32", target_os = "none"))]
-pub use crate::riscv32 as arch;
+pub use crate::riscv32::*;
 
 #[cfg(all(target_arch = "arm", target_os = "none"))]
 pub mod cortex_m;
