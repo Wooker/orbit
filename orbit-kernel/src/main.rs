@@ -86,7 +86,7 @@ fn kernel_main() -> ! {
 }
 
 #[cfg(feature = "esp32c3")]
-use arch::riscv_rt::entry;
+use orbit_arch::arch::esp_riscv_rt::entry;
 
 #[cfg(feature = "esp32c3")]
 #[entry]

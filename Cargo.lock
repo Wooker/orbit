@@ -73,6 +73,15 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "790eea4361631c5e7d22598ecd5723ff611904e3344ce8720784c93e3d83d40b"
 
 [[package]]
+name = "document-features"
+version = "0.2.10"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "cb6969eaabd2421f8a2775cfd2471a2b634372b4a25d41e3bd647b79912850a0"
+dependencies = [
+ "litrs",
+]
+
+[[package]]
 name = "embedded-hal"
 version = "0.2.7"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -89,6 +98,17 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "361a90feb7004eca4019fb28352a9465666b24f840f5c3cddf0ff13920590b89"
 
 [[package]]
+name = "esp-riscv-rt"
+version = "0.9.1"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "94aca65db6157aa5f42d9df6595b21462f28207ca4230b799aa3620352ef6a72"
+dependencies = [
+ "document-features",
+ "riscv 0.12.1",
+ "riscv-rt-macros",
+]
+
+[[package]]
 name = "esp32c3"
 version = "0.26.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -97,6 +117,12 @@ dependencies = [
  "critical-section",
  "vcell",
 ]
+
+[[package]]
+name = "litrs"
+version = "0.4.1"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "b4ce301924b7887e9d637144fdade93f9dfff9b60981d4ac161db09720d39aa5"
 
 [[package]]
 name = "nb"
@@ -125,6 +151,7 @@ name = "orbit-arch"
 version = "0.1.0"
 dependencies = [
  "cortex-m",
+ "esp-riscv-rt",
  "qingke",
  "qingke-rt",
  "riscv 0.12.1",
@@ -137,13 +164,6 @@ version = "0.1.0"
 dependencies = [
  "chips",
  "orbit-arch",
-]
-
-[[package]]
-name = "orbit-libos"
-version = "0.1.0"
-dependencies = [
- "orbit-kernel",
 ]
 
 [[package]]

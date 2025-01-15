@@ -12,4 +12,4 @@ chips = { path = "../chips" }
 default = []
 ch32v208wbu6 = [ "orbit-arch/qingke_v4", "chips/ch32v208wbu6" ]
 ch592 = [ "orbit-arch/qingke_v4", "chips/ch592" ]
-esp32c3 = [ "orbit-arch/riscv", "chips/esp32c3" ]
+esp32c3 = [ "orbit-arch/esp_riscv", "chips/esp32c3" ]

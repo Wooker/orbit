@@ -10,11 +10,11 @@ macro_rules! p {
     }
 }
 
-fn memory_from_feature(feature: &String) -> Vec<u8> {
+fn link_script_from_feature(feature: &String, script_name: &str) -> Vec<u8> {
     let mut buf = Vec::new();
-    let memory_path =
-        PathBuf::from_str(format!("src/{}/memory.x", feature.as_str()).as_str()).unwrap();
-    let mut memory = File::open(memory_path).unwrap();
+    let script_path =
+        PathBuf::from_str(format!("src/{}/{}", feature.as_str(), script_name).as_str()).unwrap();
+    let mut memory = File::open(script_path).unwrap();
     memory.read_to_end(&mut buf).unwrap();
     buf
 }
@@ -45,8 +45,14 @@ fn main() {
     let out = &PathBuf::from(env::var_os("OUT_DIR").unwrap());
     File::create(out.join("memory.x"))
         .unwrap()
-        .write_all(memory_from_feature(chip).as_slice())
+        .write_all(link_script_from_feature(chip, "memory.x").as_slice())
         .unwrap();
+    if chip == "esp32c3" {
+        File::create(out.join("link.x"))
+            .unwrap()
+            .write_all(link_script_from_feature(chip, "link.x").as_slice())
+            .unwrap();
+    }
     println!("cargo:rustc-link-search={}", out.display());
     println!("cargo:rerun-if-changed=src/{}/memory.x", chip);
     println!("cargo:rerun-if-changed=build.rs");

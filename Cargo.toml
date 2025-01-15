@@ -5,6 +5,6 @@ members = [
     "orbit-arch",
     "chips",
     "orbit-kernel",
-    "orbit-libos",
+    # "orbit-libos",
     "orbit-app",
 ]
