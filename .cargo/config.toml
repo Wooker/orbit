@@ -5,25 +5,11 @@ runner = "espflash flash --monitor"
 ESP_LOGLEVEL="INFO"
 
 [alias]
-kernel = "build -p orbit-kernel"
-kernel-size = "size --bin orbit-kernel"
-kernel-section-size = "size --bin orbit-kernel -- -A -x"
-kernel-objdump = "objdump --bin orbit-kernel -- -d --demangle"
+kernel = "build -p orbit-kernel --features"
+kernel-size = "size -p orbit-kernel --features"
+kernel-objdump = "objdump -p orbit-kernel --features"
 
 [build]
-rustflags = [
-#   # "-C", "link-arg=-Tlinkall.x",
-
-  "-C", "link-args=-Tmemory.x",
-  "-C", "link-args=-Tdevice.x",
-  "-C", "link-args=-Tlink.x",
-  "-C", "link-args=--verbose",
-#   # "-C", "link-arg=-Trom_functions.x",
-
-#   # Required to obtain backtraces (e.g. when using the "esp-backtrace" crate.)
-#   # NOTE: May negatively impact performance of produced code
-#   # "-C", "force-frame-pointers",
-]
 target = "riscv32imc-unknown-none-elf"
 
 [unstable]
