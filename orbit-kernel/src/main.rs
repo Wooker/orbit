@@ -1,22 +1,10 @@
 #![no_std]
 #![no_main]
 
-use core::arch::global_asm;
-
-// global_asm!(
-//     "
-//     .global _start;
-
-//     _start:
-//         csrwi mie, 0;
-//         j kernel_main;
-// "
-// );
-
 use orbit_kernel::kernel::KERNEL;
 
 #[cfg(feature = "ch592")]
-use orbit_arch::arch::qingke_rt::entry;
+use orbit_arch::entry;
 
 #[cfg(feature = "ch592")]
 #[allow(unused)]
@@ -41,11 +29,11 @@ fn kernel_main() -> ! {
         unsafe {
             p.GPIO.pa_out.modify(|r, w| w.bits(r.bits() ^ (1 << 8)));
             p.GPIO.pb_out.modify(|r, w| w.bits(r.bits() ^ (1 << 23)));
-            arch::qingke::riscv::asm::delay(10000);
+            orbit_arch::qingke::riscv::asm::delay(10000);
 
             p.GPIO.pa_out.modify(|r, w| w.bits(r.bits() ^ (0 << 8)));
             p.GPIO.pb_out.modify(|r, w| w.bits(r.bits() ^ (0 << 23)));
-            arch::qingke::riscv::asm::delay(10000);
+            orbit_arch::qingke::riscv::asm::delay(10000);
         }
     }
 }
@@ -85,7 +73,11 @@ fn kernel_main() -> ! {
 }
 
 #[cfg(feature = "esp32c3")]
-use orbit_arch::arch::esp_riscv_rt::entry;
+use orbit_arch::entry;
+
+#[cfg(feature = "esp32c3")]
+#[link_section = ".trap.rust"]
+fn DefaultHandler() {}
 
 #[cfg(feature = "esp32c3")]
 #[entry]

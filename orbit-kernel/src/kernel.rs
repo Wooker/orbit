@@ -12,13 +12,9 @@ pub static KERNEL: Kernel = Kernel::new();
 
 #[cfg(feature = "ch32v208wbu6")]
 use chips::ch32v208wbu6::Peripherals;
-#[cfg(feature = "ch32v208wbu6")]
-use orbit_arch::qingke::qingke_v4::Core;
 
 #[cfg(feature = "ch592")]
 use chips::ch592::Peripherals;
-#[cfg(feature = "ch592")]
-use orbit_arch::qingke::qingke_v4::Core;
 
 #[cfg(feature = "esp32c3")]
 use chips::esp32c3::Peripherals;

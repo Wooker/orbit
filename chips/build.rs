@@ -20,12 +20,6 @@ fn link_script_from_feature(feature: &String, script_name: &str) -> Vec<u8> {
 }
 
 fn main() {
-    // for var in env::vars()
-    //     .into_iter()
-    //     .filter(|(key, _)| key.starts_with("CARGO"))
-    // {
-    //     p!("{} {}", var.0, var.1);
-    // }
     let features: Vec<String> = env::vars()
         .filter_map(|(key, _)| {
             // Check for the feature-related environment variables (e.g., CARGO_FEATURE_FOO)
