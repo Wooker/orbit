@@ -46,7 +46,7 @@ dependencies = [
 ]
 
 [[package]]
-name = "chips"
+name = "chip"
 version = "0.1.0"
 dependencies = [
  "ch32v2",
@@ -162,7 +162,7 @@ dependencies = [
 name = "orbit-kernel"
 version = "0.1.0"
 dependencies = [
- "chips",
+ "chip",
  "orbit-arch",
 ]
 

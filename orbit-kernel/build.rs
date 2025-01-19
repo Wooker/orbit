@@ -1,6 +1,12 @@
 #![allow(unused)]
 
-use std::env;
+use std::{
+    env,
+    fs::File,
+    io::{Read, Write},
+    path::PathBuf,
+    str::FromStr,
+};
 
 macro_rules! p {
     ($($tokens: tt)*) => {
@@ -13,6 +19,22 @@ fn print_env() {
         .into_iter()
         .filter(|(key, _)| key.starts_with("CARGO"))
         .for_each(|f| p!("{} {}", f.0, f.1));
+}
+
+macro_rules! p {
+    ($($tokens: tt)*) => {
+        println!("cargo:warning={}", format!($($tokens)*))
+    }
+}
+
+fn link_script_from_feature(feature: &String, script_name: &str) -> Vec<u8> {
+    let mut buf = Vec::new();
+    let script_path =
+        PathBuf::from_str(format!("src/{}/{}", feature.as_str(), script_name).as_str()).unwrap();
+    p!("Script path {:?}", script_path);
+    let mut file = File::open(script_path).unwrap();
+    file.read_to_end(&mut buf).unwrap();
+    buf
 }
 
 fn main() {
@@ -37,16 +59,23 @@ fn main() {
 
     println!("cargo:rustc-link-arg={}", "--verbose");
     println!("cargo:rustc-link-arg={}", "--error-limit=0");
+
+    let out = &PathBuf::from(env::var_os("OUT_DIR").unwrap());
+    File::create(out.join("kernel.x"))
+        .unwrap()
+        .write_all(include_bytes!("kernel.x"))
+        .expect("Could not find kernel.x");
+
     match chip.as_str() {
         "ch592" => {
             println!("cargo:rustc-link-arg={}", "-Tlink.x");
         }
         "ch32v208wbu6" => {
-            println!("cargo:rustc-link-arg={}", "-Tlink.x");
+            println!("cargo:rustc-link-arg={}", "-Tlinkall.x");
         }
         "esp32c3" => {
             println!("cargo:rustc-link-arg={}", "-Tmemory.x");
-            println!("cargo:rustc-link-arg={}", "-Tlink.x");
+            // println!("cargo:rustc-link-arg={}", "-Tlink.x");
         }
         _ => {}
     }

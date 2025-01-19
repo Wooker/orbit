@@ -1,7 +1,17 @@
 #![no_std]
 #![no_main]
 
-use orbit_kernel::kernel::KERNEL;
+use core::arch::global_asm;
+
+use orbit_kernel::kernel::Kernel;
+
+global_asm!(
+    "
+    .global start;
+start:
+    csrwi mstatus, 0;   
+"
+);
 
 #[cfg(feature = "ch592")]
 use orbit_arch::entry;
@@ -15,8 +25,6 @@ fn kernel_main() -> ! {
     unsafe {
         // Set PA8 as output with 20mA level
         p.GPIO.pa_pd_drv.modify(|_, w| w.bits(1 << 8));
-        p.GPIO.pa_dir.modify(|_, w| w.bits(1 << 8));
-
         // Set PB23 as output with 20mA level
         p.GPIO.pb_pd_drv.modify(|_, w| w.bits(1 << 23));
         p.GPIO.pb_dir.modify(|_, w| w.bits(1 << 23));
@@ -39,51 +47,54 @@ fn kernel_main() -> ! {
 }
 
 #[cfg(feature = "ch32v208wbu6")]
+use chip::Peripherals;
+#[cfg(feature = "ch32v208wbu6")]
 use orbit_arch::entry;
+
+extern "C" {
+    static mut DEVICE_PERIPHERALS: bool;
+    static mut KERNEL: Kernel;
+}
 
 #[cfg(feature = "ch32v208wbu6")]
 #[allow(unused)]
 #[no_mangle]
 #[entry]
-fn kernel_main() -> ! {
-    let p = KERNEL.initialize();
-    unsafe {
-        // Reset GPIO PORT B
-        p.RCC.apb2prstr.modify(|_, w| w.bits(1 << 3));
-        p.RCC.apb2prstr.modify(|r, w| w.bits(r.bits() & !(1 << 3)));
-
-        // Enable GPIO PORT B
-        p.RCC.apb2pcenr.modify(|_, w| w.bits(1 << 3));
-
-        // Set PB8 as output with 50Mhz speed
-        p.GPIOB.cfghr.modify(|_, w| w.bits(0b0101));
-
-        p.GPIOB.bshr.write(|w| w.bits(1 << 24));
-    }
+unsafe fn kernel_main() -> ! {
+    KERNEL.initialize();
+    let gpiob = KERNEL.claim();
+    // Set PB8 as output with 50Mhz speed
+    (*gpiob).cfghr.modify(|_, w| w.bits(0b0101));
+    // Reset PB8
+    (*gpiob).bshr.write(|w| w.bits(1 << 24));
 
     loop {
         unsafe {
-            p.GPIOB.bshr.write(|w| w.bits(1 << 8));
+            (*gpiob).bshr.write(|w| w.bits(1 << 8));
             orbit_arch::qingke::riscv::asm::delay(1000000);
 
-            p.GPIOB.bshr.write(|w| w.bits(1 << 24));
+            (*gpiob).bshr.write(|w| w.bits(1 << 24));
             orbit_arch::qingke::riscv::asm::delay(1000000);
         }
     }
 }
 
-#[cfg(feature = "esp32c3")]
-use orbit_arch::entry;
+// #[cfg(feature = "esp32c3")]
+// use orbit_arch::entry;
 
 #[cfg(feature = "esp32c3")]
 #[link_section = ".trap.rust"]
 fn DefaultHandler() {}
 
 #[cfg(feature = "esp32c3")]
-#[entry]
+#[no_mangle]
 fn kernel_main() -> ! {
-    loop {}
-    // let peripherals = KERNEL.initialize();
+    let peripherals = unsafe { KERNEL.initialize() };
+    loop {
+        let a = 2;
+        let b = 3;
+        let c = a + b;
+    }
 
     // // Get access to the GPIO registers
     // let gpio = &peripherals.GPIO;
