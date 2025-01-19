@@ -2,7 +2,7 @@
 /* https://github.com/ch32-rs/ch32-metapac/blob/main/src/chips/ch32v208wbu6/memory_x/memory.x */
 MEMORY
 {
-    FLASH : ORIGIN = 0x00000000, LENGTH =  128K /* BANK_1 */
+    FLASH : ORIGIN = 0x00000000, LENGTH = 16K /* BANK_1 */
     RAM   : ORIGIN = 0x20000000, LENGTH =   64K
 }
 REGION_ALIAS("REGION_TEXT", FLASH);

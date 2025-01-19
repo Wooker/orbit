@@ -6,7 +6,7 @@ description = "Orbit kernel crate"
 
 [dependencies]
 orbit-arch = { path = "../orbit-arch"}
-chips = { path = "../chips" }
+chip = { path = "../chip" }
 
 [features]
 ch32v208wbu6 = [ "orbit-arch/qingke_v4", "chips/ch32v208wbu6" ]

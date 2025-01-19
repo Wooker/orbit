@@ -3,7 +3,7 @@ resolver = "2"
 
 members = [
     "orbit-arch",
-    "chips",
+    "chip",
     "orbit-kernel",
     # "orbit-libos",
     "orbit-app",

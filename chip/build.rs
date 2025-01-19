@@ -41,12 +41,18 @@ fn main() {
         .unwrap()
         .write_all(link_script_from_feature(chip, "memory.x").as_slice())
         .unwrap();
-    if chip == "esp32c3" {
-        File::create(out.join("link.x"))
-            .unwrap()
-            .write_all(link_script_from_feature(chip, "link.x").as_slice())
-            .unwrap();
-    }
+    // if chip == "ch32v208wbu6" {
+    //     File::create(out.join("linkall.x"))
+    //         .unwrap()
+    //         .write_all(link_script_from_feature(chip, "linkall.x").as_slice())
+    //         .unwrap();
+    // }
+    // if chip == "esp32c3" {
+    // File::create(out.join("linkall.x"))
+    //     .unwrap()
+    //     .write_all(link_script_from_feature(chip, "linkall.x").as_slice())
+    //     .unwrap();
+    // }
     println!("cargo:rustc-link-search={}", out.display());
     println!("cargo:rerun-if-changed=src/{}/memory.x", chip);
     println!("cargo:rerun-if-changed=build.rs");
