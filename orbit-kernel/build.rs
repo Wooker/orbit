@@ -60,11 +60,11 @@ fn main() {
     println!("cargo:rustc-link-arg={}", "--verbose");
     println!("cargo:rustc-link-arg={}", "--error-limit=0");
 
-    let out = &PathBuf::from(env::var_os("OUT_DIR").unwrap());
-    File::create(out.join("kernel.x"))
-        .unwrap()
-        .write_all(include_bytes!("kernel.x"))
-        .expect("Could not find kernel.x");
+    // let out = &PathBuf::from(env::var_os("OUT_DIR").unwrap());
+    // File::create(out.join("kernel.x"))
+    //     .unwrap()
+    //     .write_all(include_bytes!("kernel.x"))
+    //     .expect("Could not find kernel.x");
 
     match chip.as_str() {
         "ch592" => {
@@ -75,6 +75,8 @@ fn main() {
         }
         "esp32c3" => {
             println!("cargo:rustc-link-arg={}", "-Tmemory.x");
+            println!("cargo:rustc-link-arg={}", "-Triscv.x");
+            // println!("cargo:rustc-link-arg={}", "-Torbit-kernel/kernel.x");
             // println!("cargo:rustc-link-arg={}", "-Tlink.x");
         }
         _ => {}

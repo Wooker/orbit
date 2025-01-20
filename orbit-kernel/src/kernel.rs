@@ -19,8 +19,9 @@ use chip::{Peripherals, GPIOB};
 use chip::Peripherals;
 
 #[cfg(feature = "esp32c3")]
-use chip::{Peripherals, GPIO};
+use chip::Peripherals;
 
+#[repr(C)]
 pub struct Kernel {
     // core: Core,
     pub peripherals: Option<Peripherals>,
@@ -35,18 +36,5 @@ impl Kernel {
 
     pub unsafe fn initialize(&mut self) {
         self.peripherals = Peripherals::take();
-        if let Some(p) = &self.peripherals {
-            let system = &p.SYSTEM;
-            p.GPIO.out_w1ts().write(|w| w.bits(1 << 8));
-            // p.RCC.apb2prstr.modify(|_, w| w.bits(1 << 3));
-            // p.RCC.apb2prstr.modify(|r, w| w.bits(r.bits() & !(1 << 3)));
-
-            // Enable GPIO PORT B
-            // p.RCC.apb2pcenr.modify(|_, w| w.bits(1 << 3));
-        }
     }
-
-    // pub fn claim(&self) -> *const chip::gpiob::RegisterBlock {
-    // GPIOB::ptr()
-    // }
 }

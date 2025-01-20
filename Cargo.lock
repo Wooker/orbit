@@ -155,7 +155,7 @@ dependencies = [
  "qingke",
  "qingke-rt",
  "riscv 0.12.1",
- "riscv-rt",
+ "riscv-rt-macros",
 ]
 
 [[package]]
@@ -287,17 +287,6 @@ name = "riscv-pac"
 version = "0.2.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "8188909339ccc0c68cfb5a04648313f09621e8b87dc03095454f1a11f6c5d436"
-
-[[package]]
-name = "riscv-rt"
-version = "0.13.0"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "753f1bd7eb4e0003cec5e2fb60ea8e253a71d0b041bc7d1ba0fffe22e3c0294d"
-dependencies = [
- "riscv 0.12.1",
- "riscv-pac",
- "riscv-rt-macros",
-]
 
 [[package]]
 name = "riscv-rt-macros"

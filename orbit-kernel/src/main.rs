@@ -1,17 +1,8 @@
 #![no_std]
 #![no_main]
 
-use core::arch::global_asm;
-
+use orbit_arch;
 use orbit_kernel::kernel::Kernel;
-
-global_asm!(
-    "
-    .global start;
-start:
-    csrwi mstatus, 0;   
-"
-);
 
 #[cfg(feature = "ch592")]
 use orbit_arch::entry;
@@ -52,7 +43,6 @@ use chip::Peripherals;
 use orbit_arch::entry;
 
 extern "C" {
-    static mut DEVICE_PERIPHERALS: bool;
     static mut KERNEL: Kernel;
 }
 
@@ -80,56 +70,20 @@ unsafe fn kernel_main() -> ! {
 }
 
 // #[cfg(feature = "esp32c3")]
-// use orbit_arch::entry;
+use orbit_arch::entry;
 
 #[cfg(feature = "esp32c3")]
-#[link_section = ".trap.rust"]
-fn DefaultHandler() {}
-
-#[cfg(feature = "esp32c3")]
-#[no_mangle]
+#[entry]
 fn kernel_main() -> ! {
-    let peripherals = unsafe { KERNEL.initialize() };
+    let _peripherals = unsafe { KERNEL.initialize() };
+    let a = 2;
+    let b = 3;
+    let mut c = a + b;
     loop {
-        let a = 2;
-        let b = 3;
-        let c = a + b;
+        if c > 5 {
+            continue;
+        } else {
+            c += 1;
+        }
     }
-
-    // // Get access to the GPIO registers
-    // let gpio = &peripherals.GPIO;
-
-    // // Configure GPIO2 as an output (replace with your LED's GPIO pin number)
-    // const LED_GPIO: u8 = 8;
-
-    // unsafe {
-    //     // Disable the GPIO function to ensure it's in the default state
-    //     gpio.enable_w1tc().write(|w| w.bits(1 << LED_GPIO));
-
-    //     // Set GPIO2 to output mode
-    //     gpio.func_out_sel_cfg(LED_GPIO as usize).modify(
-    //         |_, w| w.out_sel().bits(255), // Connect the GPIO to the GPIO output signal
-    //     );
-
-    //     gpio.enable_w1ts().write(|w| w.bits(1 << LED_GPIO));
-    // }
-    // loop {
-    //     unsafe {
-    //         // Set the LED pin high (turn the LED on)
-    //         gpio.out_w1ts().write(|w| w.bits(1 << LED_GPIO));
-
-    //         // Delay manually to control timing
-    //         for _ in 0..1_000_000 {
-    //             core::sync::atomic::compiler_fence(core::sync::atomic::Ordering::SeqCst);
-    //         }
-
-    //         // Set the LED pin low (turn the LED off)
-    //         gpio.out_w1tc().write(|w| w.bits(1 << LED_GPIO));
-
-    //         // Delay again
-    //         for _ in 0..1_000_000 {
-    //             core::sync::atomic::compiler_fence(core::sync::atomic::Ordering::SeqCst);
-    //         }
-    //     }
-    // }
 }
