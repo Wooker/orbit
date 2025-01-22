@@ -38,7 +38,7 @@ fn kernel_main() -> ! {
 #[cfg(feature = "ch32v208wbu6")]
 #[entry]
 fn kernel_main() -> ! {
-    let mut kernel = Kernel::new();
+    let kernel = Kernel::new();
     let (_maj, _min) = kernel.version();
 
     kernel.initialize();

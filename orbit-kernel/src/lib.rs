@@ -2,6 +2,9 @@
 #![no_main]
 
 pub mod kernel;
+pub mod task;
+
+pub(crate) mod peripherals;
 
 pub use orbit_arch;
 

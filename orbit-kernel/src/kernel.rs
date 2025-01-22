@@ -1,3 +1,9 @@
+use core::{ptr::null_mut, sync::atomic::AtomicPtr};
+
+use crate::peripherals::{
+    gpio::{GPIOA, GPIOB},
+    rcc::RCC,
+};
 #[used]
 #[no_mangle]
 // #[link_section = ".kernel"]
@@ -32,40 +38,33 @@ impl Kernel {
         }
     }
 
-    pub fn initialize(&mut self) -> ! {
-        self.peripherals
-            .RCC
-            .apb2prstr
-            .write(|w| unsafe { w.bits(1 << 3) });
-        self.peripherals
-            .RCC
-            .apb2prstr
-            .modify(|r, w| unsafe { w.bits(r.bits() & !(1 << 3)) });
-        // Enable GPIO PORT B
-        self.peripherals
-            .RCC
-            .apb2pcenr
-            .write(|w| unsafe { w.bits(1 << 3) });
-        // Set PB8 as output with 50Mhz speed
-        self.peripherals
-            .GPIOB
-            .cfghr
-            .write(|w| unsafe { w.bits(0b0101) });
-        self.peripherals
-            .GPIOB
-            .bshr
-            .write(|w| unsafe { w.bits(1 << 24) });
+    pub fn initialize(&self) -> ! {
+        unsafe { orbit_arch::riscv32::riscv::register::mstatus::set_mie() };
+        let mstatus = orbit_arch::riscv32::riscv::register::mstatus::read();
+        let apb2_bits = (1 << 2) + (1 << 3) + (1 << 14); // PA, PB, USART1
+        let rcc = RCC::new(&self.peripherals.RCC);
+        rcc.reset(apb2_bits);
+        rcc.enable_clock(apb2_bits);
+
+        let gpioa = GPIOA::new(&self.peripherals.GPIOA);
+        gpioa.enable();
+        if mstatus.mie() {
+            let gpiob = GPIOB::new(&self.peripherals.GPIOB);
+            gpiob.enable();
+        } else {
+        }
+
         loop {
-            self.peripherals
-                .GPIOB
-                .bshr
-                .write(|w| unsafe { w.bits(1 << 8) });
-            orbit_arch::riscv32::riscv::asm::delay(1000000);
-            self.peripherals
-                .GPIOB
-                .bshr
-                .write(|w| unsafe { w.bits(1 << 24) });
-            orbit_arch::riscv32::riscv::asm::delay(1000000);
+            // self.peripherals
+            //     .GPIOB
+            //     .bshr
+            //     .write(|w| unsafe { w.bits(1 << 8) });
+            // orbit_arch::riscv32::riscv::asm::delay(1000000);
+            // self.peripherals
+            //     .GPIOB
+            //     .bshr
+            //     .write(|w| unsafe { w.bits(1 << 24) });
+            // orbit_arch::riscv32::riscv::asm::delay(1000000);
         }
     }
     pub fn version(&self) -> (u8, u8) {
