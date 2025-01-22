@@ -1,10 +1,11 @@
-#[cfg(feature = "qingke_v4")]
-pub mod qingke;
+use core::arch::global_asm;
 
+#[cfg(feature = "qingke_v4")]
+pub use qingke::*;
 #[cfg(feature = "qingke_v4")]
 pub use qingke_rt::entry;
 
-use core::arch::global_asm;
+#[cfg(feature = "riscv")]
 pub use riscv_rt_macros::entry;
 
 #[cfg(feature = "riscv")]

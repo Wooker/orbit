@@ -2,10 +2,8 @@
 #![no_main]
 
 use orbit_arch;
-use orbit_kernel::kernel::Kernel;
-
-#[cfg(feature = "ch592")]
 use orbit_arch::entry;
+use orbit_kernel::kernel::Kernel;
 
 #[cfg(feature = "ch592")]
 #[allow(unused)]
@@ -38,39 +36,13 @@ fn kernel_main() -> ! {
 }
 
 #[cfg(feature = "ch32v208wbu6")]
-use chip::Peripherals;
-#[cfg(feature = "ch32v208wbu6")]
-use orbit_arch::entry;
-
-extern "C" {
-    static mut KERNEL: Kernel;
-}
-
-#[cfg(feature = "ch32v208wbu6")]
-#[allow(unused)]
-#[no_mangle]
 #[entry]
-unsafe fn kernel_main() -> ! {
-    KERNEL.initialize();
-    let gpiob = KERNEL.claim();
-    // Set PB8 as output with 50Mhz speed
-    (*gpiob).cfghr.modify(|_, w| w.bits(0b0101));
-    // Reset PB8
-    (*gpiob).bshr.write(|w| w.bits(1 << 24));
+fn kernel_main() -> ! {
+    let mut kernel = Kernel::new();
+    let (_maj, _min) = kernel.version();
 
-    loop {
-        unsafe {
-            (*gpiob).bshr.write(|w| w.bits(1 << 8));
-            orbit_arch::qingke::riscv::asm::delay(1000000);
-
-            (*gpiob).bshr.write(|w| w.bits(1 << 24));
-            orbit_arch::qingke::riscv::asm::delay(1000000);
-        }
-    }
+    kernel.initialize();
 }
-
-// #[cfg(feature = "esp32c3")]
-use orbit_arch::entry;
 
 #[cfg(feature = "esp32c3")]
 #[entry]

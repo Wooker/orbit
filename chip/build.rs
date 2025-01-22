@@ -4,6 +4,7 @@ use std::io::{Read, Write};
 use std::path::PathBuf;
 use std::str::FromStr;
 
+#[allow(unused)]
 macro_rules! p {
     ($($tokens: tt)*) => {
         println!("cargo:warning={}", format!($($tokens)*))
@@ -30,7 +31,7 @@ fn main() {
             }
         })
         .collect();
-    p!("Features: {:?}", features);
+    // p!("Features: {:?}", features);
     if features.len() != 1 {
         panic!("Use only one feature for the chip.");
     }

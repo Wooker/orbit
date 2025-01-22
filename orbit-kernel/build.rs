@@ -8,6 +8,7 @@ use std::{
     str::FromStr,
 };
 
+#[allow(unused)]
 macro_rules! p {
     ($($tokens: tt)*) => {
         println!("cargo:warning={}", format!($($tokens)*))
@@ -51,7 +52,7 @@ fn main() {
             }
         })
         .collect();
-    p!("Features: {:?}", features);
+    // p!("Features: {:?}", features);
     if features.len() != 1 {
         panic!("Use only one feature for the chip.");
     }
@@ -71,7 +72,7 @@ fn main() {
             println!("cargo:rustc-link-arg={}", "-Tlink.x");
         }
         "ch32v208wbu6" => {
-            println!("cargo:rustc-link-arg={}", "-Tlinkall.x");
+            println!("cargo:rustc-link-arg={}", "-Tlink.x");
         }
         "esp32c3" => {
             println!("cargo:rustc-link-arg={}", "-Tmemory.x");
