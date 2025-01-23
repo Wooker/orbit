@@ -4,6 +4,7 @@
 pub mod kernel;
 pub mod task;
 
+#[cfg(feature = "ch32v208wbu6")]
 pub(crate) mod peripherals;
 
 pub use orbit_arch;

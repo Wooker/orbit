@@ -1,5 +1,6 @@
 use core::{ptr::null_mut, sync::atomic::AtomicPtr};
 
+#[cfg(feature = "ch32v208wbu6")]
 use crate::peripherals::{
     gpio::{GPIOA, GPIOB},
     rcc::RCC,
@@ -28,7 +29,7 @@ use chip::Peripherals;
 use chip::Peripherals;
 
 pub struct Kernel {
-    peripherals: Peripherals,
+    pub peripherals: Peripherals,
 }
 
 impl Kernel {
@@ -38,6 +39,7 @@ impl Kernel {
         }
     }
 
+    #[cfg(feature = "ch32v208wbu6")]
     pub fn initialize(&self) -> ! {
         unsafe { orbit_arch::riscv32::riscv::register::mstatus::set_mie() };
         let mstatus = orbit_arch::riscv32::riscv::register::mstatus::read();
@@ -67,6 +69,7 @@ impl Kernel {
             // orbit_arch::riscv32::riscv::asm::delay(1000000);
         }
     }
+
     pub fn version(&self) -> (u8, u8) {
         (KERNEL_MAJOR, KERNEL_MINOR)
     }

@@ -1,6 +1,8 @@
 #![no_std]
 #![no_main]
 
+pub mod gpio;
+
 #[cfg(feature = "esp32c3")]
 pub mod esp32c3;
 #[cfg(feature = "esp32c3")]
@@ -13,3 +15,5 @@ pub use ch32v208wbu6::*;
 
 #[cfg(feature = "ch592")]
 pub mod ch592;
+#[cfg(feature = "ch592")]
+pub use ch592::*;

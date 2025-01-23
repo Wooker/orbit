@@ -5,32 +5,24 @@ use orbit_arch;
 use orbit_arch::entry;
 use orbit_kernel::kernel::Kernel;
 
+use chip::*;
+
 #[cfg(feature = "ch592")]
 #[allow(unused)]
 #[no_mangle]
 #[entry]
 fn kernel_main() -> ! {
-    let p = KERNEL.initialize();
-    unsafe {
-        // Set PA8 as output with 20mA level
-        p.GPIO.pa_pd_drv.modify(|_, w| w.bits(1 << 8));
-        // Set PB23 as output with 20mA level
-        p.GPIO.pb_pd_drv.modify(|_, w| w.bits(1 << 23));
-        p.GPIO.pb_dir.modify(|_, w| w.bits(1 << 23));
-
-        p.GPIO.pa_out.modify(|r, w| w.bits(r.bits() ^ (1 << 8)));
-        p.GPIO.pb_out.modify(|r, w| w.bits(r.bits() ^ (1 << 23)));
-    }
-
+    let kernel = Kernel::new();
+    let p = &kernel.peripherals;
+    let bad: PBAD = GPIO::new();
+    let pa8: PA8 = GPIO::new();
+    pa8.enable();
     loop {
         unsafe {
             p.GPIO.pa_out.modify(|r, w| w.bits(r.bits() ^ (1 << 8)));
-            p.GPIO.pb_out.modify(|r, w| w.bits(r.bits() ^ (1 << 23)));
-            orbit_arch::qingke::riscv::asm::delay(10000);
-
+            orbit_arch::riscv::asm::delay(10000);
             p.GPIO.pa_out.modify(|r, w| w.bits(r.bits() ^ (0 << 8)));
-            p.GPIO.pb_out.modify(|r, w| w.bits(r.bits() ^ (0 << 23)));
-            orbit_arch::qingke::riscv::asm::delay(10000);
+            orbit_arch::riscv::asm::delay(10000);
         }
     }
 }
