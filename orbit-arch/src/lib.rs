@@ -4,10 +4,10 @@
 #![allow(unused)]
 #![allow(non_camel_case_types)]
 
-pub mod arch_error;
+pub mod interface;
 
 #[cfg(all(target_arch = "riscv32", target_os = "none"))]
-pub mod riscv32;
+mod riscv32;
 #[cfg(all(target_arch = "riscv32", target_os = "none"))]
 pub use crate::riscv32::*;
 

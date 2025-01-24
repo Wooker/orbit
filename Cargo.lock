@@ -151,6 +151,7 @@ name = "orbit-arch"
 version = "0.1.0"
 dependencies = [
  "cortex-m",
+ "embedded-hal 1.0.0",
  "esp-riscv-rt",
  "qingke",
  "qingke-rt",
@@ -163,6 +164,7 @@ name = "orbit-kernel"
 version = "0.1.0"
 dependencies = [
  "chip",
+ "embedded-hal 1.0.0",
  "orbit-arch",
 ]
 

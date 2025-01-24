@@ -3,6 +3,7 @@
 
 use orbit_arch;
 use orbit_arch::entry;
+use orbit_arch::interface::{pmp::Pmp, timer::Timer};
 use orbit_kernel::kernel::Kernel;
 
 use chip::*;
@@ -12,18 +13,20 @@ use chip::*;
 #[no_mangle]
 #[entry]
 fn kernel_main() -> ! {
-    let kernel = Kernel::new();
+    let mut kernel = Kernel::new(32000);
+    kernel.core.pmp.clear_cfg(0, 0);
     let p = &kernel.peripherals;
-    let bad: PBAD = GPIO::new();
-    let pa8: PA8 = GPIO::new();
+    let a = kernel.claim::<chip::pac::adc::adc_cfg::ADC_CFG_SPEC>();
+    let mut pa8: PA8 = GPIO::new();
     pa8.enable();
+    pa8.set_high();
     loop {
-        unsafe {
-            p.GPIO.pa_out.modify(|r, w| w.bits(r.bits() ^ (1 << 8)));
-            orbit_arch::riscv::asm::delay(10000);
-            p.GPIO.pa_out.modify(|r, w| w.bits(r.bits() ^ (0 << 8)));
-            orbit_arch::riscv::asm::delay(10000);
-        }
+        pa8.set_high();
+        kernel.core.timer.delay(480000000);
+        // // orbit_arch::riscv::asm::delay(10000);
+        pa8.set_low();
+        // kernel.core.timer.delay(480000);
+        // // orbit_arch::riscv::asm::delay(10000);
     }
 }
 

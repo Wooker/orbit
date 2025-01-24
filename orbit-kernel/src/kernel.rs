@@ -23,20 +23,31 @@ pub static KERNEL_MINOR: u8 = 1;
 use chip::Peripherals;
 
 #[cfg(feature = "ch592")]
-use chip::Peripherals;
+use chip::{pac::Peripherals, Reg, RegisterSpec};
+#[cfg(feature = "ch592")]
+use orbit_arch::Core;
 
 #[cfg(feature = "esp32c3")]
 use chip::Peripherals;
 
 pub struct Kernel {
     pub peripherals: Peripherals,
+    pub core: Core,
 }
 
 impl Kernel {
-    pub fn new() -> Self {
+    pub fn new(hz: u32) -> Self {
         Self {
             peripherals: unsafe { Peripherals::steal() },
+            core: Core::new(hz),
         }
+    }
+
+    pub fn claim<'a, P>(&self) -> *mut u32
+    where
+        P: RegisterSpec,
+    {
+        self.peripherals.GPIO.pa_dir.as_ptr()
     }
 
     #[cfg(feature = "ch32v208wbu6")]

@@ -1,7 +1,9 @@
 use core::arch::global_asm;
 
 #[cfg(feature = "qingke_v4")]
-pub use qingke::*;
+mod qingke_cpu;
+#[cfg(feature = "qingke_v4")]
+pub use qingke_cpu::Core;
 #[cfg(feature = "qingke_v4")]
 pub use qingke_rt::entry;
 
