@@ -4,7 +4,7 @@ pub enum Mode {
     Alternate,
 }
 
-pub trait OrbitGPIO<const Port: char, const Num: u8> {
+pub trait OrbitGPIO<const PORT: char, const NUM: u8> {
     fn enable(&mut self);
     fn disable(&mut self);
     fn configure(&mut self);

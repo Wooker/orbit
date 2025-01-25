@@ -1,4 +1,5 @@
-pub use crate::gpio::OrbitGPIO;
+pub use crate::hal::gpio::OrbitGPIO;
+
 pub use ch59x::{Reg, RegisterSpec, ch59x as pac};
 
 pub struct GPIO<const PORT: char, const NUM: u8> {}

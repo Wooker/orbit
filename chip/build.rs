@@ -1,5 +1,5 @@
 use std::env;
-use std::fs::File;
+use std::fs::{DirBuilder, File};
 use std::io::{Read, Write};
 use std::path::PathBuf;
 use std::str::FromStr;
@@ -38,22 +38,112 @@ fn main() {
     let chip = features.last().unwrap();
 
     let out = &PathBuf::from(env::var_os("OUT_DIR").unwrap());
-    File::create(out.join("memory.x"))
-        .unwrap()
-        .write_all(link_script_from_feature(chip, "memory.x").as_slice())
-        .unwrap();
     // if chip == "ch32v208wbu6" {
     //     File::create(out.join("linkall.x"))
     //         .unwrap()
     //         .write_all(link_script_from_feature(chip, "linkall.x").as_slice())
     //         .unwrap();
     // }
-    // if chip == "esp32c3" {
-    // File::create(out.join("linkall.x"))
-    //     .unwrap()
-    //     .write_all(link_script_from_feature(chip, "linkall.x").as_slice())
-    //     .unwrap();
-    // }
+    if chip == "esp32c3" {
+        File::create(out.join("linkall.x"))
+            .unwrap()
+            .write_all(link_script_from_feature(chip, "ld/linkall.x").as_slice())
+            .unwrap();
+        File::create(out.join("memory.x"))
+            .unwrap()
+            .write_all(link_script_from_feature(chip, "ld/memory.x").as_slice())
+            .unwrap();
+        File::create(out.join("esp32c3.x"))
+            .unwrap()
+            .write_all(link_script_from_feature(chip, "ld/esp32c3.x").as_slice())
+            .unwrap();
+        File::create(out.join("rom-functions.x"))
+            .unwrap()
+            .write_all(link_script_from_feature(chip, "ld/rom-functions.x").as_slice())
+            .unwrap();
+        File::create(out.join("rwtext.x"))
+            .unwrap()
+            .write_all(link_script_from_feature(chip, "ld/sections/rwtext.x").as_slice())
+            .unwrap();
+        File::create(out.join("text.x"))
+            .unwrap()
+            .write_all(link_script_from_feature(chip, "ld/sections/text.x").as_slice())
+            .unwrap();
+        File::create(out.join("rwdata.x"))
+            .unwrap()
+            .write_all(link_script_from_feature(chip, "ld/sections/rwdata.x").as_slice())
+            .unwrap();
+        File::create(out.join("rodata.x"))
+            .unwrap()
+            .write_all(link_script_from_feature(chip, "ld/sections/rodata.x").as_slice())
+            .unwrap();
+        File::create(out.join("stack.x"))
+            .unwrap()
+            .write_all(link_script_from_feature(chip, "ld/sections/stack.x").as_slice())
+            .unwrap();
+        File::create(out.join("rtc_fast.x"))
+            .unwrap()
+            .write_all(link_script_from_feature(chip, "ld/sections/rtc_fast.x").as_slice())
+            .unwrap();
+        File::create(out.join("rtc_slow.x"))
+            .unwrap()
+            .write_all(link_script_from_feature(chip, "ld/sections/rtc_slow.x").as_slice())
+            .unwrap();
+        File::create(out.join("dram2.x"))
+            .unwrap()
+            .write_all(link_script_from_feature(chip, "ld/sections/dram2.x").as_slice())
+            .unwrap();
+        File::create(out.join("debug.x"))
+            .unwrap()
+            .write_all(link_script_from_feature(chip, "ld/riscv/debug.x").as_slice())
+            .unwrap();
+        File::create(out.join("hal-defaults.x"))
+            .unwrap()
+            .write_all(link_script_from_feature(chip, "ld/riscv/hal-defaults.x").as_slice())
+            .unwrap();
+        File::create(out.join("additional.ld"))
+            .unwrap()
+            .write_all(link_script_from_feature(chip, "ld/rom/additional.ld").as_slice())
+            .unwrap();
+        DirBuilder::new()
+            .recursive(true)
+            .create(out.join("rom"))
+            .unwrap();
+        File::create(out.join("rom/esp32c3.rom.ld"))
+            .unwrap()
+            .write_all(link_script_from_feature(chip, "ld/rom/esp32c3.rom.ld").as_slice())
+            .unwrap();
+        File::create(out.join("rom/additional.ld"))
+            .unwrap()
+            .write_all(link_script_from_feature(chip, "ld/rom/additional.ld").as_slice())
+            .unwrap();
+        File::create(out.join("rom/esp32c3.rom.api.ld"))
+            .unwrap()
+            .write_all(link_script_from_feature(chip, "ld/rom/esp32c3.rom.api.ld").as_slice())
+            .unwrap();
+        File::create(out.join("rom/esp32c3.rom.eco3.ld"))
+            .unwrap()
+            .write_all(link_script_from_feature(chip, "ld/rom/esp32c3.rom.eco3.ld").as_slice())
+            .unwrap();
+        File::create(out.join("rom/esp32c3.rom.eco7.ld"))
+            .unwrap()
+            .write_all(link_script_from_feature(chip, "ld/rom/esp32c3.rom.eco7.ld").as_slice())
+            .unwrap();
+        File::create(out.join("rom/esp32c3.rom.libgcc.ld"))
+            .unwrap()
+            .write_all(link_script_from_feature(chip, "ld/rom/esp32c3.rom.libgcc.ld").as_slice())
+            .unwrap();
+        File::create(out.join("rom/esp32c3.rom.version.ld"))
+            .unwrap()
+            .write_all(link_script_from_feature(chip, "ld/rom/esp32c3.rom.version.ld").as_slice())
+            .unwrap();
+        println!("cargo:rerun-if-changed=src/{}/linkall.x", chip);
+    } else {
+        File::create(out.join("memory.x"))
+            .unwrap()
+            .write_all(link_script_from_feature(chip, "memory.x").as_slice())
+            .unwrap();
+    }
     println!("cargo:rustc-link-search={}", out.display());
     println!("cargo:rerun-if-changed=src/{}/memory.x", chip);
     println!("cargo:rerun-if-changed=build.rs");

@@ -13,13 +13,13 @@ use qingke::riscv::{
 
 pub struct Core {
     pub pmp: CorePmp,
-    pub timer: CoreTimer,
+    pub timer: CoreClock,
 }
 impl Core {
     pub fn new(hz: u32) -> Self {
         Self {
             pmp: CorePmp {},
-            timer: CoreTimer::new(hz),
+            timer: CoreClock::new(hz),
         }
     }
 }
@@ -107,21 +107,37 @@ impl Pmp<Permission, Range> for CorePmp {
     }
 }
 
-pub struct CoreTimer {
+pub struct CoreClock {
     hz: u32,
 }
-impl CoreTimer {
+
+enum SysClockMode {
+    Up,
+    Down,
+}
+enum SysClockSource {
+    HCLK,
+    HCLK8Division,
+}
+impl CoreClock {
     fn new(hz: u32) -> Self {
         Self { hz }
     }
+
+    fn configure(
+        &mut self,
+        sw_int_en: bool,
+        int_en: bool,
+        mode: SysClockMode,
+        source: SysClockSource,
+    ) {
+    }
+    fn start(&mut self) {}
 }
-impl Timer for CoreTimer {
+impl Timer for CoreClock {
     /// Delay in nanoseconds. Arguments shows the minimum amount as the
     /// operation may take longer time
     fn delay(&self, ns: u32) {
-        if let Some(duration) = self.hz.checked_div_euclid(ns) {
-            asm::delay(duration)
-        } else {
-        }
+        asm::delay(ns)
     }
 }

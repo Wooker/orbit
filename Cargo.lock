@@ -155,8 +155,6 @@ dependencies = [
  "esp-riscv-rt",
  "qingke",
  "qingke-rt",
- "riscv 0.12.1",
- "riscv-rt-macros",
 ]
 
 [[package]]

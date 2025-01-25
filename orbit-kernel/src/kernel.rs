@@ -1,5 +1,3 @@
-use core::{ptr::null_mut, sync::atomic::AtomicPtr};
-
 #[cfg(feature = "ch32v208wbu6")]
 use crate::peripherals::{
     gpio::{GPIOA, GPIOB},
@@ -32,23 +30,23 @@ use chip::Peripherals;
 
 pub struct Kernel {
     pub peripherals: Peripherals,
-    pub core: Core,
+    // pub core: Core,
 }
 
 impl Kernel {
     pub fn new(hz: u32) -> Self {
         Self {
             peripherals: unsafe { Peripherals::steal() },
-            core: Core::new(hz),
+            // core: Core::new(hz),
         }
     }
 
-    pub fn claim<'a, P>(&self) -> *mut u32
-    where
-        P: RegisterSpec,
-    {
-        self.peripherals.GPIO.pa_dir.as_ptr()
-    }
+    // pub fn claim<'a, P>(&self) -> *mut u32
+    // where
+    //     P: RegisterSpec,
+    // {
+    //     self.peripherals.GPIO.pa_dir.as_ptr()
+    // }
 
     #[cfg(feature = "ch32v208wbu6")]
     pub fn initialize(&self) -> ! {
@@ -84,4 +82,39 @@ impl Kernel {
     pub fn version(&self) -> (u8, u8) {
         (KERNEL_MAJOR, KERNEL_MINOR)
     }
+}
+
+#[cfg(feature = "esp32c3")]
+use orbit_arch::riscv::register::mcause;
+#[cfg(feature = "esp32c3")]
+#[no_mangle]
+#[unsafe(link_section = ".trap")]
+pub(super) unsafe extern "C" fn _handle_priority() -> u32 {
+    let interrupt_id: usize = mcause::read().code(); // MSB is whether its exception or interrupt.
+    let intr = &*chip::INTERRUPT_CORE0::PTR;
+    let interrupt_priority = intr
+        .cpu_int_pri(0)
+        .as_ptr()
+        .add(interrupt_id)
+        .read_volatile();
+
+    let prev_interrupt_priority = intr.cpu_int_thresh().read().bits();
+    if interrupt_priority < 15 {
+        // leave interrupts disabled if interrupt is of max priority.
+        intr.cpu_int_thresh()
+            .write(|w| w.bits(interrupt_priority + 1)); // set the prio threshold to 1 more than current interrupt prio
+        unsafe {
+            orbit_arch::riscv::interrupt::enable();
+        }
+    }
+    prev_interrupt_priority
+}
+
+#[cfg(feature = "esp32c3")]
+#[no_mangle]
+#[unsafe(link_section = ".trap")]
+pub(super) unsafe extern "C" fn _restore_priority(stored_prio: u32) {
+    orbit_arch::riscv::interrupt::disable();
+    let intr = &*chip::INTERRUPT_CORE0::PTR;
+    intr.cpu_int_thresh().write(|w| w.bits(stored_prio));
 }

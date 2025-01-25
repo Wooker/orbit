@@ -11,9 +11,9 @@ embedded-hal = "1.0.0"
 qingke = { version = "0.5.0", optional = true }
 qingke-rt = { version = "0.5.0", optional = true }
 esp-riscv-rt = { version = "0.9.1", optional = true }
-riscv = { version = "0.12.1", optional = true }
+# riscv = { version = "0.12.1", optional = true }
 # riscv-rt = { version = "0.13.0", optional = true }
-riscv-rt-macros = { version = "0.2.2", optional = true }
+# riscv-rt-macros = { version = "0.2.2", optional = true }
 
 [target.'cfg(all(target_arch = "arm", target_os = "none"))'.dependencies]
 cortex-m = "0.7.4"
@@ -21,4 +21,5 @@ cortex-m = "0.7.4"
 
 [features]
 "qingke_v4" = [ "dep:qingke", "qingke/critical-section-impl", "dep:qingke-rt", "qingke-rt/v4" ]
-"riscv" = [ "dep:riscv", "riscv/critical-section-single-hart", "dep:riscv-rt-macros" ]
+"esp_riscv" = [ "dep:esp-riscv-rt" ]
+# "riscv" = [ "dep:riscv", "riscv/critical-section-single-hart", "dep:riscv-rt-macros" ]

@@ -75,10 +75,10 @@ fn main() {
             println!("cargo:rustc-link-arg={}", "-Tlink.x");
         }
         "esp32c3" => {
-            println!("cargo:rustc-link-arg={}", "-Tmemory.x");
-            println!("cargo:rustc-link-arg={}", "-Triscv.x");
+            // println!("cargo:rustc-link-arg={}", "-Tmemory.x");
+            // println!("cargo:rustc-link-arg={}", "-Triscv.x");
             // println!("cargo:rustc-link-arg={}", "-Torbit-kernel/kernel.x");
-            // println!("cargo:rustc-link-arg={}", "-Tlink.x");
+            println!("cargo:rustc-link-arg={}", "-Tlinkall.x");
         }
         _ => {}
     }

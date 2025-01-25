@@ -1,7 +1,7 @@
 #![no_std]
 #![no_main]
 
-pub mod gpio;
+pub mod hal;
 
 #[cfg(feature = "esp32c3")]
 pub mod esp32c3;

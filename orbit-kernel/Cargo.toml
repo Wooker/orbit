@@ -12,4 +12,4 @@ chip = { path = "../chip" }
 [features]
 ch32v208wbu6 = [ "orbit-arch/qingke_v4", "chip/ch32v208wbu6" ]
 ch592 = [ "orbit-arch/qingke_v4", "chip/ch592" ]
-esp32c3 = [ "orbit-arch/riscv", "chip/esp32c3" ]
+esp32c3 = [ "orbit-arch/esp_riscv", "chip/esp32c3" ]
