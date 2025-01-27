@@ -1,3 +1,11 @@
+pub mod claim;
+
+use chip::{
+    pac::{GPIO, I2C, UART1},
+    ClaimablePeripheral,
+};
+use claim::{Claim, ClaimError, Claimed};
+
 use core::mem::MaybeUninit;
 
 #[cfg(feature = "ch32v208wbu6")]
@@ -17,7 +25,7 @@ pub static KERNEL_MINOR: u8 = 1;
 #[used]
 #[no_mangle]
 #[link_section = ".kernel"]
-pub static KERNEL: Kernel = Kernel::new(32);
+pub static KERNEL: Kernel = Kernel::new(32_000_000);
 
 #[cfg(feature = "ch32v208wbu6")]
 use chip::Peripherals;
@@ -33,6 +41,7 @@ use chip::Peripherals;
 pub struct Kernel {
     pub peripherals: MaybeUninit<Peripherals>,
     pub core: Core,
+    pub apps: MaybeUninit<[u32; 8]>,
 }
 unsafe impl Sync for Kernel {}
 
@@ -41,20 +50,21 @@ impl Kernel {
         Self {
             peripherals: { MaybeUninit::<Peripherals>::uninit() }, //Peripherals::steal() },
             core: Core::new(hz),
+            apps: MaybeUninit::uninit(),
         }
     }
-
-    // pub fn claim<'a, P>(&self) -> *mut u32
-    // where
-    //     P: RegisterSpec,
-    // {
-    //     self.peripherals.GPIO.pa_dir.as_ptr()
-    // }
 
     #[cfg(feature = "ch592")]
     pub unsafe fn initialize(&mut self) {
         self.peripherals.write(Peripherals::steal());
+        self.apps.write([1, 2, 3, 4, 5, 6, 7, 8]);
     }
+
+    // pub fn claim(&mut self) -> Result<&chip::pac::UART3, ClaimError> {
+    //     let peripherals: &mut Peripherals = unsafe { self.peripherals.assume_init_mut() };
+    //     peripherals.claim()
+    // }
+
     #[cfg(feature = "ch32v208wbu6")]
     pub fn initialize(&self) -> ! {
         unsafe { orbit_arch::riscv32::riscv::register::mstatus::set_mie() };
@@ -93,6 +103,7 @@ impl Kernel {
 
 #[cfg(feature = "esp32c3")]
 use orbit_arch::riscv::register::mcause;
+
 #[cfg(feature = "esp32c3")]
 #[no_mangle]
 #[unsafe(link_section = ".trap")]
@@ -124,4 +135,52 @@ pub(super) unsafe extern "C" fn _restore_priority(stored_prio: u32) {
     orbit_arch::riscv::interrupt::disable();
     let intr = &*chip::INTERRUPT_CORE0::PTR;
     intr.cpu_int_thresh().write(|w| w.bits(stored_prio));
+}
+
+impl<'p> Claim<'p, UART1> for Kernel {
+    fn claim(&'p mut self, peripheral: ClaimablePeripheral) -> Result<Claimed<UART1>, ClaimError> {
+        let peripherals = unsafe { self.peripherals.assume_init_mut() };
+        match peripheral {
+            ClaimablePeripheral::UART1 => {
+                if 1 == 1 {
+                    Ok(Claimed::new(&mut peripherals.UART1))
+                } else {
+                    Err(ClaimError::AlreadyClaimed)
+                }
+            }
+            _ => Err(ClaimError::WrongType),
+        }
+    }
+}
+
+impl<'p> Claim<'p, I2C> for Kernel {
+    fn claim(&'p mut self, peripheral: ClaimablePeripheral) -> Result<Claimed<I2C>, ClaimError> {
+        let peripherals = unsafe { self.peripherals.assume_init_mut() };
+        match peripheral {
+            ClaimablePeripheral::I2C => {
+                if 1 == 1 {
+                    Ok(Claimed::new(&mut peripherals.I2C))
+                } else {
+                    Err(ClaimError::AlreadyClaimed)
+                }
+            }
+            _ => Err(ClaimError::WrongType),
+        }
+    }
+}
+
+impl<'p> Claim<'p, GPIO> for Kernel {
+    fn claim(&'p mut self, peripheral: ClaimablePeripheral) -> Result<Claimed<GPIO>, ClaimError> {
+        let peripherals = unsafe { self.peripherals.assume_init_mut() };
+        match peripheral {
+            ClaimablePeripheral::GPIO => {
+                if 1 == 1 {
+                    Ok(Claimed::new(&mut peripherals.GPIO))
+                } else {
+                    Err(ClaimError::AlreadyClaimed)
+                }
+            }
+            _ => Err(ClaimError::WrongType),
+        }
+    }
 }
