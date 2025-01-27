@@ -6,7 +6,11 @@ use orbit_arch::entry;
 use orbit_arch::interface::{pmp::Pmp, timer::Timer};
 use orbit_kernel::kernel::Kernel;
 
-// use chip::{OrbitGPIO, GPIO, PA8};
+use chip::pac;
+use chip::{
+    hil::{gpio::PA8, GPIO},
+    pac::GPIO,
+};
 
 #[cfg(feature = "ch592")]
 #[allow(unused)]

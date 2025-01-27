@@ -30,14 +30,14 @@ use chip::Peripherals;
 
 pub struct Kernel {
     pub peripherals: Peripherals,
-    // pub core: Core,
+    pub core: Core,
 }
 
 impl Kernel {
     pub fn new(hz: u32) -> Self {
         Self {
             peripherals: unsafe { Peripherals::steal() },
-            // core: Core::new(hz),
+            core: Core::new(hz),
         }
     }
 

@@ -1,7 +1,7 @@
 #![no_std]
 #![no_main]
 
-pub mod hal;
+mod hil;
 
 #[cfg(feature = "esp32c3")]
 pub mod esp32c3;
@@ -15,5 +15,7 @@ pub use ch32v208wbu6::*;
 
 #[cfg(feature = "ch592")]
 pub mod ch592;
+#[cfg(feature = "ch592")]
+pub use ch592::hil::*;
 #[cfg(feature = "ch592")]
 pub use ch592::*;
