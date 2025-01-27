@@ -1,3 +1,5 @@
+use core::mem::MaybeUninit;
+
 #[cfg(feature = "ch32v208wbu6")]
 use crate::peripherals::{
     gpio::{GPIOA, GPIOB},
@@ -5,23 +7,23 @@ use crate::peripherals::{
 };
 #[used]
 #[no_mangle]
-// #[link_section = ".kernel"]
+#[link_section = ".kernel"]
 pub static KERNEL_MAJOR: u8 = 0;
 #[used]
 #[no_mangle]
-// #[link_section = ".kernel"]
+#[link_section = ".kernel"]
 pub static KERNEL_MINOR: u8 = 1;
 
-// #[used]
-// #[no_mangle]
-// #[link_section = ".kernel"]
-// pub static KERNEL: Kernel = Kernel::new();
+#[used]
+#[no_mangle]
+#[link_section = ".kernel"]
+pub static KERNEL: Kernel = Kernel::new(32);
 
 #[cfg(feature = "ch32v208wbu6")]
 use chip::Peripherals;
 
 #[cfg(feature = "ch592")]
-use chip::{pac::Peripherals, Reg, RegisterSpec};
+use chip::pac::Peripherals;
 #[cfg(feature = "ch592")]
 use orbit_arch::Core;
 
@@ -29,14 +31,15 @@ use orbit_arch::Core;
 use chip::Peripherals;
 
 pub struct Kernel {
-    pub peripherals: Peripherals,
+    pub peripherals: MaybeUninit<Peripherals>,
     pub core: Core,
 }
+unsafe impl Sync for Kernel {}
 
 impl Kernel {
-    pub fn new(hz: u32) -> Self {
+    pub const fn new(hz: u32) -> Self {
         Self {
-            peripherals: unsafe { Peripherals::steal() },
+            peripherals: { MaybeUninit::<Peripherals>::uninit() }, //Peripherals::steal() },
             core: Core::new(hz),
         }
     }
@@ -48,6 +51,10 @@ impl Kernel {
     //     self.peripherals.GPIO.pa_dir.as_ptr()
     // }
 
+    #[cfg(feature = "ch592")]
+    pub unsafe fn initialize(&mut self) {
+        self.peripherals.write(Peripherals::steal());
+    }
     #[cfg(feature = "ch32v208wbu6")]
     pub fn initialize(&self) -> ! {
         unsafe { orbit_arch::riscv32::riscv::register::mstatus::set_mie() };

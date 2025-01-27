@@ -1,4 +1,4 @@
-use crate::hil::gpio::OrbitGPIO;
+use crate::interface::gpio::OrbitGPIO;
 
 pub struct GPIO<const PORT: char, const NUM: u8> {}
 impl<const PORT: char, const NUM: u8> GPIO<PORT, NUM> {

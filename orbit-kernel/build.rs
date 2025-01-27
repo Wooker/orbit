@@ -61,11 +61,11 @@ fn main() {
     println!("cargo:rustc-link-arg={}", "--verbose");
     println!("cargo:rustc-link-arg={}", "--error-limit=0");
 
-    // let out = &PathBuf::from(env::var_os("OUT_DIR").unwrap());
-    // File::create(out.join("kernel.x"))
-    //     .unwrap()
-    //     .write_all(include_bytes!("kernel.x"))
-    //     .expect("Could not find kernel.x");
+    let out = &PathBuf::from(env::var_os("OUT_DIR").unwrap());
+    File::create(out.join("kernel.x"))
+        .unwrap()
+        .write_all(include_bytes!("kernel.x"))
+        .expect("Could not find kernel.x");
 
     match chip.as_str() {
         "ch592" => {
@@ -86,5 +86,6 @@ fn main() {
         "cargo:rustc-link-arg={}{}/{}",
         "-Map=", crate_dir, "kernel.map"
     );
+    println!("cargo:rustc-link-search={}", out.display());
     println!("cargo:rerun-if-changed={}/build.rs", crate_dir);
 }

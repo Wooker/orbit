@@ -16,7 +16,7 @@ pub struct Core {
     pub timer: CoreClock,
 }
 impl Core {
-    pub fn new(hz: u32) -> Self {
+    pub const fn new(hz: u32) -> Self {
         Self {
             pmp: CorePmp {},
             timer: CoreClock::new(hz),
@@ -120,7 +120,7 @@ enum SysClockSource {
     HCLK8Division,
 }
 impl CoreClock {
-    fn new(hz: u32) -> Self {
+    const fn new(hz: u32) -> Self {
         Self { hz }
     }
 
