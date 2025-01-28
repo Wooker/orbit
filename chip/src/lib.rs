@@ -1,6 +1,7 @@
 #![no_std]
 #![no_main]
 
+pub mod claimable;
 pub mod interface;
 
 #[cfg(feature = "esp32c3")]

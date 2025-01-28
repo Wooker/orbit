@@ -9,6 +9,8 @@ kernel = "build -p orbit-kernel --features"
 kernel-size = "size -p orbit-kernel --features"
 kernel-objdump = "objdump -p orbit-kernel --features"
 
+app = "build -p orbit-app --bin"
+
 [build]
 target = "riscv32imc-unknown-none-elf"
 

@@ -1,18 +1,11 @@
 pub mod claim;
 
-use chip::{
-    pac::{GPIO, I2C, UART1},
-    ClaimablePeripheral,
-};
 use claim::{Claim, ClaimError, Claimed};
 
 use core::mem::MaybeUninit;
 
-#[cfg(feature = "ch32v208wbu6")]
-use crate::peripherals::{
-    gpio::{GPIOA, GPIOB},
-    rcc::RCC,
-};
+use crate::impl_claim;
+
 #[used]
 #[no_mangle]
 #[link_section = ".kernel"]
@@ -28,11 +21,16 @@ pub static KERNEL_MINOR: u8 = 1;
 pub static KERNEL: Kernel = Kernel::new(32_000_000);
 
 #[cfg(feature = "ch32v208wbu6")]
-use chip::Peripherals;
+use chip::pac::Peripherals;
+#[cfg(feature = "ch32v208wbu6")]
+use chip::pac::{GPIOB, RCC};
 
 #[cfg(feature = "ch592")]
 use chip::pac::Peripherals;
 #[cfg(feature = "ch592")]
+use chip::pac::{GPIO, I2C, UART1};
+
+#[cfg(any(feature = "ch592", feature = "ch32v208wbu6"))]
 use orbit_arch::Core;
 
 #[cfg(feature = "esp32c3")]
@@ -54,52 +52,21 @@ impl Kernel {
         }
     }
 
-    #[cfg(feature = "ch592")]
     pub unsafe fn initialize(&mut self) {
         self.peripherals.write(Peripherals::steal());
         self.apps.write([1, 2, 3, 4, 5, 6, 7, 8]);
-    }
-
-    // pub fn claim(&mut self) -> Result<&chip::pac::UART3, ClaimError> {
-    //     let peripherals: &mut Peripherals = unsafe { self.peripherals.assume_init_mut() };
-    //     peripherals.claim()
-    // }
-
-    #[cfg(feature = "ch32v208wbu6")]
-    pub fn initialize(&self) -> ! {
-        unsafe { orbit_arch::riscv32::riscv::register::mstatus::set_mie() };
-        let mstatus = orbit_arch::riscv32::riscv::register::mstatus::read();
-        let apb2_bits = (1 << 2) + (1 << 3) + (1 << 14); // PA, PB, USART1
-        let rcc = RCC::new(&self.peripherals.RCC);
-        rcc.reset(apb2_bits);
-        rcc.enable_clock(apb2_bits);
-
-        let gpioa = GPIOA::new(&self.peripherals.GPIOA);
-        gpioa.enable();
-        if mstatus.mie() {
-            let gpiob = GPIOB::new(&self.peripherals.GPIOB);
-            gpiob.enable();
-        } else {
-        }
-
-        loop {
-            // self.peripherals
-            //     .GPIOB
-            //     .bshr
-            //     .write(|w| unsafe { w.bits(1 << 8) });
-            // orbit_arch::riscv32::riscv::asm::delay(1000000);
-            // self.peripherals
-            //     .GPIOB
-            //     .bshr
-            //     .write(|w| unsafe { w.bits(1 << 24) });
-            // orbit_arch::riscv32::riscv::asm::delay(1000000);
-        }
     }
 
     pub fn version(&self) -> (u8, u8) {
         (KERNEL_MAJOR, KERNEL_MINOR)
     }
 }
+
+#[cfg(feature = "ch592")]
+impl_claim!(UART1, I2C, GPIO);
+
+#[cfg(feature = "ch32v208wbu6")]
+impl_claim!(RCC, GPIOB);
 
 #[cfg(feature = "esp32c3")]
 use orbit_arch::riscv::register::mcause;
@@ -135,52 +102,4 @@ pub(super) unsafe extern "C" fn _restore_priority(stored_prio: u32) {
     orbit_arch::riscv::interrupt::disable();
     let intr = &*chip::INTERRUPT_CORE0::PTR;
     intr.cpu_int_thresh().write(|w| w.bits(stored_prio));
-}
-
-impl<'p> Claim<'p, UART1> for Kernel {
-    fn claim(&'p mut self, peripheral: ClaimablePeripheral) -> Result<Claimed<UART1>, ClaimError> {
-        let peripherals = unsafe { self.peripherals.assume_init_mut() };
-        match peripheral {
-            ClaimablePeripheral::UART1 => {
-                if 1 == 1 {
-                    Ok(Claimed::new(&mut peripherals.UART1))
-                } else {
-                    Err(ClaimError::AlreadyClaimed)
-                }
-            }
-            _ => Err(ClaimError::WrongType),
-        }
-    }
-}
-
-impl<'p> Claim<'p, I2C> for Kernel {
-    fn claim(&'p mut self, peripheral: ClaimablePeripheral) -> Result<Claimed<I2C>, ClaimError> {
-        let peripherals = unsafe { self.peripherals.assume_init_mut() };
-        match peripheral {
-            ClaimablePeripheral::I2C => {
-                if 1 == 1 {
-                    Ok(Claimed::new(&mut peripherals.I2C))
-                } else {
-                    Err(ClaimError::AlreadyClaimed)
-                }
-            }
-            _ => Err(ClaimError::WrongType),
-        }
-    }
-}
-
-impl<'p> Claim<'p, GPIO> for Kernel {
-    fn claim(&'p mut self, peripheral: ClaimablePeripheral) -> Result<Claimed<GPIO>, ClaimError> {
-        let peripherals = unsafe { self.peripherals.assume_init_mut() };
-        match peripheral {
-            ClaimablePeripheral::GPIO => {
-                if 1 == 1 {
-                    Ok(Claimed::new(&mut peripherals.GPIO))
-                } else {
-                    Err(ClaimError::AlreadyClaimed)
-                }
-            }
-            _ => Err(ClaimError::WrongType),
-        }
-    }
 }
