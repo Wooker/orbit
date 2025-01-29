@@ -5,6 +5,7 @@
 pub mod application;
 
 pub mod blinky;
+// pub mod hal_test;
 
 use orbit_kernel::kernel::Kernel;
 

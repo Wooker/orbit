@@ -90,10 +90,11 @@ fn main() {
         .expect("Could not find app-link.x");
 
     println!("cargo:rustc-link-search={}", out.display());
-    // println!("cargo:rustc-link-arg={}", "-Tlink.x");
-    // println!("cargo:rustc-link-arg={}", "-Tmemory.x");
+
+    println!("cargo:rustc-link-arg={}", "-Tlink.x");
     println!("cargo:rustc-link-arg={}", "-Tapp-link.x");
+
     println!("cargo:rustc-link-arg={}", "-Map=app.map");
-    // println!("cargo:rustc-flags={}", "--emit=obj");
+
     println!("cargo:rerun-if-changed={}/build.rs", crate_dir);
 }

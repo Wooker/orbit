@@ -28,6 +28,14 @@ impl<'p, P: Claimable> Claimed<'p, P> {
         let peripheral = &self.0;
         f(peripheral)
     }
+
+    pub fn read<F>(&self, f: F) -> u8
+    where
+        F: Fn(&P) -> u8,
+    {
+        let peripheral = &self.0;
+        f(peripheral)
+    }
 }
 
 /// Macro which implements _Claim_ trait for Kernel targeting given _$chip_.

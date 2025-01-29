@@ -144,6 +144,7 @@ name = "orbit-app"
 version = "0.1.0"
 dependencies = [
  "orbit-kernel",
+ "orbit-libos",
 ]
 
 [[package]]
@@ -162,7 +163,6 @@ name = "orbit-bin"
 version = "0.1.0"
 dependencies = [
  "orbit-app",
- "orbit-arch",
  "orbit-kernel",
 ]
 
@@ -173,6 +173,13 @@ dependencies = [
  "chip",
  "embedded-hal 1.0.0",
  "orbit-arch",
+]
+
+[[package]]
+name = "orbit-libos"
+version = "0.1.0"
+dependencies = [
+ "orbit-kernel",
 ]
 
 [[package]]

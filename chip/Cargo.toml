@@ -6,7 +6,7 @@ description = "Library crate containing linker scripts for a given microcontroll
 
 [dependencies]
 ch32v2 = { version = "0.1.6", optional = true }
-ch59x = { version = "0.1.8", optional = true }
+ch59x = { version = "0.1.7", optional = true }
 esp32c3 = { version = "0.26.0", optional = true }
 
 [features]

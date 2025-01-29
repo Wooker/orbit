@@ -4,7 +4,6 @@ version = "0.1.0"
 edition = "2024"
 
 [dependencies]
-orbit-arch = { path = "../orbit-arch", features = [ "qingke_v4"] }
 orbit-kernel = { path = "../orbit-kernel", features = [ "ch592"] }
 orbit-app = { path = "../orbit-app" }
 
