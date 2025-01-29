@@ -12,6 +12,10 @@ extern "Rust" {
     static _KERNEL_MAJOR: u8;
 }
 
+extern "Rust" {
+    static APPS: [u8; 4];
+}
+
 #[cfg(feature = "ch592")]
 #[entry]
 fn kernel_main() -> ! {
@@ -20,19 +24,19 @@ fn kernel_main() -> ! {
     use orbit_kernel::kernel::claim::Claimed;
 
     unsafe { KERNEL.initialize() };
-    let mut gpio: Claimed<PACGPIO> = unsafe { KERNEL.claim().unwrap_unchecked() };
+    // let mut gpio: Claimed<PACGPIO> = unsafe { KERNEL.claim().unwrap_unchecked() };
 
-    loop {
-        unsafe { KERNEL.core.timer.delay(200000) };
-        gpio.modify(|p| {
-            p.pa_dir
-                .modify(|r, w| unsafe { w.bits(r.bits() & !(1 << 8)) });
-        });
-        unsafe { KERNEL.core.timer.delay(200000) };
-        gpio.modify(|p| {
-            p.pa_dir.write(|w| unsafe { w.bits(1 << 8) });
-        });
-    }
+    // loop {
+    //     unsafe { KERNEL.core.timer.delay(200000) };
+    //     gpio.modify(|p| {
+    //         p.pa_dir
+    //             .modify(|r, w| unsafe { w.bits(r.bits() & !(1 << 8)) });
+    //     });
+    //     unsafe { KERNEL.core.timer.delay(200000) };
+    //     gpio.modify(|p| {
+    //         p.pa_dir.write(|w| unsafe { w.bits(1 << 8) });
+    //     });
+    // }
 }
 
 #[cfg(feature = "ch32v208wbu6")]

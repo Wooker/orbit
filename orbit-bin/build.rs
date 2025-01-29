@@ -39,8 +39,9 @@ fn link_script_from_feature(feature: &String, script_name: &str) -> Vec<u8> {
 }
 
 fn main() {
+    // print_env();
+
     let crate_dir = env::var("CARGO_PKG_NAME").unwrap();
-    /*
     let features: Vec<String> = env::vars()
         .filter_map(|(key, _)| {
             // Check for the feature-related environment variables (e.g., CARGO_FEATURE_FOO)
@@ -52,20 +53,15 @@ fn main() {
         })
         .collect();
     // p!("Features: {:?}", features);
-    if features.len() != 1 {
+    if features.len() != 2 {
         panic!("Use only one feature for the chip.");
     }
-    let chip = features.last().unwrap();
+    let chip = features.first().unwrap();
 
     println!("cargo:rustc-link-arg={}", "--verbose");
     println!("cargo:rustc-link-arg={}", "--error-limit=0");
 
     let out = &PathBuf::from(env::var_os("OUT_DIR").unwrap());
-    // File::create(out.join("kernel.x"))
-    //     .unwrap()
-    //     .write_all(include_bytes!("kernel.x"))
-    //     .expect("Could not find kernel.x");
-
     match chip.as_str() {
         "ch592" => {
             println!("cargo:rustc-link-arg={}", "-Tlink.x");
@@ -81,19 +77,10 @@ fn main() {
         }
         _ => {}
     }
+    println!(
+        "cargo:rustc-link-arg={}{}/{}",
+        "-Map=", crate_dir, "kernel.map"
+    );
     println!("cargo:rustc-link-search={}", out.display());
-    */
-    let out = &PathBuf::from(env::var_os("OUT_DIR").unwrap());
-    File::create(out.join("app-link.x"))
-        .unwrap()
-        .write_all(include_bytes!("app-link.x"))
-        .expect("Could not find app-link.x");
-
-    println!("cargo:rustc-link-search={}", out.display());
-    // println!("cargo:rustc-link-arg={}", "-Tlink.x");
-    // println!("cargo:rustc-link-arg={}", "-Tmemory.x");
-    println!("cargo:rustc-link-arg={}", "-Tapp-link.x");
-    println!("cargo:rustc-link-arg={}", "-Map=app.map");
-    // println!("cargo:rustc-flags={}", "--emit=obj");
     println!("cargo:rerun-if-changed={}/build.rs", crate_dir);
 }

@@ -158,6 +158,15 @@ dependencies = [
 ]
 
 [[package]]
+name = "orbit-bin"
+version = "0.1.0"
+dependencies = [
+ "orbit-app",
+ "orbit-arch",
+ "orbit-kernel",
+]
+
+[[package]]
 name = "orbit-kernel"
 version = "0.1.0"
 dependencies = [
