@@ -1,27 +1,9 @@
-MEMORY
-{
-    /* Code Flash, 448KB max */
-  FLASH(rx) : ORIGIN = 0x00004000, LENGTH = 16k
-    /* SRAM, 26KB, 24KB + 2KB max */
-    /* 0x20006800 */
-  RAM(rwx) : ORIGIN = 0x20000000, LENGTH = 26k
-}
-
-REGION_ALIAS("REGION_TEXT", FLASH);
-REGION_ALIAS("REGION_RODATA", FLASH);
-REGION_ALIAS("REGION_DATA", RAM);
-REGION_ALIAS("REGION_BSS", RAM);
-REGION_ALIAS("REGION_HEAP", RAM);
-REGION_ALIAS("REGION_STACK", RAM);
-
 SECTIONS
 {
-  .text : ALIGN(4)
-  {
-    *( .text .text.* );
-  } > FLASH
   .apps : ALIGN(4)
   {
+    PROVIDE( _sapps = . );
     *( .apps .apps.* );
-  } >FLASH
+    PROVIDE( _eapps = . );
+  } >FLASH AT>FLASH
 }

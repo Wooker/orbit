@@ -1,5 +1,8 @@
 #![no_std]
 #![no_main]
+#![deny(unsafe_code)]
+
+pub mod application;
 
 pub mod blinky;
 

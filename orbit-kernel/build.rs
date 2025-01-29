@@ -70,6 +70,7 @@ fn main() {
     match chip.as_str() {
         "ch592" => {
             println!("cargo:rustc-link-arg={}", "-Tlink.x");
+            println!("cargo:rustc-link-arg={}", "-Tkernel.x");
         }
         "ch32v208wbu6" => {
             println!("cargo:rustc-link-arg={}", "-Tlink.x");

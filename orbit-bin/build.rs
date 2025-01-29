@@ -65,6 +65,7 @@ fn main() {
     match chip.as_str() {
         "ch592" => {
             println!("cargo:rustc-link-arg={}", "-Tlink.x");
+            println!("cargo:rustc-link-arg={}", "-Tapp-link.x");
         }
         "ch32v208wbu6" => {
             println!("cargo:rustc-link-arg={}", "-Tlink.x");
@@ -79,7 +80,7 @@ fn main() {
     }
     println!(
         "cargo:rustc-link-arg={}{}/{}",
-        "-Map=", crate_dir, "kernel.map"
+        "-Map=", crate_dir, "bin.map"
     );
     println!("cargo:rustc-link-search={}", out.display());
     println!("cargo:rerun-if-changed={}/build.rs", crate_dir);

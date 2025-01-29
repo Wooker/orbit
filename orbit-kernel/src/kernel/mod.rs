@@ -1,10 +1,6 @@
 pub mod claim;
 
-use claim::{Claim, ClaimError, Claimed};
-
 use core::mem::MaybeUninit;
-
-use crate::impl_claim;
 
 #[used]
 #[no_mangle]
@@ -20,21 +16,8 @@ pub static KERNEL_MINOR: u8 = 1;
 #[link_section = ".kernel"]
 pub static KERNEL: Kernel = Kernel::new(32_000_000);
 
-#[cfg(feature = "ch32v208wbu6")]
 use chip::pac::Peripherals;
-#[cfg(feature = "ch32v208wbu6")]
-use chip::pac::{GPIOB, RCC};
-
-#[cfg(feature = "ch592")]
-use chip::pac::Peripherals;
-#[cfg(feature = "ch592")]
-use chip::pac::{GPIO, I2C, UART1};
-
-#[cfg(any(feature = "ch592", feature = "ch32v208wbu6"))]
 use orbit_arch::Core;
-
-#[cfg(feature = "esp32c3")]
-use chip::Peripherals;
 
 pub struct Kernel {
     pub peripherals: MaybeUninit<Peripherals>,
@@ -61,12 +44,6 @@ impl Kernel {
         (KERNEL_MAJOR, KERNEL_MINOR)
     }
 }
-
-#[cfg(feature = "ch592")]
-impl_claim!(UART1, I2C, GPIO);
-
-#[cfg(feature = "ch32v208wbu6")]
-impl_claim!(RCC, GPIOB);
 
 #[cfg(feature = "esp32c3")]
 use orbit_arch::riscv::register::mcause;
