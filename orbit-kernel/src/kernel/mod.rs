@@ -1,6 +1,14 @@
 pub mod claim;
+pub mod clock;
+mod safe_access;
 
+use clock::ClockConfig;
+
+use chip::pac::Peripherals;
 use core::mem::MaybeUninit;
+use fugit::HertzU32;
+pub use fugit::{Rate, RateExtU32};
+use orbit_arch::Core;
 
 #[used]
 #[no_mangle]
@@ -15,9 +23,6 @@ pub static KERNEL_MINOR: u8 = 1;
 #[no_mangle]
 #[link_section = ".kernel"]
 pub static KERNEL: Kernel = Kernel::new(32_000_000);
-
-use chip::pac::Peripherals;
-use orbit_arch::Core;
 
 pub struct Kernel {
     pub peripherals: MaybeUninit<Peripherals>,
@@ -35,7 +40,10 @@ impl Kernel {
         }
     }
 
-    pub unsafe fn initialize(&mut self) {
+    pub unsafe fn initialize(&mut self, freq: HertzU32) {
+        match freq {
+            _ => ClockConfig::pll_60mhz(),
+        };
         self.peripherals.write(Peripherals::steal());
         self.apps.write([1, 2, 3, 4, 5, 6, 7, 8]);
     }

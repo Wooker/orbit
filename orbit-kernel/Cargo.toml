@@ -5,6 +5,7 @@ edition = "2021"
 description = "Orbit kernel crate"
 
 [dependencies]
+fugit = "0.3.7"
 embedded-hal = "1.0.0"
 orbit-arch = { path = "../orbit-arch"}
 chip = { path = "../chip" }

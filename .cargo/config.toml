@@ -8,6 +8,9 @@ ESP_LOGLEVEL="INFO"
 kernel = "build -p orbit-kernel --features"
 kernel-size = "size -p orbit-kernel --features"
 kernel-objdump = "objdump -p orbit-kernel --features"
+bin = "build -p orbit-bin --release"
+bin-size = "size -p orbit-bin --release"
+bin-objdump = "objdump -p orbit-bin --release -- -d"
 
 app = "build -p orbit-app --bin"
 

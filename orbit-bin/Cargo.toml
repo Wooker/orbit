@@ -4,9 +4,9 @@ version = "0.1.0"
 edition = "2024"
 
 [dependencies]
-orbit-kernel = { path = "../orbit-kernel", features = [ "ch592"] }
+orbit-kernel = { path = "../orbit-kernel" }
 orbit-app = { path = "../orbit-app" }
 
 [features]
 default = [ "ch592" ]
-ch592 = []
+ch592 = [ "orbit-kernel/ch592" ]

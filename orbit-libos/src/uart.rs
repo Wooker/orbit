@@ -4,7 +4,7 @@
 // Default UART is UART1(PA8/PA9)
 use orbit_kernel::chip::pac::UART1;
 use orbit_kernel::kernel::claim::{Claim, Claimed};
-use orbit_kernel::kernel::Kernel;
+use orbit_kernel::kernel::{clock::clocks, Kernel};
 
 unsafe extern "Rust" {
     static mut KERNEL: Kernel;
@@ -104,7 +104,7 @@ impl<'a> Uart<'a> {
         }
 
         // baudrate = Fsys * 2 / R8_UARTx_DIV / 16 / R16_UARTx_DL
-        let x = 10 * 32_000 /* crate::sysctl::clocks().hclk.to_Hz() */ / 8 / config.baudrate;
+        let x = 10 * clocks().hclk.to_Hz() / 8 / config.baudrate;
         let x = ((x + 5) / 10) & 0xffff;
 
         uart1.modify(|p| p.uart1_div.write(|w| unsafe { w.bits(1) }));

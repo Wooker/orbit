@@ -68,5 +68,5 @@ macro_rules! impl_claim {
     };
 }
 
-impl_claim!("ch592", UART1, I2C, GPIO);
+impl_claim!("ch592", UART1, I2C, GPIO, SYS, SYSTEM_CONTROL);
 impl_claim!("ch32v208wbu6", RCC, GPIOB);
