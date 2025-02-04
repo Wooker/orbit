@@ -8,5 +8,6 @@ orbit-kernel = { path = "../orbit-kernel" }
 orbit-app = { path = "../orbit-app" }
 
 [features]
-default = [ "ch592" ]
-ch592 = [ "orbit-kernel/ch592" ]
+default = [ "ch32v208wbu6" ]
+ch592 = [ "orbit-kernel/ch592", "orbit-app/ch592" ]
+ch32v208wbu6 = [ "orbit-kernel/ch32v208wbu6", "orbit-app/ch32v208wbu6" ]

@@ -7,7 +7,6 @@ use orbit_kernel::{
     arch::interface::timer::Timer,
     chip::pac::{GPIO, UART1},
     kernel::claim::{Claim, Claimed},
-    kernel::clock::ClockConfig,
 };
 use orbit_libos::uart::{Config, Uart};
 
@@ -25,7 +24,6 @@ extern "C" {
 pub struct UartApp;
 impl Application<1> for UartApp {
     fn main(&self) {
-        ClockConfig::pll_60mhz().freeze();
         let mut gpio: Claimed<GPIO> = unsafe { KERNEL.claim().unwrap_unchecked() };
         gpio.modify(|p| {
             p.pa_dir.write(|w| unsafe { w.bits(1 << 9) });

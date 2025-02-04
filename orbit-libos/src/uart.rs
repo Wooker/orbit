@@ -4,7 +4,7 @@
 // Default UART is UART1(PA8/PA9)
 use orbit_kernel::chip::pac::UART1;
 use orbit_kernel::kernel::claim::{Claim, Claimed};
-use orbit_kernel::kernel::{clock::clocks, Kernel};
+use orbit_kernel::kernel::{clock::ch592::clocks, Kernel};
 
 unsafe extern "Rust" {
     static mut KERNEL: Kernel;

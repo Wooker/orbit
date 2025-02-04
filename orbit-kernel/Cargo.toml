@@ -8,6 +8,7 @@ description = "Orbit kernel crate"
 fugit = "0.3.7"
 embedded-hal = "1.0.0"
 orbit-arch = { path = "../orbit-arch"}
+orbit-common = { path = "../orbit-common" }
 chip = { path = "../chip" }
 
 [features]

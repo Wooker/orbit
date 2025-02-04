@@ -52,7 +52,7 @@ fn main() {
             }
         })
         .collect();
-    // p!("Features: {:?}", features);
+    p!("Features: {:?}", features);
     if features.len() != 1 {
         panic!("Use only one feature for the chip.");
     }

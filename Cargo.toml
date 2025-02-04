@@ -6,5 +6,5 @@ members = [
     "chip",
     "orbit-kernel",
     # "orbit-libos",
-    "orbit-app", "orbit-bin",
+    "orbit-app", "orbit-bin", "orbit-common",
 ]

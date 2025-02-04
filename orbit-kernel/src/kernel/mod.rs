@@ -44,6 +44,7 @@ impl Kernel {
         match freq {
             _ => ClockConfig::pll_60mhz(),
         };
+
         self.peripherals.write(Peripherals::steal());
         self.apps.write([1, 2, 3, 4, 5, 6, 7, 8]);
     }
