@@ -8,11 +8,25 @@ ESP_LOGLEVEL="INFO"
 kernel = "build -p orbit-kernel --features"
 kernel-size = "size -p orbit-kernel --features"
 kernel-objdump = "objdump -p orbit-kernel --features"
-bin = "build -p orbit-bin --release"
-bin-size = "size -p orbit-bin --release"
-bin-objdump = "objdump -p orbit-bin --release -- -d"
+bin = "build -p orbit-bin --features"
+bin-size = "size -p orbit-bin --features"
+bin-objdump = "objdump -p orbit-bin --features"
 
 app = "build -p orbit-app --bin"
+
+# Same as release
+[profile.dev]
+opt-level = 3
+debug = false
+split-debuginfo = '...'  # Platform-specific.
+strip = "none"
+debug-assertions = false
+overflow-checks = false
+lto = false
+panic = 'unwind'
+incremental = false
+codegen-units = 16
+rpath = false
 
 [build]
 target = "riscv32imc-unknown-none-elf"

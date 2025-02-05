@@ -70,10 +70,12 @@ impl ClockConfig {
     }
 
     pub fn freeze(self) {
-        let mut rcc = unsafe { &*chip::pac::RCC };
+        let mut rcc = unsafe { &*chip::pac::RCC::ptr() };
 
         unsafe {
-            CLOCK = Clocks { /* hclk */ };
+            CLOCK = Clocks {
+                hclk: Hertz::from_raw(144_000_000),
+            };
         }
     }
 }
