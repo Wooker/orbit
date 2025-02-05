@@ -5,6 +5,7 @@ edition = "2021"
 description = "Crate contaning operating system libraries"
 
 [dependencies]
+orbit-common = { path = "../orbit-common" }
 orbit-kernel = { path = "../orbit-kernel" }
 fugit = "0.3.7"
 

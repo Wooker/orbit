@@ -1,6 +1,5 @@
 pub mod claim;
 pub mod clock;
-mod safe_access;
 
 use clock::ClockConfig;
 

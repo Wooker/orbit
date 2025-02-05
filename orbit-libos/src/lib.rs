@@ -2,5 +2,6 @@
 #![no_main]
 #![feature(strict_overflow_ops)]
 
-#[cfg(feature = "ch592")]
-pub mod uart;
+use orbit_common::feature_mod;
+
+feature_mod!("ch592", pub, uart);

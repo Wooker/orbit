@@ -4,13 +4,12 @@
 
 pub mod application;
 
-#[cfg(feature = "ch592")]
-pub mod blinky;
-#[cfg(feature = "ch592")]
-pub mod uart;
-
+use orbit_common::feature_mod;
 use orbit_kernel::kernel::Kernel;
 
 extern "Rust" {
     static mut KERNEL: Kernel;
 }
+
+feature_mod!("ch592", pub, blinky);
+feature_mod!("ch592", pub, uart);

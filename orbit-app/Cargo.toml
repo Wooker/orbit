@@ -5,6 +5,7 @@ edition = "2021"
 description = "Crate contaning application binaries"
 
 [dependencies]
+orbit-common = { path = "../orbit-common" }
 # Can use either kernel, custom LibOS, or external HAL
 orbit-kernel = { path = "../orbit-kernel" }
 orbit-libos = { path = "../orbit-libos" }

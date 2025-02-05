@@ -5,23 +5,23 @@ pub use paste;
 
 #[macro_export]
 macro_rules! feature_mod {
-    ($vis:vis, $chip:literal) => {
+    ($chip:literal, $vis:vis) => {
         $crate::paste::paste! {
             #[cfg(feature = $chip)]
             $vis mod [<$chip>];
         }
     };
-    ($vis:vis, $chip:literal, $name:ident) => {
+    ($chip:literal, $vis:vis, $name:ident) => {
         $crate::paste::paste! {
             #[cfg(feature = $chip)]
-            $vis mod [<$chip>] as $name;
+            $vis mod [<$name>];
         }
     };
 }
 
 #[macro_export]
 macro_rules! feature_mod_use {
-    ($vis:vis, $chip:literal) => {
+    ($chip:literal, $vis:vis) => {
         $crate::paste::paste! {
             #[cfg(feature = $chip)]
             $vis mod [<$chip>];
@@ -29,7 +29,7 @@ macro_rules! feature_mod_use {
             $vis use [<$chip>]::*;
         }
     };
-    ($vis:vis, $chip:literal, $name:ident) => {
+    ($chip:literal, $vis:vis, $name:ident) => {
         $crate::paste::paste! {
             #[cfg(feature = $chip)]
             $vis mod [<$chip>];
