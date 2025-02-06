@@ -3,6 +3,8 @@
 #![allow(elided_named_lifetimes)]
 #![allow(static_mut_refs)]
 
+pub mod claim;
+pub mod clock;
 pub mod kernel;
 pub mod task;
 

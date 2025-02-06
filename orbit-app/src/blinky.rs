@@ -5,7 +5,7 @@ use crate::{application::Application, KERNEL};
 use orbit_kernel::{
     arch::interface::timer::Timer,
     chip::pac::GPIO,
-    kernel::claim::{Claim, Claimed},
+    claim::{Claim, Claimed},
 };
 
 #[used]

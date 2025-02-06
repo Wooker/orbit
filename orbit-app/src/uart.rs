@@ -6,7 +6,7 @@ use core::fmt::Write;
 use orbit_kernel::{
     arch::interface::timer::Timer,
     chip::pac::{GPIO, UART1},
-    kernel::claim::{Claim, Claimed},
+    claim::{Claim, Claimed},
 };
 use orbit_libos::uart::{Config, Uart};
 

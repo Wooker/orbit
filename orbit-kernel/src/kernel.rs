@@ -1,13 +1,11 @@
-pub mod claim;
-pub mod clock;
-
-use clock::ClockConfig;
+use crate::clock::ClockConfig;
 
 use chip::pac::Peripherals;
+use orbit_arch::Core;
+
 use core::mem::MaybeUninit;
 use fugit::HertzU32;
 pub use fugit::{Rate, RateExtU32};
-use orbit_arch::Core;
 
 #[used]
 #[no_mangle]
@@ -33,7 +31,7 @@ unsafe impl Sync for Kernel {}
 impl Kernel {
     pub const fn new(hz: u32) -> Self {
         Self {
-            peripherals: { MaybeUninit::<Peripherals>::uninit() }, //Peripherals::steal() },
+            peripherals: { MaybeUninit::<Peripherals>::uninit() },
             core: Core::new(hz),
             apps: MaybeUninit::uninit(),
         }
