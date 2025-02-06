@@ -37,12 +37,12 @@ impl Kernel {
         }
     }
 
-    pub unsafe fn initialize(&mut self, freq: HertzU32) {
+    pub fn initialize(&mut self, freq: HertzU32) {
         match freq {
-            _ => ClockConfig::pll_60mhz(),
+            _ => ClockConfig::pll_60mhz().freeze(),
         };
 
-        self.peripherals.write(Peripherals::steal());
+        self.peripherals.write(unsafe { Peripherals::steal() });
         self.apps.write([1, 2, 3, 4, 5, 6, 7, 8]);
     }
 

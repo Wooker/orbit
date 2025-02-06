@@ -1,5 +1,3 @@
-use crate::kernel::safe_access::with_safe_access;
-
 use fugit::HertzU32 as Hertz;
 
 // No HSI
@@ -70,11 +68,21 @@ impl ClockConfig {
     }
 
     pub fn freeze(self) {
-        let mut rcc = unsafe { &*chip::pac::RCC::ptr() };
+        let rcc = unsafe { &*chip::pac::RCC::PTR };
+        rcc.apb2prstr.write(|w| unsafe { w.bits(1 << 3) });
+        rcc.apb2prstr
+            .modify(|r, w| unsafe { w.bits(r.bits() & !(1 << 3)) });
+
+        rcc.apb2pcenr.write(|w| unsafe { w.bits((1 << 3)) });
+
+        let gpiob = unsafe { &*chip::pac::GPIOB::PTR };
+        gpiob.cfghr.write(|w| unsafe { w.bits(0b0101) });
+
+        gpiob.bshr.write(|w| unsafe { w.bits(1 << 8) });
 
         unsafe {
             CLOCK = Clocks {
-                hclk: Hertz::from_raw(144_000_000),
+                hclk: Hertz::from_raw(10),
             };
         }
     }

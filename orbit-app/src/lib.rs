@@ -13,3 +13,5 @@ extern "Rust" {
 
 feature_mod!("ch592", pub, blinky);
 feature_mod!("ch592", pub, uart);
+
+feature_mod!("ch32v208wbu6", pub, blinky_v208);
