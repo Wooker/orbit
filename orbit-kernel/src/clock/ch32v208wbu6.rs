@@ -76,15 +76,15 @@ impl ClockConfig {
         rcc.apb2pcenr.write(|w| unsafe { w.bits((1 << 3)) });
 
         let gpiob = unsafe { &*chip::pac::GPIOB::PTR };
-        gpiob.cfghr.write(|w| unsafe { w.bits(0b0101) });
-
+        gpiob.cfglr.write(|w| unsafe { w.bits(0b0001 << 28) });
+        gpiob.cfghr.write(|w| unsafe { w.bits(0b0001) });
         gpiob.bshr.write(|w| unsafe { w.bits(1 << 8) });
 
-        unsafe {
-            CLOCK = Clocks {
-                hclk: Hertz::from_raw(10),
-            };
-        }
+        // unsafe {
+        //     CLOCK = Clocks {
+        //         hclk: Hertz::from_raw(10),
+        //     };
+        // }
     }
 }
 

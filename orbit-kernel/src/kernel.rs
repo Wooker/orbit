@@ -1,6 +1,7 @@
 use crate::clock::ClockConfig;
 
 use chip::pac::Peripherals;
+use orbit_arch::interface::timer::Timer;
 use orbit_arch::Core;
 
 use core::mem::MaybeUninit;
@@ -19,31 +20,46 @@ pub static KERNEL_MINOR: u8 = 1;
 #[used]
 #[no_mangle]
 #[link_section = ".kernel"]
-pub static KERNEL: Kernel = Kernel::new(32_000_000);
+pub static KERNEL: Kernel = Kernel::new();
 
 pub struct Kernel {
     pub peripherals: MaybeUninit<Peripherals>,
-    pub core: Core,
+    // pub core: Core,
     pub apps: MaybeUninit<[u32; 8]>,
 }
 unsafe impl Sync for Kernel {}
 
 impl Kernel {
-    pub const fn new(hz: u32) -> Self {
+    pub const fn new() -> Self {
         Self {
             peripherals: { MaybeUninit::<Peripherals>::uninit() },
-            core: Core::new(hz),
+            // core: Core::new(hz),
             apps: MaybeUninit::uninit(),
         }
     }
 
-    pub fn initialize(&mut self, freq: HertzU32) {
-        match freq {
-            _ => ClockConfig::pll_60mhz().freeze(),
-        };
-
+    pub fn initialize(&mut self) -> ! {
         self.peripherals.write(unsafe { Peripherals::steal() });
-        self.apps.write([1, 2, 3, 4, 5, 6, 7, 8]);
+        let peripherals = unsafe { self.peripherals.assume_init_mut() };
+
+        let mut rcc = &peripherals.RCC;
+        rcc.apb2prstr.write(|w| unsafe { w.bits(1 << 3) });
+        rcc.apb2prstr
+            .modify(|r, w| unsafe { w.bits(r.bits() & !(1 << 3)) });
+
+        rcc.apb2pcenr.write(|w| unsafe { w.bits((1 << 3)) });
+
+        let mut gpiob = &peripherals.GPIOB;
+
+        gpiob.cfghr.write(|w| unsafe { w.bits(0b0101) });
+        gpiob.bshr.write(|w| unsafe { w.bits(1 << 24) });
+
+        loop {
+            gpiob.bshr.write(|w| unsafe { w.bits(1 << 8) });
+            orbit_arch::riscv::asm::delay(1000000);
+            gpiob.bshr.write(|w| unsafe { w.bits(1 << 24) });
+            orbit_arch::riscv::asm::delay(1000000);
+        }
     }
 
     pub fn version(&self) -> (u8, u8) {

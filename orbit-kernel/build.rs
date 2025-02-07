@@ -74,6 +74,7 @@ fn main() {
         }
         "ch32v208wbu6" => {
             println!("cargo:rustc-link-arg={}", "-Tlink.x");
+            println!("cargo:rustc-link-arg={}", "-Tkernel.x");
         }
         "esp32c3" => {
             // println!("cargo:rustc-link-arg={}", "-Tmemory.x");

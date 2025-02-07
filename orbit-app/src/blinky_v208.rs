@@ -15,18 +15,18 @@ pub static BLINKY: Blinky = Blinky {};
 
 pub struct Blinky;
 impl Application<1> for Blinky {
-    fn main(&self) {
+    fn main(&self) -> () {
         let mut gpiob: Claimed<GPIOB> = unsafe { KERNEL.claim().unwrap_unchecked() };
         gpiob.modify(|p| p.cfghr.write(|w| unsafe { w.bits(0b0101) }));
 
         loop {
             gpiob.modify(|p| {
                 p.bshr.write(|w| unsafe { w.bits(1 << 24) });
-                unsafe { KERNEL.core.timer.delay(1000000) };
+                // unsafe { KERNEL.core.timer.delay(1000000) };
             });
             gpiob.modify(|p| {
                 p.bshr.write(|w| unsafe { w.bits(1 << 8) });
-                unsafe { KERNEL.core.timer.delay(1000000) };
+                // unsafe { KERNEL.core.timer.delay(1000000) };
             });
         }
     }
