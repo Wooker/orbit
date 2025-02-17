@@ -3,6 +3,7 @@
 #![deny(unsafe_code)]
 
 pub mod application;
+pub mod service;
 
 use orbit_common::feature_mod;
 use orbit_kernel::kernel::Kernel;

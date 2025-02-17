@@ -91,8 +91,8 @@ fn main() {
 
     println!("cargo:rustc-link-search={}", out.display());
 
-    println!("cargo:rustc-link-arg={}", "-Tlink.x");
     println!("cargo:rustc-link-arg={}", "-Tapp-link.x");
+    println!("cargo:rustc-link-arg={}", "-Tlink.x");
 
     println!("cargo:rustc-link-arg={}", "-Map=app.map");
 

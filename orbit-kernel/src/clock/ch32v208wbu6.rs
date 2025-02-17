@@ -73,7 +73,7 @@ impl ClockConfig {
         rcc.apb2prstr
             .modify(|r, w| unsafe { w.bits(r.bits() & !(1 << 3)) });
 
-        rcc.apb2pcenr.write(|w| unsafe { w.bits((1 << 3)) });
+        rcc.apb2pcenr.write(|w| unsafe { w.bits(1 << 3) });
 
         let gpiob = unsafe { &*chip::pac::GPIOB::PTR };
         gpiob.cfglr.write(|w| unsafe { w.bits(0b0001 << 28) });

@@ -1,17 +1,19 @@
-use crate::clock::ClockConfig;
-
 use chip::pac::Peripherals;
-use orbit_arch::interface::timer::Timer;
-use orbit_arch::Core;
+use orbit_arch::{interface::pmp::Pmp, riscv::register::Permission, riscv::register::Range, Core};
 
 use core::mem::MaybeUninit;
-use fugit::HertzU32;
 pub use fugit::{Rate, RateExtU32};
+
+extern "C" {
+    static _sapps: u8;
+    static _eapps: u8;
+}
 
 #[used]
 #[no_mangle]
 #[link_section = ".kernel"]
 pub static KERNEL_MAJOR: u8 = 0;
+
 #[used]
 #[no_mangle]
 #[link_section = ".kernel"]
@@ -20,46 +22,36 @@ pub static KERNEL_MINOR: u8 = 1;
 #[used]
 #[no_mangle]
 #[link_section = ".kernel"]
-pub static KERNEL: Kernel = Kernel::new();
+pub static KERNEL: Kernel = Kernel::new(10);
 
 pub struct Kernel {
     pub peripherals: MaybeUninit<Peripherals>,
-    // pub core: Core,
+    pub core: Core,
     pub apps: MaybeUninit<[u32; 8]>,
 }
 unsafe impl Sync for Kernel {}
 
 impl Kernel {
-    pub const fn new() -> Self {
+    pub const fn new(hz: u32) -> Self {
         Self {
             peripherals: { MaybeUninit::<Peripherals>::uninit() },
-            // core: Core::new(hz),
+            core: Core::new(hz),
             apps: MaybeUninit::uninit(),
         }
     }
 
-    pub fn initialize(&mut self) -> ! {
+    pub fn initialize(&mut self) {
+        clock::ClockConfig::pll_60mhz().freeze();
         self.peripherals.write(unsafe { Peripherals::steal() });
-        let peripherals = unsafe { self.peripherals.assume_init_mut() };
-
-        let mut rcc = &peripherals.RCC;
-        rcc.apb2prstr.write(|w| unsafe { w.bits(1 << 3) });
-        rcc.apb2prstr
-            .modify(|r, w| unsafe { w.bits(r.bits() & !(1 << 3)) });
-
-        rcc.apb2pcenr.write(|w| unsafe { w.bits((1 << 3)) });
-
-        let mut gpiob = &peripherals.GPIOB;
-
-        gpiob.cfghr.write(|w| unsafe { w.bits(0b0101) });
-        gpiob.bshr.write(|w| unsafe { w.bits(1 << 24) });
-
-        loop {
-            gpiob.bshr.write(|w| unsafe { w.bits(1 << 8) });
-            orbit_arch::riscv::asm::delay(1000000);
-            gpiob.bshr.write(|w| unsafe { w.bits(1 << 24) });
-            orbit_arch::riscv::asm::delay(1000000);
-        }
+        self.core.pmp.clear_cfg(0, 0);
+        self.core.pmp.clear_cfg(0, 1);
+        self.core.pmp.clear_cfg(0, 2);
+        self.core.pmp.clear_cfg(0, 3);
+        self.core
+            .pmp
+            .write_cfg(0, 3, Range::TOR, Permission::NONE, false);
+        self.core.pmp.write_addr(3, 0x0);
+        let apps_size = unsafe { _eapps - _sapps };
     }
 
     pub fn version(&self) -> (u8, u8) {
@@ -69,6 +61,8 @@ impl Kernel {
 
 #[cfg(feature = "esp32c3")]
 use orbit_arch::riscv::register::mcause;
+
+use crate::clock;
 
 #[cfg(feature = "esp32c3")]
 #[no_mangle]

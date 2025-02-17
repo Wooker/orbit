@@ -22,11 +22,11 @@ impl Application<1> for Blinky {
         loop {
             gpiob.modify(|p| {
                 p.bshr.write(|w| unsafe { w.bits(1 << 24) });
-                // unsafe { KERNEL.core.timer.delay(1000000) };
+                unsafe { KERNEL.core.timer.delay(1000000) };
             });
             gpiob.modify(|p| {
                 p.bshr.write(|w| unsafe { w.bits(1 << 8) });
-                // unsafe { KERNEL.core.timer.delay(1000000) };
+                unsafe { KERNEL.core.timer.delay(1000000) };
             });
         }
     }
