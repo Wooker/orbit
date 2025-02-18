@@ -14,7 +14,7 @@ use orbit_kernel::{
 pub static BLINKY: Blinky = Blinky {};
 
 pub struct Blinky;
-impl Application<1> for Blinky {
+impl Application for Blinky {
     fn main(&self) -> () {
         let mut gpiob: Claimed<GPIOB> = unsafe { KERNEL.claim().unwrap_unchecked() };
         gpiob.modify(|p| p.cfghr.write(|w| unsafe { w.bits(0b0101) }));

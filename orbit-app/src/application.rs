@@ -1,4 +1,5 @@
-pub trait Application<const PRIORITY: u8> {
+pub trait Application {
+    #[inline(never)]
     #[link_section = ".apps"]
     fn main(&self);
 }

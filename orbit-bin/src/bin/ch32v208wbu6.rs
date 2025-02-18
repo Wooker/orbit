@@ -15,8 +15,11 @@ unsafe extern "Rust" {
 }
 
 #[entry]
-unsafe fn main() -> ! {
-    KERNEL.initialize();
-    BLINKY.main();
+fn main() -> ! {
+    let addr = Blinky::main as usize;
+    unsafe { KERNEL.register(addr) };
+    // KERNEL.initialize(Blinky::main as *const fn());
+    unsafe { KERNEL.initialize() };
+    // BLINKY.main();
     loop {}
 }

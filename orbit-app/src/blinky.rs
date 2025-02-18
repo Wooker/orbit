@@ -1,8 +1,9 @@
 #![allow(static_mut_refs)]
 #![allow(unsafe_code)]
 
-use crate::{application::Application, KERNEL};
+use crate::KERNEL;
 use orbit_kernel::{
+    application::Application,
     arch::interface::timer::Timer,
     chip::pac::GPIO,
     claim::{Claim, Claimed},
@@ -18,7 +19,7 @@ extern "C" {
 }
 
 pub struct Blinky;
-impl Application<1> for Blinky {
+impl Application for Blinky {
     fn main(&self) {
         let mut gpio: Claimed<GPIO> = unsafe { KERNEL.claim().unwrap_unchecked() };
         loop {
