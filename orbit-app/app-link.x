@@ -6,4 +6,4 @@ SECTIONS
         *(.apps .apps.*);
         PROVIDE( _eapps = . );
     } >FLASH
-} INSERT AFTER .kernel;
+}

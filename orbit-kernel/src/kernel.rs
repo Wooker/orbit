@@ -18,13 +18,12 @@ pub static KERNEL_MINOR: u8 = 1;
 
 #[used]
 #[no_mangle]
-#[link_section = ".kernel"]
-pub static KERNEL: Kernel = Kernel::new(10);
+pub static mut KERNEL: Kernel = Kernel::new(10);
 
 pub struct Kernel {
     pub peripherals: MaybeUninit<Peripherals>,
     pub core: Core,
-    pub app: MaybeUninit<usize>,
+    pub apps: [MaybeUninit<usize>; 4],
 }
 unsafe impl Sync for Kernel {}
 
@@ -33,14 +32,13 @@ impl Kernel {
         Self {
             peripherals: { MaybeUninit::<Peripherals>::uninit() },
             core: Core::new(hz),
-            app: MaybeUninit::<usize>::uninit(),
+            apps: MaybeUninit::uninit_array::<4>(),
         }
     }
 
     pub fn register(&mut self, app: usize) {
-        self.app.write(app);
+        self.apps[0].write(app);
         fence(Ordering::SeqCst);
-        // compiler_fence(Ordering::SeqCst);
     }
 
     pub fn initialize(&mut self) {
@@ -51,12 +49,11 @@ impl Kernel {
         self.core.pmp.clear_cfg(0, 2);
         self.core.pmp.clear_cfg(0, 3);
 
-        // self.core
-        //     .pmp
-        //     .write_cfg(0, 0, Range::TOR, Permission::RX, false);
-        // self.core.pmp.write_addr(0, 0x0800_0000 >> 2);
-        // let apps = unsafe { self.apps.assume_init() };
-        let app_addr = unsafe { *self.app.as_ptr() };
+        self.core
+            .pmp
+            .write_cfg(0, 0, Range::TOR, Permission::RX, false);
+        self.core.pmp.write_addr(0, 0x0800_0000 >> 2);
+        let app_addr = unsafe { self.apps[0].assume_init_read() };
         if app_addr > 0 {
             orbit_arch::riscv::register::mepc::write(app_addr);
             unsafe {
