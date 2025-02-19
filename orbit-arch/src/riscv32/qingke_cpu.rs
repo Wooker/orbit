@@ -106,6 +106,18 @@ impl Pmp<Permission, Range> for CorePmp {
         }
     }
 }
+impl CorePmp {
+    pub fn default(&mut self) {
+        self.clear_cfg(0, 0);
+        self.write_addr(0, 0);
+        self.clear_cfg(0, 1);
+        self.write_addr(1, 0);
+        self.clear_cfg(0, 2);
+        self.write_addr(2, 0);
+        self.clear_cfg(0, 3);
+        self.write_addr(3, 0);
+    }
+}
 
 pub struct CoreClock {
     hz: u32,

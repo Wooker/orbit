@@ -7,7 +7,7 @@
 use core::arch::asm;
 
 use orbit_app::{application::Application, blinky_v208::Blinky};
-use orbit_kernel::{arch::entry, kernel::Kernel, kernel::Rate};
+use orbit_kernel::{arch::entry, kernel::Kernel};
 
 unsafe extern "Rust" {
     static mut KERNEL: Kernel;
@@ -16,7 +16,7 @@ unsafe extern "Rust" {
 
 #[entry]
 fn main() -> ! {
-    unsafe { KERNEL.register(Blinky::main as usize) };
+    unsafe { KERNEL.add_application(0, Blinky::main as usize) };
     unsafe { KERNEL.initialize() };
     loop {}
 }

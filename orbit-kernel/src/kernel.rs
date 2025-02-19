@@ -1,10 +1,11 @@
-use crate::clock;
+use crate::{
+    application::{AppContainer, PmpEntry},
+    clock,
+};
 use chip::pac::Peripherals;
-use core::sync::atomic::{compiler_fence, fence, Ordering};
 use orbit_arch::{interface::pmp::Pmp, riscv::register::Permission, riscv::register::Range, Core};
 
 use core::{arch::asm, mem::MaybeUninit};
-pub use fugit::{Rate, RateExtU32};
 
 #[used]
 #[no_mangle]
@@ -23,7 +24,7 @@ pub static mut KERNEL: Kernel = Kernel::new(10);
 pub struct Kernel {
     pub peripherals: MaybeUninit<Peripherals>,
     pub core: Core,
-    pub apps: [MaybeUninit<usize>; 4],
+    pub apps: [MaybeUninit<AppContainer<4>>; 4],
 }
 unsafe impl Sync for Kernel {}
 
@@ -36,32 +37,53 @@ impl Kernel {
         }
     }
 
-    pub fn register(&mut self, app: usize) {
-        self.apps[0].write(app);
-        fence(Ordering::SeqCst);
+    #[inline(never)]
+    pub fn add_application(&mut self, index: usize, app_addr: usize) {
+        unsafe {
+            self.apps.get_unchecked_mut(index).write(AppContainer::new(
+                [
+                    // allow to read and execute code in flash
+                    PmpEntry::new(0x0800_0000, Range::TOR, Permission::RX, false),
+                    // GPIOB
+                    PmpEntry::new(0x1000_437f, Range::NAPOT, Permission::RW, false),
+                    // RAM
+                    PmpEntry::new(0x0800_0fff, Range::NAPOT, Permission::RW, false),
+                    // protect the entire memory
+                    // PmpEntry::new(0x3fff_ffff, Range::NAPOT, Permission::NONE, false),
+                    PmpEntry::default(),
+                ],
+                app_addr,
+            ))
+        };
     }
 
     pub fn initialize(&mut self) {
         clock::ClockConfig::pll_60mhz().freeze();
         self.peripherals.write(unsafe { Peripherals::steal() });
-        self.core.pmp.clear_cfg(0, 0);
-        self.core.pmp.clear_cfg(0, 1);
-        self.core.pmp.clear_cfg(0, 2);
-        self.core.pmp.clear_cfg(0, 3);
+        self.core.pmp.default();
 
-        self.core
-            .pmp
-            .write_cfg(0, 0, Range::TOR, Permission::RX, false);
-        self.core.pmp.write_addr(0, 0x0800_0000 >> 2);
-        let app_addr = unsafe { self.apps[0].assume_init_read() };
-        if app_addr > 0 {
-            orbit_arch::riscv::register::mepc::write(app_addr);
-            unsafe {
-                orbit_arch::riscv::register::mstatus::set_mpp(
-                    orbit_arch::riscv::register::mstatus::MPP::User,
-                )
-            };
-            unsafe { asm!("mret") };
+        self.context_switch();
+    }
+
+    fn context_switch(&mut self) {
+        let app_cont = unsafe { self.apps[0].assume_init_read() };
+        self.set_pmp(&app_cont);
+
+        orbit_arch::riscv::register::mepc::write(app_cont.get_addr());
+        unsafe {
+            orbit_arch::riscv::register::mstatus::set_mpp(
+                orbit_arch::riscv::register::mstatus::MPP::User,
+            )
+        };
+        unsafe { asm!("mret") };
+    }
+
+    fn set_pmp(&mut self, app: &AppContainer<4>) {
+        for (i, pe) in app.get_pmp().iter().enumerate() {
+            self.core
+                .pmp
+                .write_cfg(0, i, pe.range, pe.permission, pe.locked);
+            self.core.pmp.write_addr(i, pe.address);
         }
     }
 

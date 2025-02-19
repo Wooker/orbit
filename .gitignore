@@ -5,4 +5,5 @@ specification/**/states/
 specification/**/*.pdf
 specification/**/*TTrace*
 Cargo.lock
+gdbinit
 *.map
