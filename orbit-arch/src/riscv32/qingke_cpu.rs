@@ -11,11 +11,11 @@ use qingke::riscv::{
     result::{Error as RiscvError, Result},
 };
 
-pub struct Core {
-    pub pmp: CorePmp,
+pub struct Core<const PMP: usize> {
+    pub pmp: CorePmp<PMP>,
     pub timer: CoreClock,
 }
-impl Core {
+impl<const PMP: usize> Core<PMP> {
     pub const fn new(hz: u32) -> Self {
         Self {
             pmp: CorePmp {},
@@ -24,8 +24,8 @@ impl Core {
     }
 }
 
-pub struct CorePmp;
-impl Pmp<Permission, Range> for CorePmp {
+pub struct CorePmp<const PMP: usize>;
+impl<const PMP: usize> Pmp<Permission, Range> for CorePmp<PMP> {
     type Result<T> = Result<T>;
 
     fn write_cfg(
@@ -67,7 +67,7 @@ impl Pmp<Permission, Range> for CorePmp {
                 _ => Err(RiscvError::IndexOutOfBounds {
                     index,
                     min: 0,
-                    max: 3,
+                    max: PMP - 1,
                 }),
             },
             _ => Err(RiscvError::IndexOutOfBounds {
@@ -87,7 +87,7 @@ impl Pmp<Permission, Range> for CorePmp {
             _ => Err(RiscvError::IndexOutOfBounds {
                 index: reg,
                 min: 0,
-                max: 3,
+                max: PMP - 1,
             }),
         }
     }
@@ -106,16 +106,12 @@ impl Pmp<Permission, Range> for CorePmp {
         }
     }
 }
-impl CorePmp {
+impl<const PMP: usize> CorePmp<PMP> {
     pub fn default(&mut self) {
-        self.clear_cfg(0, 0);
-        self.write_addr(0, 0);
-        self.clear_cfg(0, 1);
-        self.write_addr(1, 0);
-        self.clear_cfg(0, 2);
-        self.write_addr(2, 0);
-        self.clear_cfg(0, 3);
-        self.write_addr(3, 0);
+        for pmpcfg in 0..PMP {
+            self.clear_cfg(0, pmpcfg);
+            self.write_addr(pmpcfg, 0);
+        }
     }
 }
 

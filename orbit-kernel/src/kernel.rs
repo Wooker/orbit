@@ -19,16 +19,16 @@ pub static KERNEL_MINOR: u8 = 1;
 
 #[used]
 #[no_mangle]
-pub static mut KERNEL: Kernel = Kernel::new(10);
+pub static mut KERNEL: Kernel<4> = Kernel::new(10);
 
-pub struct Kernel {
+pub struct Kernel<const PMP: usize> {
     pub peripherals: MaybeUninit<Peripherals>,
-    pub core: Core,
-    pub apps: [MaybeUninit<AppContainer<4>>; 4],
+    pub core: Core<PMP>,
+    pub apps: [MaybeUninit<AppContainer<PMP>>; 4],
 }
-unsafe impl Sync for Kernel {}
+unsafe impl<const PMP: usize> Sync for Kernel<PMP> {}
 
-impl Kernel {
+impl<const PMP: usize> Kernel<PMP> {
     pub const fn new(hz: u32) -> Self {
         Self {
             peripherals: { MaybeUninit::<Peripherals>::uninit() },
@@ -40,18 +40,9 @@ impl Kernel {
     #[inline(never)]
     pub fn add_application(&mut self, index: usize, app_addr: usize) {
         unsafe {
-            self.apps.get_unchecked_mut(index).write(AppContainer::new(
-                [
-                    // allow to read and execute code in flash
-                    PmpEntry::new(0x0200_0000, Range::TOR, Permission::RX, false),
-                    // GPIOB
-                    PmpEntry::new(0x1000_437f, Range::NAPOT, Permission::RW, false),
-                    // RAM
-                    PmpEntry::new(0x0800_0fff, Range::NAPOT, Permission::RW, false),
-                    PmpEntry::default(),
-                ],
-                app_addr,
-            ))
+            self.apps
+                .get_unchecked_mut(index)
+                .write(AppContainer::new([PmpEntry::default(); PMP], app_addr))
         };
     }
 
@@ -76,7 +67,7 @@ impl Kernel {
         unsafe { asm!("mret") };
     }
 
-    fn set_pmp(&mut self, app: &AppContainer<4>) {
+    fn set_pmp(&mut self, app: &AppContainer<PMP>) {
         for (i, pe) in app.get_pmp().iter().enumerate() {
             self.core
                 .pmp

@@ -67,6 +67,10 @@ fn main() {
             println!("cargo:rustc-link-arg={}", "-Tlink.x");
             println!("cargo:rustc-link-arg={}", "-Tapp-link.x");
         }
+        "ch32v003" => {
+            println!("cargo:rustc-link-arg={}", "-Tlink.x");
+            println!("cargo:rustc-link-arg={}", "-Tapp-link.x");
+        }
         "ch32v208wbu6" => {
             println!("cargo:rustc-link-arg={}", "-Tlink.x");
             println!("cargo:rustc-link-arg={}", "-Tapp-link.x");

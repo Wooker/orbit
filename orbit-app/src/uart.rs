@@ -35,7 +35,7 @@ impl<'a> UartApp<'a> {
         self.data.write(data);
     }
 }
-impl<'a> Application<1> for UartApp<'a> {
+impl<'a> Application for UartApp<'a> {
     fn main(&self) {
         let uart1: Claimed<UART1> = unsafe { KERNEL.claim().unwrap_unchecked() };
         let mut uart = Uart::new(uart1, Config::default());

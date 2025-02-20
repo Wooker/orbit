@@ -6,12 +6,11 @@
 
 use core::arch::asm;
 
-use orbit_app::{application::Application, blinky_v208::Blinky};
+use orbit_app::{application::Application, blinky_v003::Blinky};
 use orbit_kernel::{arch::entry, kernel::Kernel};
 
 unsafe extern "Rust" {
     static mut KERNEL: Kernel<4>;
-    static mut BLINKY: Blinky;
 }
 
 #[entry]

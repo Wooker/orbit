@@ -24,6 +24,17 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "46afbd2983a5d5a7bd740ccb198caf5b82f45c40c09c0eed36052d91cb92e719"
 
 [[package]]
+name = "ch32v0"
+version = "0.1.7"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "7ff5bb4d8b8f1b3a2efb017507f2ee3abb5f69c16df30f21b329a2402bb9901e"
+dependencies = [
+ "critical-section",
+ "riscv 0.10.1",
+ "vcell",
+]
+
+[[package]]
 name = "ch32v2"
 version = "0.1.6"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -49,9 +60,11 @@ dependencies = [
 name = "chip"
 version = "0.1.0"
 dependencies = [
+ "ch32v0",
  "ch32v2",
  "ch59x",
  "esp32c3",
+ "orbit-common",
 ]
 
 [[package]]

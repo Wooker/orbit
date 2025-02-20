@@ -4,7 +4,7 @@
 use crate::{application::Application, KERNEL};
 use orbit_kernel::{
     arch::interface::timer::Timer,
-    chip::pac::GPIO,
+    chip::pac::GPIOA,
     claim::{Claim, Claimed},
 };
 
@@ -20,16 +20,16 @@ extern "C" {
 pub struct Blinky;
 impl Application for Blinky {
     fn main(&self) {
-        let mut gpio: Claimed<GPIO> = unsafe { KERNEL.claim().unwrap_unchecked() };
+        let mut gpio: Claimed<GPIOA> = unsafe { KERNEL.claim().unwrap_unchecked() };
         loop {
             unsafe { KERNEL.core.timer.delay(200000) };
             gpio.modify(|p| {
-                p.pa_dir
+                p.outdr
                     .modify(|r, w| unsafe { w.bits(r.bits() & !(1 << 8)) });
             });
             unsafe { KERNEL.core.timer.delay(200000) };
             gpio.modify(|p| {
-                p.pa_dir.write(|w| unsafe { w.bits(1 << 8) });
+                p.outdr.write(|w| unsafe { w.bits(1 << 8) });
             });
         }
     }

@@ -5,11 +5,15 @@ edition = "2024"
 description = "Library crate containing linker scripts for a given microcontroller"
 
 [dependencies]
+orbit-common = { path = "../orbit-common" }
+
 ch32v2 = { version = "0.1.6", optional = true }
 ch59x = { version = "0.1.7", optional = true }
 esp32c3 = { version = "0.26.0", optional = true }
+ch32v0 = { version = "0.1.7", optional = true }
 
 [features]
 esp32c3 = [ "dep:esp32c3", "esp32c3/critical-section", "esp32c3/rt" ]
 ch32v208wbu6 = [ "dep:ch32v2", "ch32v2/ch32v20x", "ch32v2/critical-section", "ch32v2/rt" ]
 ch592 = [ "dep:ch59x", "ch59x/ch59x", "ch59x/critical-section", "ch59x/rt" ]
+ch32v003 = [ "dep:ch32v0", "ch32v0/ch32v003", "ch32v0/critical-section", "ch32v0/rt" ]

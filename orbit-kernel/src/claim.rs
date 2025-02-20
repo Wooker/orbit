@@ -54,7 +54,7 @@ macro_rules! impl_claim {
             #[cfg(feature = $chip)]
             impl Claimable for $field {}
             #[cfg(feature = $chip)]
-            impl<'p> Claim<'p, $field> for Kernel {
+            impl<'p, const PMP: usize> Claim<'p, $field> for Kernel<PMP> {
                 fn claim(&'p mut self) -> Result<Claimed<$field>, ClaimError> {
                     let peripherals = unsafe { self.peripherals.assume_init_mut() };
                     if 1 == 1 { // Replace with actual condition for checking claim status
@@ -69,4 +69,5 @@ macro_rules! impl_claim {
 }
 
 impl_claim!("ch592", UART1, I2C, GPIO);
+impl_claim!("ch32v003", GPIOA);
 impl_claim!("ch32v208wbu6", RCC, GPIOB);
