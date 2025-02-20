@@ -7,10 +7,13 @@ pub(crate) struct PmpEntry {
     pub permission: Permission,
     pub locked: bool,
 }
+
+// NAPOT: addr >> 2 | ((1<<(pow-3)-1)
+// OTHER: addr >> 2
 impl PmpEntry {
     pub fn new(addr: usize, range: Range, permission: Permission, locked: bool) -> Self {
         Self {
-            address: addr >> 2,
+            address: addr,
             range,
             permission,
             locked,

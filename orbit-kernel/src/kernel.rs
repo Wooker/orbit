@@ -43,13 +43,11 @@ impl Kernel {
             self.apps.get_unchecked_mut(index).write(AppContainer::new(
                 [
                     // allow to read and execute code in flash
-                    PmpEntry::new(0x0800_0000, Range::TOR, Permission::RX, false),
+                    PmpEntry::new(0x0200_0000, Range::TOR, Permission::RX, false),
                     // GPIOB
                     PmpEntry::new(0x1000_437f, Range::NAPOT, Permission::RW, false),
                     // RAM
                     PmpEntry::new(0x0800_0fff, Range::NAPOT, Permission::RW, false),
-                    // protect the entire memory
-                    // PmpEntry::new(0x3fff_ffff, Range::NAPOT, Permission::NONE, false),
                     PmpEntry::default(),
                 ],
                 app_addr,
@@ -62,11 +60,11 @@ impl Kernel {
         self.peripherals.write(unsafe { Peripherals::steal() });
         self.core.pmp.default();
 
-        self.context_switch();
+        self.context_switch(0);
     }
 
-    fn context_switch(&mut self) {
-        let app_cont = unsafe { self.apps[0].assume_init_read() };
+    fn context_switch(&mut self, index: usize) {
+        let app_cont = unsafe { self.apps.get_unchecked(index).assume_init_read() };
         self.set_pmp(&app_cont);
 
         orbit_arch::riscv::register::mepc::write(app_cont.get_addr());
