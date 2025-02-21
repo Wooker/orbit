@@ -15,3 +15,4 @@ fugit = "0.3.7"
 ch592 = [ "orbit-kernel/ch592" ]
 ch32v208wbu6 = [ "orbit-kernel/ch32v208wbu6" ]
 ch32v003 = [ "orbit-kernel/ch32v003" ]
+bl702 = [ "orbit-kernel/bl702" ]

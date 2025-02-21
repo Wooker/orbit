@@ -17,8 +17,14 @@ mod esp_riscv;
 // #[cfg(feature = "riscv")]
 // pub use riscv_rt_macros::entry;
 
-// #[cfg(feature = "riscv")]
-// pub use riscv;
+#[cfg(feature = "riscv")]
+pub use riscv;
 
-// #[cfg(feature = "riscv")]
-// pub use riscv_rt::entry;
+#[cfg(feature = "riscv")]
+pub use riscv_rt::entry;
+
+#[cfg(feature = "riscv")]
+mod riscv_cpu;
+
+#[cfg(feature = "riscv")]
+pub use riscv_cpu::Core;

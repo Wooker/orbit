@@ -12,6 +12,7 @@ orbit-common = { path = "../orbit-common" }
 ch592 = [ "orbit-kernel/ch592", "orbit-app/ch592" ]
 ch32v208wbu6 = [ "orbit-kernel/ch32v208wbu6", "orbit-app/ch32v208wbu6" ]
 ch32v003 = [ "orbit-kernel/ch32v003", "orbit-app/ch32v003" ]
+bl702 = [ "orbit-kernel/bl702", "orbit-app/bl702" ]
 
 [[bin]]
 name = "ch592"
@@ -24,3 +25,7 @@ required-features = [ "ch32v208wbu6" ]
 [[bin]]
 name = "ch32v003"
 required-features = [ "ch32v003" ]
+
+[[bin]]
+name = "bl702"
+required-features = [ "bl702" ]

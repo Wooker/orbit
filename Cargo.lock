@@ -24,6 +24,17 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "46afbd2983a5d5a7bd740ccb198caf5b82f45c40c09c0eed36052d91cb92e719"
 
 [[package]]
+name = "bl702-pac"
+version = "0.0.3"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "3b9be9db63116e6cf51504a7a62b94be28721b0ad9f1147733b38307974b1260"
+dependencies = [
+ "critical-section",
+ "riscv 0.10.1",
+ "vcell",
+]
+
+[[package]]
 name = "ch32v0"
 version = "0.1.7"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -60,6 +71,7 @@ dependencies = [
 name = "chip"
 version = "0.1.0"
 dependencies = [
+ "bl702-pac",
  "ch32v0",
  "ch32v2",
  "ch59x",
@@ -185,6 +197,9 @@ dependencies = [
  "esp-riscv-rt",
  "qingke",
  "qingke-rt",
+ "riscv 0.12.1",
+ "riscv-rt",
+ "riscv-rt-macros",
 ]
 
 [[package]]
@@ -344,6 +359,17 @@ name = "riscv-pac"
 version = "0.2.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "8188909339ccc0c68cfb5a04648313f09621e8b87dc03095454f1a11f6c5d436"
+
+[[package]]
+name = "riscv-rt"
+version = "0.13.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "753f1bd7eb4e0003cec5e2fb60ea8e253a71d0b041bc7d1ba0fffe22e3c0294d"
+dependencies = [
+ "riscv 0.12.1",
+ "riscv-pac",
+ "riscv-rt-macros",
+]
 
 [[package]]
 name = "riscv-rt-macros"

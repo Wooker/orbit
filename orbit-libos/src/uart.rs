@@ -10,7 +10,7 @@ use orbit_kernel::{
 };
 
 unsafe extern "Rust" {
-    static mut KERNEL: Kernel;
+    static mut KERNEL: Kernel<4>;
 }
 
 #[derive(Clone, Copy, PartialEq, Eq, Debug)]
@@ -60,15 +60,8 @@ pub struct Uart<'a> {
 }
 
 impl<'a> Uart<'a> {
-    pub fn new(uart: Claimed<'a, UART1>, config: Config) -> Self {
-        let mut uart1: Claimed<UART1> = unsafe { KERNEL.claim().unwrap_unchecked() };
-        // let _sys = unsafe { &*pac::SYS::PTR };
-
-        // default on
-        // sys.slp_clk_off0
-        //    .modify(|_, w| w.slp_clk_uart1().clear_bit());
-
-        uart1.modify(|p| {
+    pub fn new(mut uart: Claimed<'a, UART1>, config: Config) -> Self {
+        uart.modify(|p| {
             p.uart1_fcr.write(|w| unsafe {
                 w.fcr_rx_fifo_clr()
                     .set_bit()
@@ -80,12 +73,12 @@ impl<'a> Uart<'a> {
                     .bits(2) // FIFO trigger on 4 bytes
             })
         });
-        uart1.modify(|p| {
+        uart.modify(|p| {
             p.uart1_lcr
                 .write(|w| unsafe { w.lcr_word_sz().bits(config.data_bits as u8) })
         }); // word size set to 8 bits
 
-        uart1.modify(|p| {
+        uart.modify(|p| {
             p.uart1_lcr.modify(|_, w| match config.stop_bits {
                 StopBits::STOP1 => w.lcr_stop_bit().clear_bit(),
                 StopBits::STOP2 => w.lcr_stop_bit().set_bit(),
@@ -94,9 +87,9 @@ impl<'a> Uart<'a> {
 
         match config.parity {
             Parity::ParityNone => {
-                uart1.modify(|p| p.uart1_lcr.modify(|_, w| w.lcr_par_en().clear_bit()))
+                uart.modify(|p| p.uart1_lcr.modify(|_, w| w.lcr_par_en().clear_bit()))
             }
-            _ => uart1.modify(|p| {
+            _ => uart.modify(|p| {
                 p.uart1_lcr.modify(|_, w| unsafe {
                     w.lcr_par_en()
                         .set_bit()
@@ -110,11 +103,11 @@ impl<'a> Uart<'a> {
         let x = 10 * clocks().hclk.to_Hz() / 8 / config.baudrate;
         let x = ((x + 5) / 10) & 0xffff;
 
-        uart1.modify(|p| p.uart1_div.write(|w| unsafe { w.bits(1) }));
-        uart1.modify(|p| p.uart1_dl.write(|w| unsafe { w.bits(x as u16) }));
+        uart.modify(|p| p.uart1_div.write(|w| unsafe { w.bits(1) }));
+        uart.modify(|p| p.uart1_dl.write(|w| unsafe { w.bits(x as u16) }));
 
         // enable TX
-        uart1.modify(|p| p.uart1_ier.write(|w| w.ier_txd_en().set_bit()));
+        uart.modify(|p| p.uart1_ier.write(|w| w.ier_txd_en().set_bit()));
 
         Self { uart }
     }

@@ -11,7 +11,7 @@ use orbit_app::{application::Application, blinky::Blinky, uart::UartApp};
 use orbit_kernel::{arch::entry, kernel::Kernel};
 
 unsafe extern "Rust" {
-    static mut KERNEL: Kernel;
+    static mut KERNEL: Kernel<4>;
     static mut BLINKY: Blinky;
     static mut UART_APP: UartApp<'static>;
 }

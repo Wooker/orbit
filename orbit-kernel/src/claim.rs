@@ -29,9 +29,9 @@ impl<'p, P: Claimable> Claimed<'p, P> {
         f(peripheral)
     }
 
-    pub fn read<F>(&self, f: F) -> u8
+    pub fn read<F>(&self, f: F) -> u32
     where
-        F: Fn(&P) -> u8,
+        F: Fn(&P) -> u32,
     {
         let peripheral = &self.0;
         f(peripheral)
@@ -45,7 +45,6 @@ impl<'p, P: Claimable> Claimed<'p, P> {
 /// ```
 /// will give access to _Peripheral1_ and _Peripheral2_ of _chip_ while
 /// hiding all other peripherals via trait bound of the _Claimable_ trait.
-#[macro_export]
 macro_rules! impl_claim {
     ($chip:literal, $($field:ident),* $(,)?) => {
         $(
@@ -70,4 +69,4 @@ macro_rules! impl_claim {
 
 impl_claim!("ch592", UART1, I2C, GPIO);
 impl_claim!("ch32v003", GPIOA);
-impl_claim!("ch32v208wbu6", RCC, GPIOB);
+impl_claim!("ch32v208wbu6", RCC, GPIOB, UART4);

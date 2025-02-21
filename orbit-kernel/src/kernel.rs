@@ -19,7 +19,7 @@ pub static KERNEL_MINOR: u8 = 1;
 
 #[used]
 #[no_mangle]
-pub static mut KERNEL: Kernel<4> = Kernel::new(10);
+pub static mut KERNEL: Kernel<4> = Kernel::new();
 
 pub struct Kernel<const PMP: usize> {
     pub peripherals: MaybeUninit<Peripherals>,
@@ -29,10 +29,10 @@ pub struct Kernel<const PMP: usize> {
 unsafe impl<const PMP: usize> Sync for Kernel<PMP> {}
 
 impl<const PMP: usize> Kernel<PMP> {
-    pub const fn new(hz: u32) -> Self {
+    pub const fn new() -> Self {
         Self {
             peripherals: { MaybeUninit::<Peripherals>::uninit() },
-            core: Core::new(hz),
+            core: Core::new(),
             apps: MaybeUninit::uninit_array::<4>(),
         }
     }
@@ -46,10 +46,13 @@ impl<const PMP: usize> Kernel<PMP> {
         };
     }
 
+    #[inline(never)]
     pub fn initialize(&mut self) {
         clock::ClockConfig::pll_60mhz().freeze();
         self.peripherals.write(unsafe { Peripherals::steal() });
         self.core.pmp.default();
+
+        // let gpiob_addr = chip::pac::GPIOB::ptr() as usize;
 
         self.context_switch(0);
     }

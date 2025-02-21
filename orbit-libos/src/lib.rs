@@ -5,3 +5,4 @@
 use orbit_common::feature_mod;
 
 feature_mod!("ch592", pub, uart);
+feature_mod!("ch32v208wbu6", pub, uart_v208);

@@ -65,15 +65,16 @@ fn main() {
     match chip.as_str() {
         "ch592" => {
             println!("cargo:rustc-link-arg={}", "-Tlink.x");
-            println!("cargo:rustc-link-arg={}", "-Tapp-link.x");
         }
         "ch32v003" => {
             println!("cargo:rustc-link-arg={}", "-Tlink.x");
-            println!("cargo:rustc-link-arg={}", "-Tapp-link.x");
         }
         "ch32v208wbu6" => {
             println!("cargo:rustc-link-arg={}", "-Tlink.x");
-            println!("cargo:rustc-link-arg={}", "-Tapp-link.x");
+        }
+        "bl702" => {
+            println!("cargo:rustc-link-arg={}", "-Tmemory.x");
+            println!("cargo:rustc-link-arg={}", "-Tlink.x");
         }
         "esp32c3" => {
             // println!("cargo:rustc-link-arg={}", "-Tmemory.x");

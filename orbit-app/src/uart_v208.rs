@@ -6,10 +6,10 @@ use core::mem::MaybeUninit;
 
 use orbit_kernel::{
     arch::interface::timer::Timer,
-    chip::pac::UART1,
+    chip::pac::UART4,
     claim::{Claim, Claimed},
 };
-use orbit_libos::uart::{Config, Uart};
+use orbit_libos::uart_v208::{Config, Uart};
 
 use crate::{application::Application, KERNEL};
 
@@ -37,8 +37,8 @@ impl<'a> UartApp<'a> {
 }
 impl<'a> Application for UartApp<'a> {
     fn main(&self) {
-        let mut uart1: Claimed<UART1> = unsafe { KERNEL.claim().unwrap_unchecked() };
-        let mut uart = Uart::new(uart1, Config::default());
+        let mut uart4: Claimed<UART4> = unsafe { KERNEL.claim().unwrap_unchecked() };
+        let mut uart = Uart::new(uart4, Config::default());
         loop {
             self.print(&mut uart);
             unsafe { KERNEL.core.timer.delay(200000) };

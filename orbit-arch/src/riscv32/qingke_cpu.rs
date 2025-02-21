@@ -12,21 +12,21 @@ use qingke::riscv::{
 };
 
 pub struct Core<const PMP: usize> {
-    pub pmp: CorePmp<PMP>,
+    pub pmp: RiscvPmp<PMP>,
     pub timer: CoreClock,
 }
 impl<const PMP: usize> Core<PMP> {
-    pub const fn new(hz: u32) -> Self {
+    pub const fn new() -> Self {
         Self {
-            pmp: CorePmp {},
-            timer: CoreClock::new(hz),
+            pmp: RiscvPmp {},
+            timer: CoreClock::new(10),
         }
     }
 }
 
-pub struct CorePmp<const PMP: usize>;
-impl<const PMP: usize> Pmp<Permission, Range> for CorePmp<PMP> {
-    type Result<T> = Result<T>;
+pub struct RiscvPmp<const PMP: usize>;
+impl<const PMP: usize> Pmp<Permission, Range> for RiscvPmp<PMP> {
+    type Result<T> = qingke::riscv::result::Result<T>;
 
     fn write_cfg(
         &self,
@@ -37,7 +37,7 @@ impl<const PMP: usize> Pmp<Permission, Range> for CorePmp<PMP> {
         locked: bool,
     ) -> Self::Result<()> {
         match reg {
-            0 => unsafe { pmpcfg0::try_set_pmp(index, r, p, locked) },
+            0 => unsafe { qingke::riscv::register::pmpcfg0::try_set_pmp(index, r, p, locked) },
             _ => Err(RiscvError::IndexOutOfBounds {
                 index: reg,
                 min: 0,
@@ -48,7 +48,7 @@ impl<const PMP: usize> Pmp<Permission, Range> for CorePmp<PMP> {
 
     fn read_cfg(&self, reg: usize, index: usize) -> Self::Result<usize> {
         match reg {
-            0 => match pmpcfg0::try_read() {
+            0 => match qingke::riscv::register::pmpcfg0::try_read() {
                 Ok(csr) => Ok(csr.bits),
                 Err(e) => Err(e),
             },
@@ -63,7 +63,7 @@ impl<const PMP: usize> Pmp<Permission, Range> for CorePmp<PMP> {
     fn clear_cfg(&self, reg: usize, index: usize) -> Self::Result<()> {
         match reg {
             0 => match index {
-                0..=3 => Ok(unsafe { clear_pmp(index) }),
+                0..=3 => Ok(unsafe { qingke::riscv::register::pmpcfg0::clear_pmp(index) }),
                 _ => Err(RiscvError::IndexOutOfBounds {
                     index,
                     min: 0,
@@ -106,7 +106,7 @@ impl<const PMP: usize> Pmp<Permission, Range> for CorePmp<PMP> {
         }
     }
 }
-impl<const PMP: usize> CorePmp<PMP> {
+impl<const PMP: usize> RiscvPmp<PMP> {
     pub fn default(&mut self) {
         for pmpcfg in 0..PMP {
             self.clear_cfg(0, pmpcfg);

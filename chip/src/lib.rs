@@ -25,4 +25,6 @@ pub use ch592::hil;
 #[cfg(feature = "ch592")]
 pub use ch592::*;
 
+feature_mod_use!("bl702", pub);
+
 feature_mod_use!("ch32v003", pub);
