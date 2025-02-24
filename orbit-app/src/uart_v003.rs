@@ -8,7 +8,7 @@ use core::sync::atomic::Ordering;
 
 use orbit_kernel::{
     arch::interface::timer::Timer,
-    chip::pac::{GPIOB, GPIOC, UART4},
+    chip::pac::{GPIOD, USART1},
     claim::{Claim, Claimed},
 };
 use orbit_libos::uart_v208::{Config, Uart};
@@ -35,17 +35,17 @@ impl<'a> UartApp<'a> {
 }
 impl<'a> Application for UartApp<'a> {
     fn main(&self) {
-        let mut gpioc: Claimed<GPIOC> = unsafe { KERNEL.claim().unwrap_unchecked() };
+        let mut gpiod: Claimed<GPIOD> = unsafe { KERNEL.claim().unwrap_unchecked() };
 
-        // PC10 TX as push-pull alternate output
-        // PC 11 RX as Floating input
-        gpioc.modify(|p| {
-            p.cfghr
-                .write(|w| unsafe { w.bits(0b1011 << 8 | 0b0100 << 12) })
+        // PD6 RX as floating input
+        // PD5 TX as push-pull multiplexed output
+        gpiod.modify(|p| {
+            p.cfglr
+                .write(|w| unsafe { w.bits(0b0100 << 24 | 0b1011 << 20) })
         });
 
-        let mut uart4: Claimed<UART4> = unsafe { KERNEL.claim().unwrap_unchecked() };
-        let mut uart = Uart::new(uart4, Config::default());
+        let mut uart1: Claimed<USART1> = unsafe { KERNEL.claim().unwrap_unchecked() };
+        let mut uart = Uart::new(uart1, Config::default());
         loop {
             uart.blocking_write("Hello world".as_bytes());
             // uart.write(unsafe { self.buf.assume_init() });

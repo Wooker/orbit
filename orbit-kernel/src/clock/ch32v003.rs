@@ -4,9 +4,10 @@ use fugit::HertzU32 as Hertz;
 const HSE_FREQUENCY: Hertz = Hertz::from_raw(32_000_000);
 const PLL_FREQUENCY: Hertz = Hertz::from_raw(480_000_000);
 
+#[no_mangle]
 static mut CLOCK: Clocks = Clocks {
     // Power on default
-    hclk: Hertz::from_raw(6_400_000),
+    hclk: Hertz::from_raw(0),
 };
 
 /// 32K clock source
@@ -68,23 +69,21 @@ impl ClockConfig {
     }
 
     pub fn freeze(self) {
-        // let rcc = unsafe { &*chip::pac::RCC::PTR };
-        // rcc.apb2prstr.write(|w| unsafe { w.bits(1 << 3) });
-        // rcc.apb2prstr
-        //     .modify(|r, w| unsafe { w.bits(r.bits() & !(1 << 3)) });
+        let rcc = unsafe { &*chip::pac::RCC::PTR };
 
-        // rcc.apb2pcenr.write(|w| unsafe { w.bits(1 << 3) });
+        let uart_pd = 1 << 14 | 1 << 5;
+        rcc.apb2prstr.write(|w| unsafe { w.bits(uart_pd) });
+        rcc.apb2prstr
+            .modify(|r, w| unsafe { w.bits(r.bits() & !(uart_pd)) });
 
-        // let gpiob = unsafe { &*chip::pac::GPIOB::PTR };
-        // gpiob.cfglr.write(|w| unsafe { w.bits(0b0001 << 28) });
-        // gpiob.cfghr.write(|w| unsafe { w.bits(0b0001) });
-        // gpiob.bshr.write(|w| unsafe { w.bits(1 << 8) });
+        rcc.apb2pcenr.write(|w| unsafe { w.bits(uart_pd) });
 
-        // unsafe {
-        //     CLOCK = Clocks {
-        //         hclk: Hertz::from_raw(10),
-        //     };
-        // }
+        // HSI is on by default
+        unsafe {
+            CLOCK = Clocks {
+                hclk: Hertz::from_raw(8_000_000),
+            };
+        }
     }
 }
 

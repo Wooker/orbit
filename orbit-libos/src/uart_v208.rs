@@ -5,14 +5,22 @@
 use core::sync::atomic::compiler_fence;
 use core::sync::atomic::Ordering;
 use orbit_kernel::{
-    chip::pac::UART4,
-    claim::{Claim, Claimed},
-    clock::ch32v208wbu6::clocks,
+    claim::{Claim, Claimable, Claimed},
     kernel::Kernel,
 };
 
+#[cfg(feature = "ch32v003")]
+use orbit_kernel::{chip::pac::USART1, clock::clocks};
+
+#[cfg(feature = "ch32v208wbu6")]
+use orbit_kernel::{chip::pac::UART4, clock::clocks};
+
 unsafe extern "Rust" {
+    #[cfg(feature = "ch32v208wbu6")]
     static mut KERNEL: Kernel<4>;
+
+    #[cfg(feature = "ch32v003")]
+    static mut KERNEL: Kernel<0>;
 }
 
 #[derive(Clone, Copy, PartialEq, Eq, Debug)]
@@ -53,21 +61,27 @@ impl Default for Config {
     }
 }
 
+#[cfg(feature = "ch32v003")]
+type Instance = USART1;
+
+#[cfg(feature = "ch32v208wbu6")]
+type Instance = UART4;
+
 pub struct Uart<'a> {
-    uart: Claimed<'a, UART4>,
+    uart: Claimed<'a, Instance>,
 }
 
 impl<'a> Uart<'a> {
-    pub fn new(mut uart: Claimed<'a, UART4>, config: Config) -> Self {
+    pub fn new(mut uart: Claimed<'a, Instance>, config: Config) -> Self {
         uart.modify(|p| {
             p.ctlr1.write(|w| unsafe {
                 // Data bits and parity configuratoin
                 let mut ctlr1 = 0_u32;
                 ctlr1 |= (config.data_bits as u32) << 12;
                 ctlr1 |= (config.parity as u32) << 9;
-                ctlr1 |= 1 << 7; // TXEIE
+                // ctlr1 |= 1 << 7; // TXEIE
                 ctlr1 |= 1 << 3;
-                // ctlr1 |= 1 << 2;
+                ctlr1 |= 1 << 2;
                 ctlr1 |= 1 << 13;
                 w.bits(ctlr1)
             });
@@ -103,11 +117,5 @@ impl<'a> Uart<'a> {
             self.uart
                 .modify(|p| p.datar.write(|w| unsafe { w.bits(c as u32) }));
         }
-    }
-
-    #[inline(never)]
-    pub fn write(&mut self, s: &[u8]) -> core::fmt::Result {
-        self.blocking_write(s);
-        Ok(())
     }
 }

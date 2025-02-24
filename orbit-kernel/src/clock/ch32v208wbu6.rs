@@ -72,12 +72,13 @@ impl ClockConfig {
         let rcc = unsafe { &*chip::pac::RCC::PTR };
         let extend = unsafe { &*chip::pac::EXTEND::PTR };
 
-        // GPIOB GPIOC
+        // Reset GPIOB GPIOC
         let gpios = 1 << 3 | 1 << 4;
         rcc.apb2prstr.write(|w| unsafe { w.bits(gpios) });
         rcc.apb2prstr
             .modify(|r, w| unsafe { w.bits(r.bits() & !(gpios)) });
 
+        // Enable GPIOB GPIOC
         rcc.apb2pcenr.write(|w| unsafe { w.bits(gpios) });
 
         extend.extend_ctr.write(|w| unsafe { w.bits(1 << 4) }); // set hsipre
@@ -91,6 +92,7 @@ impl ClockConfig {
         rcc.apb1prstr
             .modify(|r, w| unsafe { w.bits(r.bits() & !(uart4_rst_bit)) });
 
+        // Enable UART4
         rcc.apb1pcenr.write(|w| unsafe { w.bits(uart4_rst_bit) });
 
         unsafe {

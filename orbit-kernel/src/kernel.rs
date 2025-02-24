@@ -19,9 +19,15 @@ pub static KERNEL_MAJOR: u8 = 0;
 #[link_section = ".kernel"]
 pub static KERNEL_MINOR: u8 = 1;
 
+#[cfg(feature = "ch32v208wbu6")]
 #[used]
 #[no_mangle]
 pub static mut KERNEL: Kernel<4> = Kernel::new();
+
+#[cfg(feature = "ch32v003")]
+#[used]
+#[no_mangle]
+pub static mut KERNEL: Kernel<0> = Kernel::new();
 
 unsafe extern "Rust" {
     static mut CLOCK: Clocks;
@@ -57,8 +63,6 @@ impl<const PMP: usize> Kernel<PMP> {
         self.peripherals.write(unsafe { Peripherals::steal() });
         self.core.pmp.default();
 
-        // let gpiob_addr = chip::pac::GPIOB::ptr() as usize;
-
         self.context_switch(0);
     }
 
@@ -67,11 +71,15 @@ impl<const PMP: usize> Kernel<PMP> {
         self.set_pmp(&app_cont);
 
         orbit_arch::riscv::register::mepc::write(app_cont.get_addr());
+
+        #[cfg(not(feature = "ch32v003"))]
         unsafe {
             orbit_arch::riscv::register::mstatus::set_mpp(
                 orbit_arch::riscv::register::mstatus::MPP::User,
             )
         };
+        unsafe { orbit_arch::riscv::register::mstatus::clear_mie() };
+
         unsafe { asm!("mret") };
     }
 

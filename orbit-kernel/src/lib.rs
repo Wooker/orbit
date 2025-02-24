@@ -15,6 +15,11 @@ pub mod task;
 pub use chip;
 pub use orbit_arch as arch;
 
+#[no_mangle]
+fn DefaultHandler() {
+    loop {}
+}
+
 #[panic_handler]
 pub fn panic_handler<'a, 'b>(info: &'a core::panic::PanicInfo<'b>) -> ! {
     loop {}
