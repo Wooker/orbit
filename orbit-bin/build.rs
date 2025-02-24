@@ -70,6 +70,8 @@ fn main() {
             println!("cargo:rustc-link-arg={}", "-Tlink.x");
         }
         "ch32v208wbu6" => {
+            // println!("cargo:rustc-link-arg={}", "-Tkernel.x");
+            // println!("cargo:rustc-link-arg={}", "-Tapp-link.x");
             println!("cargo:rustc-link-arg={}", "-Tlink.x");
         }
         "bl702" => {

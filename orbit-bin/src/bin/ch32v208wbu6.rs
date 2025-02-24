@@ -15,10 +15,16 @@ unsafe extern "Rust" {
     static mut UART_APP: UartApp<'static>;
 }
 
+#[used]
+#[unsafe(no_mangle)]
+#[unsafe(link_section = ".rodata")]
+static mut BUF: &'static [u8] = "HASD".as_bytes();
+
 #[entry]
 unsafe fn main() -> ! {
-    UART_APP.init("");
+    UART_APP.set_buf("Hi".as_bytes());
     KERNEL.add_application(0, UartApp::main as usize);
+    KERNEL.add_application(1, Blinky::main as usize);
     KERNEL.initialize();
     loop {}
 }

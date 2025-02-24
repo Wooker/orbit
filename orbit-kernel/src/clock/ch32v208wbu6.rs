@@ -4,9 +4,10 @@ use fugit::HertzU32 as Hertz;
 const HSE_FREQUENCY: Hertz = Hertz::from_raw(32_000_000);
 const PLL_FREQUENCY: Hertz = Hertz::from_raw(480_000_000);
 
+#[no_mangle]
 static mut CLOCK: Clocks = Clocks {
     // Power on default
-    hclk: Hertz::from_raw(6_400_000),
+    hclk: Hertz::from_raw(0),
 };
 
 /// 32K clock source
@@ -69,24 +70,39 @@ impl ClockConfig {
 
     pub fn freeze(self) {
         let rcc = unsafe { &*chip::pac::RCC::PTR };
-        rcc.apb2prstr.write(|w| unsafe { w.bits(1 << 3) });
+        let extend = unsafe { &*chip::pac::EXTEND::PTR };
+
+        // GPIOB GPIOC
+        let gpios = 1 << 3 | 1 << 4;
+        rcc.apb2prstr.write(|w| unsafe { w.bits(gpios) });
         rcc.apb2prstr
-            .modify(|r, w| unsafe { w.bits(r.bits() & !(1 << 3)) });
+            .modify(|r, w| unsafe { w.bits(r.bits() & !(gpios)) });
 
-        rcc.apb2pcenr.write(|w| unsafe { w.bits(1 << 3) });
+        rcc.apb2pcenr.write(|w| unsafe { w.bits(gpios) });
 
-        let gpiob = unsafe { &*chip::pac::GPIOB::PTR };
-        gpiob.cfglr.write(|w| unsafe { w.bits(0b0001 << 28) });
-        gpiob.cfghr.write(|w| unsafe { w.bits(0b0001) });
-        gpiob.bshr.write(|w| unsafe { w.bits(1 << 8) });
+        extend.extend_ctr.write(|w| unsafe { w.bits(1 << 4) }); // set hsipre
 
-        // unsafe {
-        //     CLOCK = Clocks {
-        //         hclk: Hertz::from_raw(10),
-        //     };
-        // }
+        rcc.ctlr.write(|w| unsafe { w.bits(1 << 24) }); // PLLON
+        while !rcc.ctlr.read().pllrdy().bit_is_set() {}
+
+        // Reset UART4
+        let uart4_rst_bit = 1 << 19;
+        rcc.apb1prstr.write(|w| unsafe { w.bits(uart4_rst_bit) });
+        rcc.apb1prstr
+            .modify(|r, w| unsafe { w.bits(r.bits() & !(uart4_rst_bit)) });
+
+        rcc.apb1pcenr.write(|w| unsafe { w.bits(uart4_rst_bit) });
+
+        unsafe {
+            CLOCK = Clocks {
+                hclk: Hertz::from_raw(8_000_000),
+            };
+        }
     }
 }
+
+#[no_mangle]
+pub fn PLLRDY() {}
 
 #[derive(Copy, Clone, Eq, PartialEq, Debug)]
 pub struct Clocks {

@@ -1,8 +1,10 @@
+use crate::clock::Clocks;
 use crate::{
     application::{AppContainer, PmpEntry},
     clock,
 };
 use chip::pac::Peripherals;
+use fugit::HertzU32;
 use orbit_arch::{interface::pmp::Pmp, riscv::register::Permission, riscv::register::Range, Core};
 
 use core::{arch::asm, mem::MaybeUninit};
@@ -21,10 +23,13 @@ pub static KERNEL_MINOR: u8 = 1;
 #[no_mangle]
 pub static mut KERNEL: Kernel<4> = Kernel::new();
 
+unsafe extern "Rust" {
+    static mut CLOCK: Clocks;
+}
 pub struct Kernel<const PMP: usize> {
-    pub peripherals: MaybeUninit<Peripherals>,
+    pub(crate) peripherals: MaybeUninit<Peripherals>,
     pub core: Core<PMP>,
-    pub apps: [MaybeUninit<AppContainer<PMP>>; 4],
+    apps: [MaybeUninit<AppContainer<PMP>>; 4],
 }
 unsafe impl<const PMP: usize> Sync for Kernel<PMP> {}
 
@@ -77,6 +82,10 @@ impl<const PMP: usize> Kernel<PMP> {
                 .write_cfg(0, i, pe.range, pe.permission, pe.locked);
             self.core.pmp.write_addr(i, pe.address);
         }
+    }
+
+    pub fn clock(&self) -> u32 {
+        unsafe { CLOCK.hclk.raw() }
     }
 
     pub fn version(&self) -> (u8, u8) {

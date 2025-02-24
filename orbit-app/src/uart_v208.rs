@@ -3,10 +3,12 @@
 
 use core::fmt::Write;
 use core::mem::MaybeUninit;
+use core::sync::atomic::compiler_fence;
+use core::sync::atomic::Ordering;
 
 use orbit_kernel::{
     arch::interface::timer::Timer,
-    chip::pac::UART4,
+    chip::pac::{GPIOB, GPIOC, UART4},
     claim::{Claim, Claimed},
 };
 use orbit_libos::uart_v208::{Config, Uart};
@@ -15,33 +17,39 @@ use crate::{application::Application, KERNEL};
 
 #[used]
 #[no_mangle]
-#[link_section = ".apps"]
-pub static UART_APP: UartApp = UartApp {
-    data: MaybeUninit::uninit(),
-};
-
-extern "C" {
-    static _sapps: usize;
-}
+pub static mut UART_APP: UartApp<'static> = UartApp::new();
 
 pub struct UartApp<'a> {
-    data: MaybeUninit<&'a str>,
+    buf: MaybeUninit<&'a [u8]>,
 }
 impl<'a> UartApp<'a> {
-    fn print(&self, uart: &mut Uart) {
-        unsafe { uart.write_str(self.data.assume_init()).unwrap_unchecked() };
+    const fn new() -> Self {
+        Self {
+            buf: MaybeUninit::uninit(),
+        }
     }
-    pub fn init(&mut self, data: &'a str) {
-        self.data.write(data);
+    #[inline(never)]
+    pub fn set_buf(&mut self, buf: &'a [u8]) {
+        self.buf.write(buf);
     }
 }
 impl<'a> Application for UartApp<'a> {
     fn main(&self) {
+        let mut gpioc: Claimed<GPIOC> = unsafe { KERNEL.claim().unwrap_unchecked() };
+
+        // PC10 TX as push-pull alternate output
+        // PC 11 RX as Floating input
+        gpioc.modify(|p| {
+            p.cfghr
+                .write(|w| unsafe { w.bits(0b1011 << 8 | 0b0100 << 12) })
+        });
+
         let mut uart4: Claimed<UART4> = unsafe { KERNEL.claim().unwrap_unchecked() };
         let mut uart = Uart::new(uart4, Config::default());
         loop {
-            self.print(&mut uart);
-            unsafe { KERNEL.core.timer.delay(200000) };
+            uart.write("Hello world".as_bytes());
+            // uart.write(unsafe { self.buf.assume_init() });
+            unsafe { KERNEL.core.timer.delay(1000000) };
         }
     }
 }

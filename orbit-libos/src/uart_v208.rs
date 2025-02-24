@@ -2,6 +2,8 @@
 //! UART: Uni
 
 // Default UART is UART4()
+use core::sync::atomic::compiler_fence;
+use core::sync::atomic::Ordering;
 use orbit_kernel::{
     chip::pac::UART4,
     claim::{Claim, Claimed},
@@ -23,9 +25,9 @@ pub enum Parity {
 #[derive(Clone, Copy, PartialEq, Eq, Debug)]
 pub enum StopBits {
     #[doc = "1 stop bit"]
-    STOP1,
+    STOP1 = 0b00,
     #[doc = "2 stop bits"]
-    STOP2,
+    STOP2 = 0b10,
 }
 
 #[derive(Clone, Copy, PartialEq, Eq, Debug)]
@@ -58,38 +60,54 @@ pub struct Uart<'a> {
 impl<'a> Uart<'a> {
     pub fn new(mut uart: Claimed<'a, UART4>, config: Config) -> Self {
         uart.modify(|p| {
-            p.ctlr2.write(|w| unsafe {
+            p.ctlr1.write(|w| unsafe {
                 // Data bits and parity configuratoin
-                w.bits((config.data_bits as u32) << 12 | (config.parity as u32) << 9)
+                let mut ctlr1 = 0_u32;
+                ctlr1 |= (config.data_bits as u32) << 12;
+                ctlr1 |= (config.parity as u32) << 9;
+                ctlr1 |= 1 << 7; // TXEIE
+                ctlr1 |= 1 << 3;
+                // ctlr1 |= 1 << 2;
+                ctlr1 |= 1 << 13;
+                w.bits(ctlr1)
             });
         });
         uart.modify(|p| {
-            p.ctlr1
-                // Enable TX and RX
-                .modify(|r, w| unsafe { w.bits(r.bits() | 0b11 << 2) });
+            p.ctlr2.write(|w| unsafe {
+                // Data bits and parity configuratoin
+                let mut ctlr2 = 0_u32;
+                ctlr2 |= (config.stop_bits as u32) << 12;
+                w.bits(ctlr2)
+            });
         });
+
+        let clock = unsafe { KERNEL.clock() };
+        let div_m = 25 * clock / (4 * config.baudrate);
+        let mut tmpreg = (div_m / 100) << 4;
+
+        let div_f = div_m - 100 * (tmpreg >> 4);
+        tmpreg |= ((div_f * 16 + 50) / 100) & 0x0F;
+
+        uart.modify(|p| p.brr.write(|w| unsafe { w.bits(tmpreg) }));
 
         Self { uart }
     }
 
+    #[inline(never)]
     pub fn blocking_write(&mut self, buf: &[u8]) {
-        let uart = &mut self.uart;
-
         const UART_FIFO_SIZE: u8 = 8;
 
         for &c in buf {
-            // Read RXNE
-            while uart.read(|p| p.statr.read().bits() & 0b1 << 5) != 0 {
-                // wait
-            }
-            uart.modify(|p| p.datar.write(|w| unsafe { w.bits(c as u32) }));
+            // Read TC
+            while self.uart.read(|p| p.statr.read().bits() & (1 << 6)) == 0 {} // wait tx complete
+            self.uart
+                .modify(|p| p.datar.write(|w| unsafe { w.bits(c as u32) }));
         }
     }
-}
 
-impl<'a> core::fmt::Write for Uart<'a> {
-    fn write_str(&mut self, s: &str) -> core::fmt::Result {
-        self.blocking_write(s.as_bytes());
+    #[inline(never)]
+    pub fn write(&mut self, s: &[u8]) -> core::fmt::Result {
+        self.blocking_write(s);
         Ok(())
     }
 }
