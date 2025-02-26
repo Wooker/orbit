@@ -12,29 +12,49 @@ use orbit_kernel::{
     claim::{Claim, Claimed},
 };
 use orbit_libos::uart_v208::{Config, Uart};
+use postcard::to_slice;
+use serde::Deserialize;
+use serde::Serialize;
 
 use crate::{application::Application, KERNEL};
 
+#[derive(Serialize, Deserialize)]
+enum Message<'m> {
+    Hello,
+    Str(&'m str),
+}
+
 #[used]
 #[no_mangle]
-pub static mut UART_APP: UartApp<'static> = UartApp::new();
+#[link_section = ".uart.bss"]
+pub static mut UART_APP: UartApp = UartApp::new();
 
-pub struct UartApp<'a> {
-    buf: MaybeUninit<&'a [u8]>,
+#[used]
+#[link_section = ".uart.bss"]
+pub static mut STACK: [usize; 32] = [0; 32];
+
+pub struct UartApp {
+    buf: [u8; 32],
 }
-impl<'a> UartApp<'a> {
+
+impl<'a> UartApp {
+    #[inline(never)]
+    #[link_section = ".uart.text"]
     const fn new() -> Self {
-        Self {
-            buf: MaybeUninit::uninit(),
+        Self { buf: [0; 32] }
+    }
+
+    #[inline(never)]
+    #[link_section = ".uart.text"]
+    pub fn init(&mut self) {
+        for b in self.buf.iter_mut() {
+            *b = 0;
         }
     }
-    #[inline(never)]
-    pub fn set_buf(&mut self, buf: &'a [u8]) {
-        self.buf.write(buf);
-    }
 }
-impl<'a> Application for UartApp<'a> {
-    fn main(&self) {
+
+impl Application for UartApp {
+    fn main(&mut self) {
         let mut gpiod: Claimed<GPIOD> = unsafe { KERNEL.claim().unwrap_unchecked() };
 
         // PD6 RX as floating input
@@ -47,9 +67,16 @@ impl<'a> Application for UartApp<'a> {
         let mut uart1: Claimed<USART1> = unsafe { KERNEL.claim().unwrap_unchecked() };
         let mut uart = Uart::new(uart1, Config::default());
         loop {
-            uart.blocking_write("Hello world".as_bytes());
-            // uart.write(unsafe { self.buf.assume_init() });
+            uart.blocking_write(unsafe {
+                to_slice(&Message::Str("Hello"), &mut self.buf).unwrap_unchecked()
+            });
             unsafe { KERNEL.core.timer.delay(1000000) };
         }
+    }
+
+    #[inline(never)]
+    #[link_section = ".uart.text"]
+    unsafe fn stack_top() -> usize {
+        STACK.last().unwrap_unchecked() as *const usize as usize + 0x4
     }
 }

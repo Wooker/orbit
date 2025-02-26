@@ -3,8 +3,9 @@
 #![allow(elided_named_lifetimes)]
 #![allow(static_mut_refs)]
 #![feature(maybe_uninit_uninit_array)]
+#![feature(naked_functions)]
 
-use core::arch::asm;
+use core::arch::{asm, global_asm};
 
 pub mod application;
 pub mod claim;
@@ -24,3 +25,15 @@ fn DefaultHandler() {
 pub fn panic_handler<'a, 'b>(info: &'a core::panic::PanicInfo<'b>) -> ! {
     loop {}
 }
+
+global_asm!(
+    "
+    .section .init
+    .global _start
+
+_start:
+    la sp, _stack_top
+
+    j main
+    "
+);

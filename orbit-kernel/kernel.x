@@ -2,15 +2,24 @@ SECTIONS
 {
     .kernel.text : ALIGN(4)
     {
-        *(.text .text.*)  /* Place all .text symbols here */
-    } > KERNEL_FLASH 
+        *(.init);
+        *(.kernel.text);
+    } >FLASH
 
-    .kernel : ALIGN(4)
+    .kernel.rodata : ALIGN(4)
     {
-        PROVIDE( _sorbit_kernel = . );
-        *(.kernel .kernel.*);
-        PROVIDE( _eorbit_kernel = . );
-    } >KERNEL_RAM AT>KERNEL_FLASH
+        *(.kernel.rodata);
+    } >FLASH
+
+    .kernel.data : ALIGN(4)
+    {
+        *(.kernel.data);
+    } >RAM AT>FLASH
+
+    .kernel.bss : ALIGN(4)
+    {
+        *(.kernel.bss);
+        *(.sbss .sbss.*);
+    } >RAM AT>FLASH
 
 }
-

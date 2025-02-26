@@ -6,10 +6,13 @@ description = "Crate contaning application binaries"
 
 [dependencies]
 orbit-common = { path = "../orbit-common" }
-# Can use either kernel, custom LibOS, or external HAL
+
+# Can use either kernel, custom LibOS, or external library
 orbit-kernel = { path = "../orbit-kernel" }
 orbit-libos = { path = "../orbit-libos" }
-# ch32-hal = { git = "https://github.com/ch32-rs/ch32-hal.git", rev = "3ccf0c87ed952b2d8bef7b9e6193e5059a00101c", default-features = false, features = ["ch32v208wbu6", "memory-x", "rt"] }
+
+postcard = { version = "1.1.1", default-features = false }
+serde = { version="1.0.*", default-features = false }
 
 # [profile.dev]
 # opt-level=0
@@ -19,3 +22,6 @@ ch592 = [ "orbit-kernel/ch592", "orbit-libos/ch592" ]
 ch32v208wbu6 = [ "orbit-kernel/ch32v208wbu6", "orbit-libos/ch32v208wbu6" ]
 ch32v003 = [ "orbit-kernel/ch32v003", "orbit-libos/ch32v003" ]
 bl702 = [ "orbit-kernel/bl702", "orbit-libos/bl702" ]
+
+[[bin]]
+name = "test"

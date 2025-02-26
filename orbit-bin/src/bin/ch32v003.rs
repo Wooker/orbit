@@ -7,16 +7,29 @@
 use core::arch::asm;
 
 use orbit_app::{application::Application, blinky_v003::Blinky, uart_v003::UartApp};
-use orbit_kernel::{arch::entry, kernel::Kernel};
+use orbit_kernel::kernel::Kernel;
 
 unsafe extern "Rust" {
     static mut KERNEL: Kernel<0>;
+    static mut BLINKY: Blinky;
+    static mut UART_APP: UartApp;
 }
 
-#[entry]
-fn main() -> ! {
-    unsafe { KERNEL.add_application(0, UartApp::main as usize) };
-    unsafe { KERNEL.add_application(1, Blinky::main as usize) };
-    unsafe { KERNEL.initialize() };
+#[unsafe(no_mangle)]
+#[unsafe(link_section = ".bin.text")]
+unsafe fn main() -> ! {
+    KERNEL.add_application(
+        0,
+        unsafe { &UART_APP as *const UartApp as usize },
+        UartApp::main as usize,
+        UartApp::stack_top(),
+    );
+    KERNEL.add_application(
+        1,
+        unsafe { &UART_APP as *const UartApp as usize },
+        Blinky::main as usize,
+        Blinky::stack_top(),
+    );
+    KERNEL.initialize();
     loop {}
 }

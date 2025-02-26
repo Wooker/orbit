@@ -34,16 +34,36 @@ impl Default for PmpEntry {
 #[derive(Clone, Copy)]
 pub struct AppContainer<const PMP_REGS: usize> {
     pmp: [PmpEntry; PMP_REGS],
-    app_addr: usize,
+    app_struct: usize,
+    app_main_addr: usize,
+    app_stack_addr: usize,
 }
 
 impl<const PMP_REGS: usize> AppContainer<PMP_REGS> {
-    pub fn new(pmp: [PmpEntry; PMP_REGS], app_addr: usize) -> Self {
-        Self { pmp, app_addr }
+    pub fn new(
+        pmp: [PmpEntry; PMP_REGS],
+        app_struct: usize,
+        app_main_addr: usize,
+        app_stack_addr: usize,
+    ) -> Self {
+        Self {
+            pmp,
+            app_struct,
+            app_main_addr,
+            app_stack_addr,
+        }
     }
 
-    pub fn get_addr(&self) -> usize {
-        self.app_addr
+    pub fn struct_addr(&self) -> usize {
+        self.app_struct
+    }
+
+    pub fn main_addr(&self) -> usize {
+        self.app_main_addr
+    }
+
+    pub fn stack_addr(&self) -> usize {
+        self.app_stack_addr
     }
 
     pub fn get_pmp(&self) -> [PmpEntry; PMP_REGS] {

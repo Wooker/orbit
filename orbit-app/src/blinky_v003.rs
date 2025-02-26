@@ -10,12 +10,16 @@ use orbit_kernel::{
 
 #[used]
 #[no_mangle]
-#[link_section = ".apps"]
+#[link_section = ".blinky.bss"]
 pub static BLINKY: Blinky = Blinky {};
+
+#[used]
+#[link_section = ".blinky.bss"]
+pub static mut STACK: [usize; 32] = [0; 32];
 
 pub struct Blinky;
 impl Application for Blinky {
-    fn main(&self) {
+    fn main(&mut self) {
         let mut gpio: Claimed<GPIOD> = unsafe { KERNEL.claim().unwrap_unchecked() };
 
         // PD7 to push-pull output
@@ -33,5 +37,11 @@ impl Application for Blinky {
                 p.bshr.write(|w| unsafe { w.bits(1 << offset + 16) });
             });
         }
+    }
+
+    #[inline(never)]
+    #[link_section = ".uart.text"]
+    unsafe fn stack_top() -> usize {
+        STACK.last().unwrap_unchecked() as *const usize as usize + 0x4
     }
 }

@@ -62,16 +62,26 @@ fn main() {
     println!("cargo:rustc-link-arg={}", "--error-limit=0");
 
     let out = &PathBuf::from(env::var_os("OUT_DIR").unwrap());
+    File::create(out.join("link.x"))
+        .unwrap()
+        .write_all(include_bytes!("link.x"))
+        .expect("Could not find link.x");
+
+    let out = &PathBuf::from(env::var_os("OUT_DIR").unwrap());
     match chip.as_str() {
         "ch592" => {
             println!("cargo:rustc-link-arg={}", "-Tlink.x");
         }
         "ch32v003" => {
+            println!("cargo:rustc-link-arg={}", "-Tmemory.x");
+            println!("cargo:rustc-link-arg={}", "-Tkernel.x");
+            println!("cargo:rustc-link-arg={}", "-Tapp-link.x");
             println!("cargo:rustc-link-arg={}", "-Tlink.x");
         }
         "ch32v208wbu6" => {
-            // println!("cargo:rustc-link-arg={}", "-Tkernel.x");
-            // println!("cargo:rustc-link-arg={}", "-Tapp-link.x");
+            println!("cargo:rustc-link-arg={}", "-Tmemory.x");
+            println!("cargo:rustc-link-arg={}", "-Tkernel.x");
+            println!("cargo:rustc-link-arg={}", "-Tapp-link.x");
             println!("cargo:rustc-link-arg={}", "-Tlink.x");
         }
         "bl702" => {

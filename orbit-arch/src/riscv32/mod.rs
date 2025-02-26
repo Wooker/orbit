@@ -6,8 +6,8 @@ mod qingke_cpu;
 pub use qingke::*;
 #[cfg(any(feature = "qingke_v4", feature = "qingke_v2"))]
 pub use qingke_cpu::Core;
-#[cfg(any(feature = "qingke_v4", feature = "qingke_v2"))]
-pub use qingke_rt::entry;
+// #[cfg(any(feature = "qingke_v4", feature = "qingke_v2"))]
+// pub use qingke_rt::entry;
 
 #[cfg(feature = "esp_riscv")]
 pub use esp_riscv_rt::*;

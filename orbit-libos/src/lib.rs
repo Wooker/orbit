@@ -3,8 +3,18 @@
 #![feature(strict_overflow_ops)]
 
 use orbit_common::feature_mod;
+use orbit_kernel::kernel::Kernel;
+
+unsafe extern "Rust" {
+    #[cfg(feature = "ch32v208wbu6")]
+    pub static mut KERNEL: Kernel<4>;
+
+    #[cfg(feature = "ch32v003")]
+    pub static mut KERNEL: Kernel<0>;
+}
 
 feature_mod!("ch592", pub, uart);
 // feature_mod!("ch32v208wbu6", pub, uart_v208);
-#[cfg(any(feature = "ch32v208wbu6", feature = "ch32v003"))]
+
+// #[cfg(any(feature = "ch32v208wbu6", feature = "ch32v003"))]
 pub mod uart_v208;

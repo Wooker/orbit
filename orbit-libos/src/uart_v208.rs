@@ -2,6 +2,7 @@
 //! UART: Uni
 
 // Default UART is UART4()
+use crate::KERNEL;
 use core::sync::atomic::compiler_fence;
 use core::sync::atomic::Ordering;
 use orbit_kernel::{
@@ -10,18 +11,10 @@ use orbit_kernel::{
 };
 
 #[cfg(feature = "ch32v003")]
-use orbit_kernel::{chip::pac::USART1, clock::clocks};
+use orbit_kernel::chip::pac::USART1;
 
 #[cfg(feature = "ch32v208wbu6")]
-use orbit_kernel::{chip::pac::UART4, clock::clocks};
-
-unsafe extern "Rust" {
-    #[cfg(feature = "ch32v208wbu6")]
-    static mut KERNEL: Kernel<4>;
-
-    #[cfg(feature = "ch32v003")]
-    static mut KERNEL: Kernel<0>;
-}
+use orbit_kernel::chip::pac::UART4;
 
 #[derive(Clone, Copy, PartialEq, Eq, Debug)]
 pub enum Parity {
@@ -51,6 +44,7 @@ pub struct Config {
     pub parity: Parity,
 }
 impl Default for Config {
+    #[inline(never)]
     fn default() -> Self {
         Self {
             baudrate: 115200,
@@ -72,6 +66,7 @@ pub struct Uart<'a> {
 }
 
 impl<'a> Uart<'a> {
+    #[inline(never)]
     pub fn new(mut uart: Claimed<'a, Instance>, config: Config) -> Self {
         uart.modify(|p| {
             p.ctlr1.write(|w| unsafe {
@@ -86,6 +81,7 @@ impl<'a> Uart<'a> {
                 w.bits(ctlr1)
             });
         });
+        compiler_fence(Ordering::SeqCst);
         uart.modify(|p| {
             p.ctlr2.write(|w| unsafe {
                 // Data bits and parity configuratoin
@@ -95,27 +91,26 @@ impl<'a> Uart<'a> {
             });
         });
 
-        let clock = unsafe { KERNEL.clock() };
-        let div_m = 25 * clock / (4 * config.baudrate);
-        let mut tmpreg = (div_m / 100) << 4;
+        // let clock = unsafe { KERNEL.clock() };
+        // let div_m = 25 * clock / (4 * config.baudrate);
+        // let mut tmpreg = (div_m / 100) << 4;
+        // let div_f = div_m - 100 * (tmpreg >> 4);
+        // tmpreg |= ((div_f * 16 + 50) / 100) & 0x0F;
 
-        let div_f = div_m - 100 * (tmpreg >> 4);
-        tmpreg |= ((div_f * 16 + 50) / 100) & 0x0F;
-
-        uart.modify(|p| p.brr.write(|w| unsafe { w.bits(tmpreg) }));
+        // With the default clock frequency of 8MHz the
+        // value of uart_div is 69
+        uart.modify(|p| p.brr.write(|w| unsafe { w.bits(69) }));
 
         Self { uart }
     }
 
     #[inline(never)]
     pub fn blocking_write(&mut self, buf: &[u8]) {
-        const UART_FIFO_SIZE: u8 = 8;
-
-        for &c in buf {
+        for c in buf {
             // Read TC
             while self.uart.read(|p| p.statr.read().bits() & (1 << 6)) == 0 {} // wait tx complete
             self.uart
-                .modify(|p| p.datar.write(|w| unsafe { w.bits(c as u32) }));
+                .modify(|p| p.datar.write(|w| unsafe { w.bits(*c as u32) }));
         }
     }
 }

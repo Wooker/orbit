@@ -10,12 +10,22 @@ use orbit_kernel::{
 
 #[used]
 #[no_mangle]
-#[link_section = ".apps"]
-pub static BLINKY: Blinky = Blinky {};
+#[link_section = ".blinky.bss"]
+pub static mut BLINKY: Blinky = Blinky {};
+
+#[used]
+#[link_section = ".blinky.bss"]
+pub static mut STACK: [usize; 1024] = [0; 1024];
 
 pub struct Blinky;
+impl Blinky {
+    #[inline(never)]
+    #[link_section = ".blinky.text"]
+    pub fn init(&self) {}
+}
 impl Application for Blinky {
-    fn main(&self) -> () {
+    #[link_section = ".blinky.text"]
+    fn main(&mut self) -> () {
         let mut gpiob: Claimed<GPIOB> = unsafe { KERNEL.claim().unwrap_unchecked() };
         gpiob.modify(|p| p.cfghr.write(|w| unsafe { w.bits(0b0101) }));
 
@@ -29,5 +39,11 @@ impl Application for Blinky {
                 unsafe { KERNEL.core.timer.delay(1000000) };
             });
         }
+    }
+
+    #[inline(never)]
+    #[link_section = ".uart.text"]
+    unsafe fn stack_top() -> usize {
+        STACK.last().unwrap_unchecked() as *const usize as usize + 0x4
     }
 }
