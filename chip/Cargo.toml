@@ -15,7 +15,7 @@ bl702-pac = { version = "0.0.3", optional = true }
 
 [features]
 esp32c3 = [ "dep:esp32c3", "esp32c3/critical-section", "esp32c3/rt" ]
-ch32v208wbu6 = [ "dep:ch32v2", "ch32v2/ch32v20x", "ch32v2/critical-section", "ch32v2/rt" ]
+ch32v208wbu6 = [ "dep:ch32v2", "ch32v2/ch32v20x", "ch32v2/critical-section",  ]
 ch592 = [ "dep:ch59x", "ch59x/ch59x", "ch59x/critical-section", "ch59x/rt" ]
 ch32v003 = [ "dep:ch32v0", "ch32v0/ch32v003", "ch32v0/critical-section", "ch32v0/rt" ]
 bl702 = [ "dep:bl702-pac", "bl702-pac/critical-section" ]

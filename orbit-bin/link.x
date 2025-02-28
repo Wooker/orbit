@@ -2,6 +2,8 @@ SECTIONS
 {
     .text : ALIGN(4)
     {
+        *(.kernel.text .kernel.text.*);
+        *(.apps.text);
         *(.text.*);
     } >FLASH
 

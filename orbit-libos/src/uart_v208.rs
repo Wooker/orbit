@@ -74,7 +74,7 @@ impl<'a> Uart<'a> {
                 let mut ctlr1 = 0_u32;
                 ctlr1 |= (config.data_bits as u32) << 12;
                 ctlr1 |= (config.parity as u32) << 9;
-                // ctlr1 |= 1 << 7; // TXEIE
+                ctlr1 |= 0b11111 << 4; // interrupts
                 ctlr1 |= 1 << 3;
                 ctlr1 |= 1 << 2;
                 ctlr1 |= 1 << 13;
@@ -112,5 +112,10 @@ impl<'a> Uart<'a> {
             self.uart
                 .modify(|p| p.datar.write(|w| unsafe { w.bits(*c as u32) }));
         }
+
+        self.uart.modify(|p| {
+            p.statr
+                .modify(|r, w| unsafe { w.bits(r.bits() & !(1 << 6)) })
+        });
     }
 }

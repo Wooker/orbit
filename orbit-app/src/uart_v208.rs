@@ -8,9 +8,10 @@ use core::ptr::null;
 use core::sync::atomic::compiler_fence;
 use core::sync::atomic::Ordering;
 
+#[macro_use]
 use orbit_kernel::{
     arch::interface::timer::Timer,
-    chip::pac::{GPIOB, GPIOC, UART4},
+    chip::pac::{GPIOB, GPIOC, UART4, AFIO, EXTI},
     claim::{Claim, Claimed},
 };
 use orbit_libos::uart_v208::{Config, Uart};
@@ -27,7 +28,7 @@ pub static mut UART_APP: UartApp = UartApp::new();
 
 #[used]
 #[link_section = ".uart.bss"]
-pub static mut STACK: [usize; 1024] = [0; 1024];
+pub static mut STACK: [usize; 64] = [0; 64];
 
 #[derive(Serialize, Deserialize)]
 enum Message<'m> {
@@ -58,6 +59,8 @@ impl UartApp {
 impl Application for UartApp {
     #[link_section = ".uart.text"]
     fn main(&mut self) {
+        // let mut exti: Claimed<EXTI> = unsafe { KERNEL.claim().unwrap_unchecked() };
+        // let mut afio: Claimed<AFIO> = unsafe { KERNEL.claim().unwrap_unchecked() };
         let mut gpioc: Claimed<GPIOC> = unsafe { KERNEL.claim().unwrap_unchecked() };
 
         // PC10 TX as push-pull alternate output
@@ -67,19 +70,23 @@ impl Application for UartApp {
                 .write(|w| unsafe { w.bits(0b1011 << 8 | 0b0100 << 12) })
         });
 
+        // Set EXTI port of pin 10
+        // afio.modify(|p| p.exticr3.write(|w| unsafe { w.bits(0b0010 << 8) }));
+
+        // Set EXTI port of pin 10
+        // exti.modify(|p| {
+        //     p.intenr.write(|w| unsafe { w.bits(1 << 10) });
+        //     p.rtenr.write(|w| unsafe { w.bits(1 << 10) });
+        //     p.ftenr.write(|w| unsafe { w.bits(1 << 10) });
+        // });
+
         let mut uart4: Claimed<UART4> = unsafe { KERNEL.claim().unwrap_unchecked() };
         let mut uart = Uart::new(uart4, Config::default());
-        let str = "Hello";
 
-        for (i, &b) in "Hello".as_bytes().iter().enumerate() {
-            self.buf[i] = b;
-        }
-        loop {
-            uart.blocking_write(unsafe {
-                to_slice(&Message::Str("Hello"), &mut self.buf).unwrap_unchecked()
-            });
-            unsafe { KERNEL.core.timer.delay(1000000) };
-        }
+        uart.blocking_write(unsafe {
+            to_slice(&Message::Str("Hello"), &mut self.buf).unwrap_unchecked()
+        });
+        unsafe { KERNEL.core.timer.delay(1000000) };
     }
 
     #[inline(never)]

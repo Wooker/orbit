@@ -54,6 +54,8 @@ impl<'a> UartApp {
 }
 
 impl Application for UartApp {
+    #[inline(never)]
+    #[link_section = ".uart.text"]
     fn main(&mut self) {
         let mut gpiod: Claimed<GPIOD> = unsafe { KERNEL.claim().unwrap_unchecked() };
 
@@ -66,12 +68,11 @@ impl Application for UartApp {
 
         let mut uart1: Claimed<USART1> = unsafe { KERNEL.claim().unwrap_unchecked() };
         let mut uart = Uart::new(uart1, Config::default());
-        loop {
-            uart.blocking_write(unsafe {
-                to_slice(&Message::Str("Hello"), &mut self.buf).unwrap_unchecked()
-            });
-            unsafe { KERNEL.core.timer.delay(1000000) };
-        }
+
+        uart.blocking_write(unsafe {
+            to_slice(&Message::Str("Hello"), &mut self.buf).unwrap_unchecked()
+        });
+        unsafe { KERNEL.core.timer.delay(1000000) };
     }
 
     #[inline(never)]

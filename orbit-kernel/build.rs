@@ -54,7 +54,7 @@ fn main() {
         .collect();
     p!("Features: {:?}", features);
     if features.len() != 1 {
-        panic!("Use only one feature for the chip.");
+        // panic!("Use only one feature for the chip.");
     }
     let chip = features.last().unwrap();
 

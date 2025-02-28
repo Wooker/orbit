@@ -18,6 +18,7 @@ unsafe extern "Rust" {
 #[unsafe(no_mangle)]
 #[unsafe(link_section = ".bin.text")]
 unsafe fn main() -> ! {
+    BLINKY.init();
     KERNEL.add_application(
         0,
         unsafe { &UART_APP as *const UartApp as usize },
