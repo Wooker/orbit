@@ -110,11 +110,7 @@ impl<const PMP: usize> Kernel<PMP> {
         self.sp = 0;
 
         unsafe {
-            mtvec::write(
-                &_handler as *const usize as usize,
-                // unsafe { &VECTOR_TABLE as *const usize as usize },
-                mtvec::TrapMode::Direct,
-            );
+            mtvec::write(&_handler as *const usize as usize, mtvec::TrapMode::Direct);
         }
 
         unsafe {
@@ -123,9 +119,15 @@ impl<const PMP: usize> Kernel<PMP> {
             orbit_arch::pfic::enable_vtf(3, 68, 0x20000000);
         }
 
+        self.event_loop();
+    }
+
+    #[inline(never)]
+    #[link_section = ".kernel.text"]
+    fn event_loop(&mut self) {
         loop {
             self.context_switch(0);
-            self.context_switch(1);
+            // self.context_switch(1);
         }
     }
 
@@ -169,6 +171,8 @@ impl<const PMP: usize> Kernel<PMP> {
 
             // Restore kernel stack pointer
             asm!("mv sp, {0}", in(reg) self.sp);
+
+            asm!("ecall");
         }
     }
 
@@ -197,6 +201,12 @@ impl<const PMP: usize> Kernel<PMP> {
         if mcause.is_interrupt() {
             self.context_switch(1);
         } else {
+            match mcause.code() {
+                8 => unsafe {
+                    asm!("li t0, 0x1880; csrw mstatus, t0; csrr t0, mepc; addi t0, t0, 4; csrw mepc, t0; mret")
+                },
+                _ => {}
+            }
         }
     }
 

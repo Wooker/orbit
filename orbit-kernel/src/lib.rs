@@ -18,6 +18,7 @@ pub use chip;
 pub use orbit_arch as arch;
 
 #[no_mangle]
+#[link_section = ".kernel.text"]
 fn DefaultHandler() {
     loop {}
 }
@@ -57,6 +58,7 @@ _start:
     ",
     "li t0, 0x1880",
     "csrw mstatus, t0",
+    "csrwi mcause, 0",
     "la t0, main",
     "csrw mepc, t0",
     "csrr t0, dcsr",
