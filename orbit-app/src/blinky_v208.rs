@@ -1,8 +1,10 @@
 #![allow(static_mut_refs)]
 #![allow(unsafe_code)]
+use core::arch::{asm, naked_asm};
 
 use crate::{application::Application, KERNEL};
 use orbit_kernel::{
+    application::Context,
     arch::interface::timer::Timer,
     chip::pac::GPIOB,
     claim::{Claim, Claimed},
@@ -11,17 +13,29 @@ use orbit_kernel::{
 #[used]
 #[no_mangle]
 #[link_section = ".blinky.bss"]
-pub static mut BLINKY: Blinky = Blinky {};
+pub static mut BLINKY: Blinky = Blinky::new();
 
 #[used]
 #[link_section = ".blinky.bss"]
 pub static mut STACK: [usize; 64] = [0; 64];
 
-pub struct Blinky;
+pub struct Blinky {
+    context: Context,
+}
 impl Blinky {
     #[inline(never)]
     #[link_section = ".blinky.text"]
-    pub fn init(&self) {}
+    pub const fn new() -> Self {
+        Self {
+            context: Context::new(),
+        }
+    }
+    #[inline(never)]
+    #[link_section = ".blinky.text"]
+    pub fn init(&mut self) {
+        self.context = Context::new();
+        self.context.sp = unsafe { STACK.last().unwrap_unchecked() as *const usize as usize + 0x4 };
+    }
 }
 impl Application for Blinky {
     #[link_section = ".blinky.text"]
@@ -40,8 +54,8 @@ impl Application for Blinky {
     }
 
     #[inline(never)]
-    #[link_section = ".uart.text"]
-    unsafe fn stack_top() -> usize {
-        STACK.last().unwrap_unchecked() as *const usize as usize + 0x4
+    #[link_section = ".blinky.text"]
+    fn context(&self) -> Context {
+        self.context
     }
 }

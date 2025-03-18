@@ -2,13 +2,9 @@
 //! UART: Uni
 
 // Default UART is UART4()
-use crate::KERNEL;
 use core::sync::atomic::compiler_fence;
 use core::sync::atomic::Ordering;
-use orbit_kernel::{
-    claim::{Claim, Claimable, Claimed},
-    kernel::Kernel,
-};
+use orbit_kernel::claim::Claimed;
 
 #[cfg(feature = "ch32v003")]
 use orbit_kernel::chip::pac::USART1;
@@ -68,13 +64,14 @@ pub struct Uart<'a> {
 impl<'a> Uart<'a> {
     #[inline(never)]
     pub fn new(mut uart: Claimed<'a, Instance>, config: Config) -> Self {
+        // uart.modify(|p| p.statr.write(|w| unsafe { w.bits(0) }));
         uart.modify(|p| {
             p.ctlr1.write(|w| unsafe {
                 // Data bits and parity configuratoin
                 let mut ctlr1 = 0_u32;
                 ctlr1 |= (config.data_bits as u32) << 12;
                 ctlr1 |= (config.parity as u32) << 9;
-                ctlr1 |= 0b11111 << 4; // interrupts
+                ctlr1 |= 1 << 5; // rx interrupt
                 ctlr1 |= 1 << 3;
                 ctlr1 |= 1 << 2;
                 ctlr1 |= 1 << 13;
@@ -88,6 +85,15 @@ impl<'a> Uart<'a> {
                 let mut ctlr2 = 0_u32;
                 ctlr2 |= (config.stop_bits as u32) << 12;
                 w.bits(ctlr2)
+            });
+        });
+        compiler_fence(Ordering::SeqCst);
+        uart.modify(|p| {
+            p.ctlr3.write(|w| unsafe {
+                // Data bits and parity configuratoin
+                let mut ctlr3 = 0_u32;
+                ctlr3 |= 1;
+                w.bits(ctlr3)
             });
         });
 
@@ -108,14 +114,32 @@ impl<'a> Uart<'a> {
     pub fn blocking_write(&mut self, buf: &[u8]) {
         for c in buf {
             // Read TC
-            while self.uart.read(|p| p.statr.read().bits() & (1 << 6)) == 0 {} // wait tx complete
+            // while self.uart.read(|p| p.statr.read().bits() & (1 << 6)) == 0 {} // wait tx complete
             self.uart
                 .modify(|p| p.datar.write(|w| unsafe { w.bits(*c as u32) }));
         }
 
+        // self.uart.modify(|p| {
+        //     p.statr
+        //         .modify(|r, w| unsafe { w.bits(r.bits() & !(1 << 6)) })
+        // });
+    }
+
+    #[inline(never)]
+    pub fn read(&mut self, byte: &mut u8) {
+        *byte = self.uart.read(|p| p.datar.read().dr().bits().into()) as u8;
+    }
+
+    #[inline(never)]
+    pub fn status(&mut self) -> u32 {
+        self.uart.read(|p| p.statr.read().bits())
+    }
+
+    #[inline(never)]
+    pub fn clear_int(&mut self, bit: u8) {
         self.uart.modify(|p| {
             p.statr
-                .modify(|r, w| unsafe { w.bits(r.bits() & !(1 << 6)) })
+                .modify(|r, w| unsafe { w.bits(r.bits() & !(1 << bit)) })
         });
     }
 }

@@ -1,13 +1,12 @@
 use crate::{
-    application::{AppContainer, PmpEntry},
+    application::{AppContainer, Context, PmpEntry},
     clock::Clocks,
 };
 use chip::pac::Peripherals;
 use core::arch::naked_asm;
 use core::{arch::asm, mem::MaybeUninit};
-use fugit::HertzU32;
 use orbit_arch::riscv::register::mtvec;
-use orbit_arch::{interface::pmp::Pmp, riscv::register::Permission, riscv::register::Range, Core};
+use orbit_arch::{interface::pmp::Pmp, Core};
 
 #[used]
 #[no_mangle]
@@ -23,13 +22,13 @@ pub static KERNEL_MINOR: u8 = 1;
 #[used]
 #[no_mangle]
 #[link_section = ".kernel.bss"]
-pub static mut KERNEL: Kernel<4> = Kernel::new();
+pub static mut KERNEL: MaybeUninit<Kernel<4>> = MaybeUninit::uninit();
 
 #[cfg(feature = "ch32v003")]
 #[used]
 #[no_mangle]
 #[link_section = ".kernel.bss"]
-pub static mut KERNEL: Kernel<0> = Kernel::new();
+pub static mut KERNEL: MaybeUninit<Kernel<0>> = MaybeUninit::uninit();
 
 #[cfg(feature = "ch32v208wbu6")]
 const VECTOR_TABLE_SIZE: usize = 103;
@@ -46,12 +45,14 @@ extern "C" {
 #[link_section = ".kernel.bss"]
 pub static mut VECTOR_TABLE: [usize; VECTOR_TABLE_SIZE] = [0; VECTOR_TABLE_SIZE];
 
+#[repr(C, align(4))]
 pub struct Kernel<const PMP: usize> {
+    context: Context,
+    apps: [MaybeUninit<AppContainer<PMP>>; 4],
+    running: usize,
     pub(crate) peripherals: MaybeUninit<Peripherals>,
     pub core: Core<PMP>,
-    apps: [MaybeUninit<AppContainer<PMP>>; 4],
     pub clock: Clocks,
-    sp: usize,
 }
 unsafe impl<const PMP: usize> Sync for Kernel<PMP> {}
 
@@ -59,12 +60,19 @@ impl<const PMP: usize> Kernel<PMP> {
     #[link_section = ".kernel.text"]
     pub const fn new() -> Self {
         Self {
-            sp: 0,
+            context: Context::new(),
             peripherals: { MaybeUninit::<Peripherals>::uninit() },
             core: Core::new(),
             apps: MaybeUninit::uninit_array::<4>(),
             clock: Clocks::default(),
+            running: 0,
         }
+    }
+
+    #[inline(never)]
+    #[link_section = ".text"]
+    pub fn version(&self) -> (u8, u8) {
+        (KERNEL_MAJOR, KERNEL_MINOR)
     }
 
     #[inline(never)]
@@ -74,105 +82,520 @@ impl<const PMP: usize> Kernel<PMP> {
         index: usize,
         app_struct: usize,
         app_main_addr: usize,
-        stack: usize,
+        app_interrupt_addr: Option<usize>,
+        context: Context,
     ) {
         let app = unsafe { self.apps.get_unchecked_mut(index) };
         app.write(AppContainer::new(
+            context,
             [PmpEntry::default(); PMP],
             app_struct,
             app_main_addr,
-            stack,
+            app_interrupt_addr,
         ));
     }
 
     #[inline(never)]
     #[link_section = ".kernel.text"]
     pub fn initialize(&mut self) {
-        // use crate::_VECTOR_TABLE_INTERRUPTS;
-        // unsafe { _VECTOR_TABLE_INTERRUPTS[0] = 1 };
-        self.handler();
+        unsafe { asm!("li a1, 0x100;") };
 
-        // unsafe {
-        //     // RCC
-        //     orbit_arch::pfic::enable_interrupt(21);
-        //     orbit_arch::register::gintenr::set_enable();
-        // }
+        // Calling the handler here to prevent optimizations
+        unsafe { Self::handler() };
 
-        for i in 0..VECTOR_TABLE_SIZE {
-            unsafe {
-                VECTOR_TABLE[i] = &_handler as *const usize as usize;
-            }
-        }
-
-        self.clock.freeze();
+        // self.clock.freeze();
         self.peripherals.write(unsafe { Peripherals::steal() });
         self.core.pmp.default();
-        self.sp = 0;
+        self.running = 0;
+        self.context = Context::new();
+        self.context.ra = Self::main as *const fn() as usize;
+        self.context.a5 = 0xffffffff;
 
         unsafe {
+            // Save kernel context to mscratch
+            orbit_arch::riscv::register::mscratch::write(&self.context as *const Context as usize);
+            // Set gp
+            asm!("csrr gp, mscratch");
+            // Save trap handler
             mtvec::write(&_handler as *const usize as usize, mtvec::TrapMode::Direct);
+
+            // Enable UART4 interrupt
+            #[cfg(feature = "ch32v208wbu6")]
+            orbit_arch::pfic::enable_interrupt(66);
         }
 
-        unsafe {
-            // UART4
-            orbit_arch::pfic::enable_interrupt(68);
-            orbit_arch::pfic::enable_vtf(3, 68, 0x20000000);
-        }
-
-        self.event_loop();
+        // Calling the method to prevent optimization
+        self.setup_event_loop();
     }
 
-    #[inline(never)]
-    #[link_section = ".kernel.text"]
-    fn event_loop(&mut self) {
-        loop {
-            self.context_switch(0);
-            // self.context_switch(1);
-        }
+    #[naked]
+    #[link_section = ".kernel.text.main"]
+    unsafe fn main(&self) {
+        naked_asm!(
+            "
+            call setup_event_loop;
+            "
+        )
     }
 
+    #[no_mangle]
     #[inline(never)]
-    #[link_section = ".kernel.text"]
-    fn context_switch(&mut self, index: usize) {
-        let app_cont = unsafe { self.apps.get_unchecked(index).assume_init_read() };
+    #[link_section = ".kernel.text.setup_event_loop"]
+    fn setup_event_loop(&mut self) {
+        let app_cont = unsafe { self.apps.get_unchecked(self.running).assume_init_read() };
         self.set_pmp(&app_cont);
-
         unsafe {
-            let entry: usize = app_cont.main_addr();
-            let stack_ptr: usize = app_cont.stack_addr();
-            let struct_p: usize = app_cont.struct_addr();
-
-            // Store kernel stack pointer
-            asm!("mv {0}, sp", out(reg) self.sp);
-
             asm!(
-                "mv t0, {0}", // Load entry into a0
-                "mv t1, {1}", // Load stack pointer into a1
-                "mv t2, {2}", // Load pointer to app struct
-                "call {3}",   // Call the switch function
-                in(reg) entry,
-                in(reg) stack_ptr,
-                in(reg) struct_p,
-                sym switch
+                "",
+                in("a0") self as *const Kernel<PMP> as usize,
+                in("a1") app_cont.struct_addr(),
+                in("a2") app_cont.main_addr(),
+                in("a3") app_cont.interrupt_addr().unwrap(),
+            )
+        }
+        self.context_switch(
+            app_cont.struct_addr(),
+            app_cont.main_addr(),
+            app_cont.interrupt_addr().unwrap(),
+        );
+    }
+
+    #[inline(never)]
+    #[link_section = ".kernel.text.context_switch"]
+    fn context_switch(&mut self, struct_addr: usize, main_addr: usize, interrupt_addr: usize) {
+        unsafe {
+            asm!(
+                "
+                lw a5, 0x38(gp);
+                ",
+                // If mcause is interrupt
+                // switch to interrupt handler
+                "
+                csrr t0, mcause;
+                srli t0, t0, 31;
+                bnez t0, {0};
+                ",
+                // Switch to app
+                "
+                j {1}
+                ",
+                sym switch_to_interrupt,
+                sym switch_to_app,
             );
 
             #[naked]
             #[link_section = ".kernel.text"]
-            unsafe extern "C" fn switch() {
+            unsafe extern "C" fn switch_to_interrupt() {
                 naked_asm!(
-                    "mv sp, t1",
-                    "mv a0, t2",
-                    "csrwi mstatus, 0",
-                    "csrw mepc, t0",
-                    "mret",
-                    // "jalr zero, t0, 0"
+                    // Save mepc to a5
+                    "
+                    csrr a5, mepc;
+                    ",
+                    // Set mepc to interrupt handler
+                    "
+                    csrw mepc, a3;
+                    ",
+                    "
+                    li t0, 0;
+                    csrw mcause, t0;
+                    ",
+                    // Set mstatus 0x0
+                    "
+                    li t0, 0x0;
+                    csrw mstatus, t0;
+                    ",
+                    "
+                    call save_context;
+                    call load_context;
+                    "
                 );
             }
 
-            // Restore kernel stack pointer
-            asm!("mv sp, {0}", in(reg) self.sp);
+            #[naked]
+            #[link_section = ".kernel.text"]
+            unsafe extern "C" fn switch_to_app() {
+                naked_asm!(
+                    "
+                    bltz a5, {0};
+                    bgez a5, {1};
+                    ",
+                    sym switch_to_app_main,
+                    sym switch_to_app_from_interrupt
+                );
+            }
 
-            asm!("ecall");
+            #[naked]
+            #[link_section = ".kernel.text"]
+            unsafe extern "C" fn switch_to_app_main() {
+                naked_asm!(
+                    // Set mepc to application main
+                    "
+                    csrw mepc, a2;
+                    ",
+                    // Set mstatus 0x80
+                    "
+                    li t0, 0x80;
+                    csrw mstatus, t0;
+                    ",
+                    // Set a5 to some value
+                    "
+                    li a5, -1;
+                    ",
+                    "
+                    call save_context;
+                    call load_context;
+                    ",
+                );
+            }
+
+            #[naked]
+            #[link_section = ".kernel.text"]
+            unsafe extern "C" fn switch_to_app_from_interrupt() {
+                naked_asm!(
+                    // Set mepc to where interrupt has fired
+                    "
+                    csrw mepc, a5;
+                    ",
+                    // Set mstatus 0x80
+                    "
+                    li t0, 0x80;
+                    csrw mstatus, t0;
+                    ",
+                    "
+                    call save_context;
+                    call load_context;
+                    "
+                );
+            }
+
+            // Save registers if not _e_ extension
+            #[cfg(target_feature = "e")]
+            #[naked]
+            #[no_mangle]
+            #[link_section = ".kernel.text"]
+            unsafe extern "C" fn save_context() {
+                naked_asm!(
+                    // "sw ra, 0x0(gp);",
+                    // Save registers
+                    "
+                    sw sp, 0x4(gp);
+                    sw gp, 0x8(gp);
+                    sw tp, 0xc(gp);
+                    sw t0, 0x10(gp);
+                    sw t1, 0x14(gp);
+                    sw t2, 0x18(gp);
+                    sw s0, 0x1c(gp);
+                    sw s1, 0x20(gp);
+                    sw a0, 0x24(gp);
+                    sw a1, 0x28(gp);
+                    sw a2, 0x2c(gp);
+                    sw a3, 0x30(gp);
+                    sw a4, 0x34(gp);
+                    sw a5, 0x38(gp);
+                    ",
+                    "ret"
+                );
+            }
+
+            // Save registers if not _e_ extension
+            #[cfg(not(target_feature = "e"))]
+            #[naked]
+            #[no_mangle]
+            #[link_section = ".kernel.text"]
+            unsafe extern "C" fn save_context() {
+                naked_asm!(
+                    // "sw ra, 0x0(gp);",
+                    // Save registers
+                    "
+                    sw sp, 0x4(gp);
+                    sw gp, 0x8(gp);
+                    sw tp, 0xc(gp);
+                    sw t0, 0x10(gp);
+                    sw t1, 0x14(gp);
+                    sw t2, 0x18(gp);
+                    sw s0, 0x1c(gp);
+                    sw s1, 0x20(gp);
+                    sw a0, 0x24(gp);
+                    sw a1, 0x28(gp);
+                    sw a2, 0x2c(gp);
+                    sw a3, 0x30(gp);
+                    sw a4, 0x34(gp);
+                    sw a5, 0x38(gp);
+                    sw a6, 0x3c(gp);
+                    sw a7, 0x40(gp);
+                    sw s2, 0x44(gp);
+                    sw s3, 0x48(gp);
+                    sw s4, 0x4c(gp);
+                    sw s5, 0x50(gp);
+                    sw s6, 0x54(gp);
+                    sw s7, 0x58(gp);
+                    sw s8, 0x5c(gp);
+                    sw s9, 0x60(gp);
+                    sw s1, 0x64(gp);
+                    sw s1, 0x68(gp);
+                    sw t3, 0x6c(gp);
+                    sw t4, 0x70(gp);
+                    sw t5, 0x74(gp);
+                    sw t6, 0x78(gp);
+                    ",
+                    "ret"
+                );
+            }
+
+            #[naked]
+            #[no_mangle]
+            #[link_section = ".kernel.text"]
+            unsafe extern "C" fn load_check() {
+                naked_asm!(
+                    // Save t0 on stack
+                    "
+                    addi sp, sp, -0x4;
+                    sw t0, 0x0(sp);
+                    ",
+                    // Use t0 for mscratch
+                    "
+                    csrr t0, mscratch;
+                    ",
+                    // Jump to a loading function
+                    // t0 = address of returned context
+                    "
+                    beq t0, gp, load_for_app;
+                    bne t0, gp, load_for_kernel;
+                    "
+                )
+            }
+
+            #[naked]
+            #[no_mangle]
+            #[link_section = ".kernel.text"]
+            unsafe extern "C" fn load_for_app() {
+                naked_asm!(
+                    // Save app context to gp
+                    "
+                    mv gp, a1;
+                    ",
+                    // Restore t0
+                    "
+                    lw t0, 0x0(sp);
+                    addi sp, sp, 0x4;
+                    ",
+                    // Return to load_context
+                    "
+                    ret;
+                    "
+                )
+            }
+
+            #[naked]
+            #[no_mangle]
+            #[link_section = ".kernel.text"]
+            unsafe extern "C" fn load_for_kernel() {
+                naked_asm!(
+                    // Save kernel context to gp
+                    "
+                    csrr gp, mscratch;
+                    ",
+                    // Restore t0
+                    "
+                    lw t0, 0x0(sp);
+                    addi sp, sp, 0x4;
+                    ",
+                    // Return to load_context
+                    "
+                    ret;
+                    "
+                )
+            }
+
+            // Load registers if not _e_ extension
+            #[cfg(target_feature = "e")]
+            #[naked]
+            #[no_mangle]
+            #[link_section = ".kernel.text"]
+            unsafe extern "C" fn load_context() {
+                naked_asm!(
+                    "
+                    call load_check;
+                    ",
+                    // Load registers
+                    "
+                    lw ra, 0x0(gp);
+                    lw gp, 0x8(gp);
+                    lw tp, 0xc(gp);
+                    lw t0, 0x10(gp);
+                    lw t1, 0x14(gp);
+                    lw t2, 0x18(gp);
+                    lw s0, 0x1c(gp);
+                    lw s1, 0x20(gp);
+                    lw a0, 0x24(gp);
+                    lw a1, 0x28(gp);
+                    lw a2, 0x2c(gp);
+                    lw a3, 0x30(gp);
+                    lw a4, 0x34(gp);
+                    lw a5, 0x38(gp);
+                    ",
+                    "j load_finish"
+                );
+            }
+
+            // Load registers if not _e_ extension
+            #[cfg(not(target_feature = "e"))]
+            #[naked]
+            #[no_mangle]
+            #[link_section = ".kernel.text"]
+            unsafe extern "C" fn load_context() {
+                naked_asm!(
+                    "
+                    call load_check;
+                    ",
+                    // Load registers
+                    // except sp
+                    "
+                    lw ra, 0x0(gp);
+                    lw gp, 0x8(gp);
+                    lw tp, 0xc(gp);
+                    lw t0, 0x10(gp);
+                    lw t1, 0x14(gp);
+                    lw t2, 0x18(gp);
+                    lw s0, 0x1c(gp);
+                    lw s1, 0x20(gp);
+                    lw a0, 0x24(gp);
+                    lw a1, 0x28(gp);
+                    lw a2, 0x2c(gp);
+                    lw a3, 0x30(gp);
+                    lw a4, 0x34(gp);
+                    lw a6, 0x3c(gp);
+                    lw a7, 0x40(gp);
+                    lw s2, 0x44(gp);
+                    lw s3, 0x48(gp);
+                    lw s4, 0x4c(gp);
+                    lw s5, 0x50(gp);
+                    lw s6, 0x54(gp);
+                    lw s7, 0x58(gp);
+                    lw s8, 0x5c(gp);
+                    lw s9, 0x60(gp);
+                    lw s1, 0x64(gp);
+                    lw s1, 0x68(gp);
+                    lw t3, 0x6c(gp);
+                    lw t4, 0x70(gp);
+                    lw t5, 0x74(gp);
+                    lw t6, 0x78(gp);
+                    ",
+                    "j load_finish"
+                );
+            }
+
+            #[naked]
+            #[no_mangle]
+            #[link_section = ".kernel.text"]
+            unsafe extern "C" fn load_finish() {
+                naked_asm!(
+                    // Save t0 on stack
+                    "
+                    addi sp, sp, -0x4;
+                    sw t0, 0x0(sp);
+                    ",
+                    // Use t0 for mscratch
+                    "
+                    csrr t0, mscratch;
+                    ",
+                    // Jump to a load finishing function
+                    "
+                    bne t0, gp, load_finish_for_app;
+                    beq t0, gp, load_finish_for_kernel;
+                    "
+                )
+            }
+
+            #[naked]
+            #[no_mangle]
+            #[link_section = ".kernel.text"]
+            unsafe extern "C" fn load_finish_for_app() {
+                naked_asm!(
+                    "
+                    csrr t0, mepc;
+                    bne t0, a5, load_finish_for_app_to_main;
+                    beq t0, a5, load_finish_for_app_from_interrupt;
+                    "
+                )
+            }
+
+            #[naked]
+            #[no_mangle]
+            #[link_section = ".kernel.text"]
+            unsafe extern "C" fn load_finish_for_app_to_main() {
+                naked_asm!(
+                    // Restore t0
+                    "
+                    lw t0, 0x0(sp);
+                    addi sp, sp, 0x4;
+                    ",
+                    // Load sp
+                    "
+                    lw sp, 0x4(gp);
+                    ",
+                    // Load a5
+                    "
+                    lw a5, 0x38(gp);
+                    ",
+                    "
+                    mv a0, gp;
+                    ",
+                    // Return to mepc location
+                    "mret;"
+                )
+            }
+
+            #[naked]
+            #[no_mangle]
+            #[link_section = ".kernel.text"]
+            unsafe extern "C" fn load_finish_for_app_from_interrupt() {
+                naked_asm!(
+                    // Reset a5 and save
+                    "
+                    csrr t0, mscratch;
+                    li a5, -1;
+                    sw a5, 0x38(t0);
+                    ",
+                    // Restore t0
+                    "
+                    lw t0, 0x0(sp);
+                    addi sp, sp, 0x4;
+                    ",
+                    // Load sp
+                    "
+                    lw sp, 0x4(gp);
+                    ",
+                    // Load a5
+                    "
+                    lw a5, 0x38(gp);
+                    ",
+                    // Return to mepc location
+                    "mret;"
+                )
+            }
+
+            #[naked]
+            #[no_mangle]
+            #[link_section = ".kernel.text"]
+            unsafe extern "C" fn load_finish_for_kernel() {
+                naked_asm!(
+                    // Restore t0
+                    "
+                    lw t0, 0x0(sp);
+                    addi sp, sp, 0x4;
+                    ",
+                    // Load sp, a5
+                    "
+                    lw sp, 0x4(gp);
+                    lw a5, 0x38(gp);
+                    ",
+                    // Set a0 to gp (&self)
+                    "mv a0, gp;",
+                    // Return to ra location
+                    "ret; ",
+                )
+            }
         }
     }
 
@@ -180,10 +603,11 @@ impl<const PMP: usize> Kernel<PMP> {
     #[link_section = ".kernel.text"]
     fn set_pmp(&mut self, app: &AppContainer<PMP>) {
         for (i, pe) in app.get_pmp().iter().enumerate() {
-            self.core
+            let _ = self
+                .core
                 .pmp
                 .write_cfg(0, i, pe.range, pe.permission, pe.locked);
-            self.core.pmp.write_addr(i, pe.address);
+            let _ = self.core.pmp.write_addr(i, pe.address);
         }
     }
 
@@ -193,26 +617,84 @@ impl<const PMP: usize> Kernel<PMP> {
         self.clock.hclk.raw()
     }
 
-    #[no_mangle]
-    #[inline(never)]
+    #[naked]
     #[link_section = ".kernel.text.handler"]
-    pub fn handler(&mut self) {
-        let mcause = orbit_arch::riscv::register::mcause::read();
-        if mcause.is_interrupt() {
-            self.context_switch(1);
-        } else {
-            match mcause.code() {
-                8 => unsafe {
-                    asm!("li t0, 0x1880; csrw mstatus, t0; csrr t0, mepc; addi t0, t0, 4; csrw mepc, t0; mret")
-                },
-                _ => {}
-            }
-        }
-    }
+    unsafe extern "C" fn handler() {
+        naked_asm!(
+            // Read mcause
+            "
+            csrr t0, mcause;
+            ",
+            // Check if it is startup exception number
+            "
+            li t1, 0x100;
+            beq a1, t1, return_handler;
+            ",
+            // Check if mcause is interrupt
+            "
+            srli t1, t0, 31;
+            bnez t1, handle_int;
+            ",
+            // If not interrupt mask cause number
+            "
+            andi t0, t0, 0xff;
+            ",
+            // Check if cause is ecall
+            "
+            li t1, 8;
+            beq t0, t1, user_ecall;
+            ",
+            // Other cause
+            "
+            j handle_loop;
+            "
+        );
 
-    #[inline(never)]
-    #[link_section = ".kernel.text"]
-    pub fn version(&self) -> (u8, u8) {
-        (KERNEL_MAJOR, KERNEL_MINOR)
+        #[naked]
+        #[no_mangle]
+        #[link_section = ".kernel.text"]
+        unsafe extern "C" fn handle_loop() {
+            naked_asm!("j handle_loop;");
+        }
+
+        #[naked]
+        #[no_mangle]
+        #[link_section = ".kernel.text"]
+        unsafe extern "C" fn handle_int() {
+            naked_asm!(
+                "
+                // csrr t1, mepc;
+                call save_context;
+                call load_context;
+                ",
+            );
+        }
+
+        #[naked]
+        #[no_mangle]
+        #[link_section = ".kernel.text"]
+        unsafe extern "C" fn user_ecall() {
+            naked_asm!(
+                "
+                bnez a0, user_ecall_int;
+                call save_context;
+                call load_context;
+                "
+            );
+        }
+
+        #[naked]
+        #[no_mangle]
+        #[link_section = ".kernel.text"]
+        unsafe extern "C" fn user_ecall_int() {
+            naked_asm!("call load_context;");
+        }
+
+        #[naked]
+        #[no_mangle]
+        #[link_section = ".kernel.text"]
+        unsafe extern "C" fn return_handler() {
+            naked_asm!("ret");
+        }
     }
 }

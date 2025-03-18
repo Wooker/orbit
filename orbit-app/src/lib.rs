@@ -1,6 +1,7 @@
 #![no_std]
 #![no_main]
 #![deny(unsafe_code)]
+#![feature(naked_functions)]
 
 pub mod application;
 pub mod service;
@@ -23,10 +24,10 @@ feature_mod!("ch592", pub, uart);
 feature_mod!("ch32v208wbu6", pub, blinky_v208);
 // feature_mod!("ch32v208wbu6", pub, uart_v208);
 
-#[cfg(feature = "ch32v208wbu6")]
+// #[cfg(any(feature = "ch32v208wbu6", feature = "ch32v003"))]
 pub mod uart_v208;
 
 feature_mod!("ch32v003", pub, blinky_v003);
 
-#[cfg(feature = "ch32v003")]
-pub mod uart_v003;
+// #[cfg(feature = "ch32v003")]
+// pub mod uart_v003;

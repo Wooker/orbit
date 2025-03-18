@@ -1,7 +1,7 @@
 #![no_std]
 #![no_main]
 
-use orbit_common::{feature_mod, feature_mod_use};
+use orbit_common::feature_mod_use;
 
 pub mod claimable;
 pub mod interface;

@@ -4,9 +4,9 @@
 #![allow(static_mut_refs)]
 #![feature(maybe_uninit_uninit_array)]
 #![feature(naked_functions)]
+#![feature(stmt_expr_attributes)]
 
 use core::arch::{asm, global_asm};
-use core::mem::MaybeUninit;
 
 pub mod application;
 pub mod claim;
@@ -17,14 +17,14 @@ pub mod task;
 pub use chip;
 pub use orbit_arch as arch;
 
-#[no_mangle]
-#[link_section = ".kernel.text"]
-fn DefaultHandler() {
-    loop {}
-}
+// #[no_mangle]
+// #[link_section = ".kernel.text"]
+// fn DefaultHandler() {
+//     loop {}
+// }
 
 #[panic_handler]
-pub fn panic_handler<'a, 'b>(info: &'a core::panic::PanicInfo<'b>) -> ! {
+pub fn panic_handler<'a, 'b>(_: &'a core::panic::PanicInfo<'b>) -> ! {
     loop {}
 }
 
@@ -50,20 +50,23 @@ global_asm!(
 _start:
     la sp, _stack_top
     ",
-    "
-    li t0, 0x1f
-    csrw 0xbc0, t0
-    li t0, 0x08
-    csrw 0x804, t0
-    ",
-    "li t0, 0x1880",
+    // "
+    // li t0, 0x1f
+    // csrw 0xbc0, t0
+    // li t0, 0x08
+    // csrw 0x804, t0
+    // ",
+    "li t0, 0x1800",
     "csrw mstatus, t0",
-    "csrwi mcause, 0",
     "la t0, main",
     "csrw mepc, t0",
-    "csrr t0, dcsr",
-    "ori t0, t0, 0x200",
-    "csrw dcsr, t0",
+    // Set dcsr 9 and 11 bits
+    "
+    csrr t0, dcsr;
+    li t1, 0xa00;
+    or t0, t0, t1;
+    csrw dcsr, t0;
+    ",
     "mret",
     // "jalr zero, t0, 0"
 );

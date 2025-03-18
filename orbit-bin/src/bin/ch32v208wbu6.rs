@@ -10,26 +10,30 @@ use orbit_kernel::kernel::Kernel;
 unsafe extern "Rust" {
     static mut KERNEL: Kernel<4>;
     static mut BLINKY: Blinky;
-    static mut UART_APP: UartApp;
+    static mut UART_APP: UartApp<'static>;
 }
 
 #[unsafe(no_mangle)]
 #[unsafe(link_section = ".bin.text")]
 unsafe fn main() -> ! {
+    KERNEL.clock.freeze();
+
     BLINKY.init();
     UART_APP.init();
     KERNEL.add_application(
         0,
         unsafe { &UART_APP as *const UartApp as usize },
         UartApp::main as usize,
-        UartApp::stack_top(),
+        Some(UartApp::interrupt as usize),
+        UART_APP.context(),
     );
     KERNEL.add_application(
         1,
         unsafe { &BLINKY as *const Blinky as usize },
         Blinky::main as usize,
-        0x00,
+        None,
+        BLINKY.context(),
     );
     KERNEL.initialize();
-    loop {}
+    panic!();
 }
