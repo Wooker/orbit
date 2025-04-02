@@ -41,6 +41,7 @@ SECTIONS
     .kernel.bss : ALIGN(4)
     {
         *(.kernel.bss);
+        *(.bss .bss.*);
         *(.sbss .sbss.*);
     } >RAM AT>FLASH
 

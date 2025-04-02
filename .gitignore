@@ -7,3 +7,5 @@ specification/**/*TTrace*
 Cargo.lock
 gdbinit
 *.map
+*.py
+*.patch
