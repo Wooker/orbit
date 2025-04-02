@@ -1,5 +1,5 @@
 use proc_macro::TokenStream;
-use quote::quote;
+use quote::{format_ident, quote};
 use syn::{Ident, ItemFn, LitStr, parse_macro_input};
 
 #[proc_macro_attribute]
@@ -74,12 +74,16 @@ pub fn app_interrupt(attr: TokenStream, item: TokenStream) -> TokenStream {
 
 #[proc_macro_attribute]
 pub fn app_main(attr: TokenStream, item: TokenStream) -> TokenStream {
-    let app_name = parse_macro_input!(attr as LitStr).value();
+    let attr_args = parse_macro_input!(attr as LitStr).value();
+    let mut args = attr_args.split_whitespace();
+    let app_name = args.next().expect("Expected application name").to_string();
+    let struct_name = args.next().expect("Expected struct name").to_string();
+    let struct_ident = format_ident!("{}", struct_name);
     let function = parse_macro_input!(item as ItemFn);
     let block = &function.block;
 
     let expanded = quote! {
-        impl Application for Wfi {
+        impl Application for #struct_ident {
             #[inline(never)]
             #[unsafe(link_section = concat!(".", #app_name, ".text.main"))]
             fn main(&mut self) {
