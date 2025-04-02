@@ -20,32 +20,17 @@ unsafe fn main() -> ! {
     KERNEL.clock.freeze();
 
     WFI.init();
-    UART_APP.init();
-
     KERNEL.add_application(
-        0,
+        1,
         unsafe { &WFI as *const Wfi as usize },
         Wfi::main as usize,
-        None,
+        Some(Wfi::interrupt as usize),
         WFI.context(),
         [None, None, None, None],
     );
-    KERNEL.add_application(
-        1,
-        unsafe { &UART_APP as *const UartApp as usize },
-        UartApp::main as usize,
-        Some(UartApp::interrupt as usize),
-        UART_APP.context(),
-        [
-            Some(KernelPeripherals::GPIOC),
-            Some(KernelPeripherals::UART4),
-            None,
-            None,
-        ],
-    );
     BLINKY.init();
     KERNEL.add_application(
-        2,
+        0,
         unsafe { &BLINKY as *const Blinky as usize },
         Blinky::main as usize,
         Some(Blinky::interrupt as usize),

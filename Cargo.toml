@@ -7,5 +7,5 @@ members = [
     "orbit-kernel",
     # "orbit-libos",
     "orbit-app",
-    "orbit-bin", "orbit-common",
+    "orbit-bin", "orbit-common", "orbit-common-proc-macro",
 ]

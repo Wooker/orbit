@@ -2,27 +2,32 @@
 #![allow(unsafe_code)]
 
 use crate::{app_stack, app_struct, application::Application};
-use core::arch::asm;
+use core::arch::{asm, naked_asm};
+use orbit_common_proc_macro::{app_init, app_interrupt, app_main};
 use orbit_kernel::application::Context;
+
+use core::sync::atomic::compiler_fence;
 
 app_struct!(WFI: Wfi = Wfi::new(), "wfi");
 app_stack!(4, "wfi");
 
-pub struct Wfi(Context);
+pub struct Wfi {
+    context: Context,
+}
+
 impl Wfi {
     pub const fn new() -> Self {
-        Self(Context::new())
-    }
-    pub fn init(&mut self) {}
-}
-impl Application for Wfi {
-    fn main(&mut self) {
-        unsafe { asm!("wfi") };
+        Self {
+            context: Context::new(),
+        }
     }
 
-    #[inline(never)]
-    #[link_section = ".wfi.text"]
-    fn context(&self) -> Context {
-        self.0
-    }
+    #[app_init("wfi")]
+    pub fn init(&mut self) {}
+
+    #[app_interrupt("wfi")]
+    pub fn interrupt(&mut self) {}
 }
+
+#[app_main("wfi")]
+fn main(&mut self) {}

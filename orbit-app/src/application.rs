@@ -5,4 +5,5 @@ pub trait Application {
     fn main(&mut self);
     #[allow(unsafe_code)]
     fn context(&self) -> Context;
+    extern "C" fn ecall();
 }

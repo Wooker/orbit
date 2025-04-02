@@ -161,10 +161,10 @@ impl<const PMP_REGS: usize> AppContainer<PMP_REGS> {
         extern "C" {
             static _app_uart_text_main: usize;
         }
-        if PMP_REGS > 0 {
-            let mut pmps: [PmpEntry; PMP_REGS] = [PmpEntry::default(); PMP_REGS];
-            pmps[0].address = unsafe { &_app_uart_text_main as *const usize as usize };
-        }
+        // if PMP_REGS > 0 {
+        //     let mut pmps: [PmpEntry; PMP_REGS] = [PmpEntry::default(); PMP_REGS];
+        //     pmps[0].address = unsafe { &_app_uart_text_main as *const usize as usize };
+        // }
         Self {
             context,
             pmp,

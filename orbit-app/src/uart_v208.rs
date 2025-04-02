@@ -13,7 +13,6 @@ use orbit_kernel::{
     claim::{Claim, Claimed},
 };
 use orbit_libos::uart_v208::{Config, Uart};
-use postcard::to_slice;
 use serde::Deserialize;
 use serde::Serialize;
 
@@ -80,8 +79,7 @@ impl<'u> UartApp<'u> {
     #[inline(never)]
     #[link_section = ".uart.text"]
     const fn new() -> Self {
-        let mut context = Context::new();
-        let diff_bss = unsafe {};
+        let context = Context::new();
         Self {
             context,
             buf: [0; 32],
@@ -136,12 +134,6 @@ impl<'u> UartApp<'u> {
 
         self.gpio
             .write(unsafe { KERNEL.claim().unwrap_unchecked() });
-    }
-
-    #[naked]
-    #[link_section = ".uart.text"]
-    unsafe extern "C" fn ecall() {
-        naked_asm!("ecall");
     }
 
     #[inline(never)]
@@ -199,5 +191,10 @@ impl<'u> Application for UartApp<'u> {
     #[link_section = ".uart.text"]
     fn context(&self) -> Context {
         self.context
+    }
+    #[naked]
+    #[link_section = ".uart.text"]
+    extern "C" fn ecall() {
+        unsafe { naked_asm!("ecall") };
     }
 }

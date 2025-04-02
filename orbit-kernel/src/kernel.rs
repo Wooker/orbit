@@ -116,6 +116,10 @@ impl<'k> Kernel<'k> {
     }
 
     #[inline(never)]
+    #[link_section = ".kernel.text.port_handler"]
+    pub fn port_handler(&mut self) {}
+
+    #[inline(never)]
     #[link_section = ".kernel.text"]
     pub fn initialize(&mut self) {
         unsafe { asm!("li a1, 0x100;") };

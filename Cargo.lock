@@ -190,6 +190,7 @@ name = "orbit-app"
 version = "0.1.0"
 dependencies = [
  "orbit-common",
+ "orbit-common-proc-macro",
  "orbit-kernel",
  "orbit-libos",
  "postcard",
@@ -224,6 +225,15 @@ name = "orbit-common"
 version = "0.1.0"
 dependencies = [
  "paste",
+]
+
+[[package]]
+name = "orbit-common-proc-macro"
+version = "0.1.0"
+dependencies = [
+ "proc-macro2",
+ "quote",
+ "syn 1.0.109",
 ]
 
 [[package]]

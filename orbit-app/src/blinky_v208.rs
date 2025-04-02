@@ -62,11 +62,6 @@ impl Blinky {
         self.context.ra = Self::ecall as *const fn() as usize;
     }
 
-    #[naked]
-    #[link_section = ".blinky.text"]
-    unsafe extern "C" fn ecall() {
-        naked_asm!("ecall");
-    }
     #[inline(never)]
     #[link_section = ".blinky.text"]
     pub fn interrupt(&mut self) {
@@ -94,5 +89,10 @@ impl Application for Blinky {
     #[link_section = ".blinky.text"]
     fn context(&self) -> Context {
         self.context
+    }
+    #[naked]
+    #[link_section = ".blinky.text"]
+    extern "C" fn ecall() {
+        unsafe { naked_asm!("ecall") };
     }
 }
