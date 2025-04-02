@@ -46,14 +46,19 @@ impl<'p, P: Claimable> Claimed<'p, P> {
 /// will give access to _Peripheral1_ and _Peripheral2_ of _chip_ while
 /// hiding all other peripherals via trait bound of the _Claimable_ trait.
 macro_rules! impl_claim {
-    ($chip:literal, $($field:ident),* $(,)?) => {
+    ($chip:literal, $($field:ident=$val:expr),* $(,)?) => {
+        #[cfg(feature = $chip)]
+        #[derive(Copy, Clone)]
+        pub enum KernelPeripherals {
+            $( $field, )*
+        }
         $(
             #[cfg(feature = $chip)]
             use chip::pac::$field;
             #[cfg(feature = $chip)]
             impl Claimable for $field {}
             #[cfg(feature = $chip)]
-            impl<'p, const PMP: usize> Claim<'p, $field> for Kernel<PMP> {
+            impl<'k, 'p> Claim<'p, $field> for Kernel<'k> {
                 fn claim(&'p mut self) -> Result<Claimed<$field>, ClaimError> {
                     let peripherals = unsafe { self.peripherals.assume_init_mut() };
                     if 1 == 1 { // Replace with actual condition for checking claim status
@@ -67,6 +72,18 @@ macro_rules! impl_claim {
     };
 }
 
-impl_claim!("ch592", UART1, I2C, GPIO);
-impl_claim!("ch32v003", GPIOA, GPIOC, GPIOD, USART1);
-impl_claim!("ch32v208wbu6", RCC, GPIOB, GPIOC, UART4, AFIO, EXTI);
+// impl_claim!("ch592", UART1, I2C, GPIO);
+impl_claim!(
+    "ch32v003",
+    GPIOA = 0x40010800,
+    GPIOC = 0x40011000,
+    GPIOD = 0x40011400,
+    USART1 = 0x40013800
+);
+impl_claim!(
+    "ch32v208wbu6",
+    GPIOA = 0x40010800,
+    GPIOB = 0x40010c00,
+    GPIOC = 0x40011000,
+    UART4 = 0x40004c00
+);

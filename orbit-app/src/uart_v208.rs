@@ -4,12 +4,13 @@
 use core::{
     arch::{asm, naked_asm},
     mem::MaybeUninit,
+    sync::atomic::compiler_fence,
 };
 
 use orbit_kernel::{
     application::Context,
     arch::interface::timer::Timer,
-    claim::{Claim, Claimable, Claimed},
+    claim::{Claim, Claimed},
 };
 use orbit_libos::uart_v208::{Config, Uart};
 use postcard::to_slice;
@@ -22,29 +23,24 @@ use orbit_kernel::chip::pac::{GPIOC, UART4};
 #[cfg(feature = "ch32v003")]
 use orbit_kernel::chip::pac::{GPIOD, USART1};
 
-use crate::{application::Application, KERNEL};
+use crate::{app_stack, app_struct, application::Application, KERNEL};
 
+#[allow(unused)]
 #[cfg(feature = "ch32v003")]
 type UartInstance = USART1;
 #[cfg(feature = "ch32v003")]
 type GPIOInstance = GPIOD;
 
+#[allow(unused)]
 #[cfg(feature = "ch32v208wbu6")]
 type UartInstance = UART4;
 #[cfg(feature = "ch32v208wbu6")]
 type GPIOInstance = GPIOC;
 
-#[used]
-#[no_mangle]
-#[link_section = ".uart.bss"]
-pub static mut UART_APP: UartApp = UartApp::new();
+app_struct!(UART_APP: UartApp = UartApp::new(), "uart");
+app_stack!(64, "uart");
 
-const STACK_SIZE: usize = 64;
-#[used]
-#[link_section = ".uart.bss"]
-pub static mut STACK: [usize; STACK_SIZE] = [0; STACK_SIZE];
-
-#[derive(Serialize, Deserialize, PartialEq)]
+#[derive(Serialize, Deserialize, PartialEq, Copy, Clone)]
 enum Message {
     Hello,
     Bye,
@@ -59,6 +55,15 @@ impl From<u8> for Message {
         }
     }
 }
+impl Into<u8> for Message {
+    fn into(self) -> u8 {
+        match self {
+            Message::Hello => 0,
+            Message::Bye => 1,
+            Message::Unknown => u8::MAX,
+        }
+    }
+}
 
 #[repr(C, align(4))]
 pub struct UartApp<'u> {
@@ -67,7 +72,7 @@ pub struct UartApp<'u> {
     read: Message,
     count: usize,
     write: Message,
-    uart: MaybeUninit<Uart<'u>>, //Claimed<'u, UartInstance>>,
+    uart: MaybeUninit<Uart<'u>>,
     gpio: MaybeUninit<Claimed<'u, GPIOInstance>>,
 }
 
@@ -75,8 +80,10 @@ impl<'u> UartApp<'u> {
     #[inline(never)]
     #[link_section = ".uart.text"]
     const fn new() -> Self {
+        let mut context = Context::new();
+        let diff_bss = unsafe {};
         Self {
-            context: Context::new(),
+            context,
             buf: [0; 32],
             write: Message::Hello,
             read: Message::Unknown,
@@ -89,18 +96,38 @@ impl<'u> UartApp<'u> {
     #[inline(never)]
     #[link_section = ".uart.text"]
     pub fn init(&mut self) {
+        extern "C" {
+            static _app_uart_text_start: usize;
+            static _app_uart_text_end: usize;
+            static _app_uart_bss_start: usize;
+            static _app_uart_bss_end: usize;
+            static _app_uart_text_main: usize;
+            static _app_uart_bss_struct: usize;
+        }
+        let provides = unsafe {
+            &_app_uart_text_end as *const usize as usize
+                | &_app_uart_text_start as *const usize as usize
+                | &_app_uart_text_end as *const usize as usize
+                | &_app_uart_bss_start as *const usize as usize
+                | &_app_uart_bss_end as *const usize as usize
+                | &_app_uart_text_main as *const usize as usize
+                | &_app_uart_bss_struct as *const usize as usize
+        };
+        self.context = Context::new();
+        self.context.t0 = provides;
+        compiler_fence(core::sync::atomic::Ordering::SeqCst);
+
+        self.context.t0 = 0;
+        self.context.sp = unsafe { STACK.last().unwrap_unchecked() as *const usize as usize + 0x4 };
+        self.context.gp = &self.context as *const Context as usize;
+        self.context.ra = Self::ecall as *const fn() as usize;
+
         for i in 0..32 {
             self.buf[i] = 0;
         }
         self.count = 0;
         self.write = Message::Hello;
         self.read = Message::Unknown;
-
-        self.context = Context::new();
-        self.context.sp = unsafe { STACK.last().unwrap_unchecked() as *const usize as usize + 0x4 };
-        self.context.gp = &self.context as *const Context as usize;
-        self.context.ra = Self::ecall as *const fn() as usize;
-        self.context.a0 = self as *const UartApp as usize;
 
         self.uart.write(Uart::new(
             unsafe { KERNEL.claim().unwrap_unchecked() },
@@ -120,14 +147,14 @@ impl<'u> UartApp<'u> {
     #[inline(never)]
     #[link_section = ".uart.text"]
     pub fn interrupt(&mut self) {
-        let mut uart = unsafe { self.uart.assume_init_mut() };
+        let uart = unsafe { self.uart.assume_init_mut() };
 
         uart.read(&mut self.buf[0]);
         self.read = Message::from(self.buf[0]);
 
         if self.read == Message::Hello {
             self.write = Message::Bye;
-            uart.blocking_write(unsafe { to_slice(&self.write, &mut self.buf).unwrap_unchecked() });
+            uart.blocking_write_char(self.write.into());
         }
 
         unsafe { asm!("li a0, -1; li a1, 0;") };
@@ -135,16 +162,15 @@ impl<'u> UartApp<'u> {
 }
 
 impl<'u> Application for UartApp<'u> {
-    #[link_section = ".uart.text"]
+    #[link_section = ".uart.text.main"]
     fn main(&mut self) {
         // PC11 RX as Floating input
         // PC10 TX as push-pull alternate output
         #[cfg(feature = "ch32v208wbu6")]
         unsafe {
             self.gpio.assume_init_mut().modify(|p| {
-                p.cfghr
-                    .write(|w| unsafe { w.bits(0b1011 << 8 | 0b1000 << 12) });
-                p.outdr.write(|w| unsafe { w.bits(1 << 11) });
+                p.cfghr.write(|w| w.bits(0b1011 << 8 | 0b1000 << 12));
+                p.outdr.write(|w| w.bits(1 << 11));
             })
         };
 
@@ -159,9 +185,9 @@ impl<'u> Application for UartApp<'u> {
             })
         };
 
-        let mut uart = unsafe { self.uart.assume_init_mut() };
+        let uart = unsafe { self.uart.assume_init_mut() };
 
-        uart.blocking_write(unsafe { to_slice(&self.write, &mut self.buf).unwrap_unchecked() });
+        uart.blocking_write_char(self.write.into());
         if self.write == Message::Bye {
             self.write = Message::Hello;
         }

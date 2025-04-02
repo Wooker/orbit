@@ -2,7 +2,7 @@ ENTRY(_start)
 
 SECTIONS
 {
-    .kernel.text : ALIGN(4)
+    .text.kernel : ALIGN(4)
     {
         /* *(.vector_table.interrupts); */
         /* . = 0x3fc; */
@@ -27,11 +27,6 @@ SECTIONS
 
         *(.kernel.text);
     } >FLASH
-
-    .text : ALIGN(4)
-    {
-        *(.text);
-    } > FLASH
 
     .kernel.rodata : ALIGN(4)
     {

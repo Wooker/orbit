@@ -1,17 +1,12 @@
-#![allow(static_mut_refs)]
 //! UART: Uni
 
 // Default UART is UART4()
+use crate::claim::Claimed;
+use chip::PortPeripheral;
 use core::sync::atomic::{compiler_fence, Ordering};
-use orbit_kernel::{arch::interface::timer::Timer, claim::Claimed};
+use orbit_arch::interface::timer::Timer;
 
-#[cfg(feature = "ch32v003")]
-use orbit_kernel::chip::pac::USART1;
-
-#[cfg(feature = "ch32v208wbu6")]
-use orbit_kernel::chip::pac::UART4;
-
-use crate::KERNEL;
+use crate::kernel::KERNEL;
 
 #[derive(Clone, Copy, PartialEq, Eq, Debug)]
 pub enum Parity {
@@ -52,50 +47,38 @@ impl Default for Config {
     }
 }
 
-#[cfg(feature = "ch32v003")]
-type Instance = USART1;
-
-#[cfg(feature = "ch32v208wbu6")]
-type Instance = UART4;
-
 pub struct Uart<'a> {
-    uart: Claimed<'a, Instance>,
+    uart: &'a PortPeripheral,
 }
 
 impl<'a> Uart<'a> {
     #[inline(never)]
-    pub fn new(mut uart: Claimed<'a, Instance>, config: Config) -> Self {
+    pub fn new(mut uart: &'a PortPeripheral, config: Config) -> Self {
         // uart.modify(|p| p.statr.write(|w| unsafe { w.bits(0) }));
-        uart.modify(|p| {
-            p.ctlr1.write(|w| unsafe {
-                // Data bits and parity configuratoin
-                let mut ctlr1 = 0_u32;
-                ctlr1 |= (config.data_bits as u32) << 12;
-                ctlr1 |= (config.parity as u32) << 9;
-                ctlr1 |= 1 << 5; // rx interrupt
-                ctlr1 |= 1 << 3;
-                ctlr1 |= 1 << 2;
-                ctlr1 |= 1 << 13;
-                w.bits(ctlr1)
-            });
+        uart.ctlr1.write(|w| unsafe {
+            // Data bits and parity configuratoin
+            let mut ctlr1 = 0_u32;
+            ctlr1 |= (config.data_bits as u32) << 12;
+            ctlr1 |= (config.parity as u32) << 9;
+            ctlr1 |= 1 << 5; // rx interrupt
+            ctlr1 |= 1 << 3;
+            ctlr1 |= 1 << 2;
+            ctlr1 |= 1 << 13;
+            w.bits(ctlr1)
         });
         compiler_fence(Ordering::SeqCst);
-        uart.modify(|p| {
-            p.ctlr2.write(|w| unsafe {
-                // Data bits and parity configuratoin
-                let mut ctlr2 = 0_u32;
-                ctlr2 |= (config.stop_bits as u32) << 12;
-                w.bits(ctlr2)
-            });
+        uart.ctlr2.write(|w| unsafe {
+            // Data bits and parity configuratoin
+            let mut ctlr2 = 0_u32;
+            ctlr2 |= (config.stop_bits as u32) << 12;
+            w.bits(ctlr2)
         });
         compiler_fence(Ordering::SeqCst);
-        uart.modify(|p| {
-            p.ctlr3.write(|w| unsafe {
-                // Data bits and parity configuratoin
-                let mut ctlr3 = 0_u32;
-                ctlr3 |= 1;
-                w.bits(ctlr3)
-            });
+        uart.ctlr3.write(|w| unsafe {
+            // Data bits and parity configuratoin
+            let mut ctlr3 = 0_u32;
+            ctlr3 |= 1;
+            w.bits(ctlr3)
         });
 
         // let clock = unsafe { KERNEL.clock() };
@@ -106,7 +89,7 @@ impl<'a> Uart<'a> {
 
         // With the default clock frequency of 8MHz the
         // value of uart_div is 69
-        uart.modify(|p| p.brr.write(|w| unsafe { w.bits(69) }));
+        uart.brr.write(|w| unsafe { w.bits(69) });
 
         Self { uart }
     }
@@ -116,9 +99,7 @@ impl<'a> Uart<'a> {
         for c in buf {
             // Read TC
             // while self.uart.read(|p| p.statr.read().bits() & (1 << 6)) == 0 {} // wait tx complete
-            self.uart
-                .modify(|p| p.datar.write(|w| unsafe { w.bits(*c as u32) }));
-            unsafe { KERNEL.core.timer.delay(10000) };
+            self.uart.datar.write(|w| unsafe { w.bits(*c as u32) });
         }
 
         // self.uart.modify(|p| {
@@ -131,9 +112,7 @@ impl<'a> Uart<'a> {
     pub fn blocking_write_char(&mut self, c: u8) {
         // Read TC
         // while self.uart.read(|p| p.statr.read().bits() & (1 << 6)) == 0 {} // wait tx complete
-        self.uart
-            .modify(|p| p.datar.write(|w| unsafe { w.bits(c as u32) }));
-        unsafe { KERNEL.core.timer.delay(10000) };
+        self.uart.datar.write(|w| unsafe { w.bits(c as u32) });
 
         // self.uart.modify(|p| {
         //     p.statr
@@ -143,19 +122,18 @@ impl<'a> Uart<'a> {
 
     #[inline(never)]
     pub fn read(&mut self, byte: &mut u8) {
-        *byte = self.uart.read(|p| p.datar.read().dr().bits().into()) as u8;
+        *byte = self.uart.datar.read().dr().bits() as u8;
     }
 
     #[inline(never)]
     pub fn status(&mut self) -> u32 {
-        self.uart.read(|p| p.statr.read().bits())
+        self.uart.statr.read().bits()
     }
 
     #[inline(never)]
     pub fn clear_int(&mut self, bit: u8) {
-        self.uart.modify(|p| {
-            p.statr
-                .modify(|r, w| unsafe { w.bits(r.bits() & !(1 << bit)) })
-        });
+        self.uart
+            .statr
+            .modify(|r, w| unsafe { w.bits(r.bits() & !(1 << bit)) });
     }
 }

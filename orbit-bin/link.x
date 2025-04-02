@@ -2,8 +2,6 @@ SECTIONS
 {
     .text : ALIGN(4)
     {
-        *(.kernel.text .kernel.text.*);
-        *(.apps.text);
         *(.text.*);
     } >FLASH
 
@@ -15,17 +13,17 @@ SECTIONS
     .data : ALIGN(4)
     {
         *(.data.*);
-    } >RAM AT>FLASH
+    } >RAM
 
     .bss : ALIGN(4)
     {
         *(.bss.* .sbss.*);
-    } >RAM AT>FLASH
+    } >RAM
 
     .kernel.stack ORIGIN(RAM) + LENGTH(RAM) : ALIGN(4)
     {
         *(.kernel.stack);
         PROVIDE( _stack_top = .);
-    } >RAM AT>FLASH
+    } >RAM
 }
 

@@ -3,6 +3,8 @@
 
 use crate::{application::Application, KERNEL};
 use core::arch::{asm, naked_asm};
+use core::sync::atomic::compiler_fence;
+
 use orbit_kernel::{
     application::Context,
     arch::interface::timer::Timer,
@@ -29,7 +31,28 @@ impl Blinky {
         }
     }
     pub fn init(&mut self) {
+        extern "C" {
+            static _app_blinky_text_start: usize;
+            static _app_blinky_text_end: usize;
+            static _app_blinky_bss_start: usize;
+            static _app_blinky_bss_end: usize;
+            static _app_blinky_text_main: usize;
+            static _app_blinky_bss_struct: usize;
+        }
+        let provides = unsafe {
+            &_app_blinky_text_end as *const usize as usize
+                | &_app_blinky_text_start as *const usize as usize
+                | &_app_blinky_text_end as *const usize as usize
+                | &_app_blinky_bss_start as *const usize as usize
+                | &_app_blinky_bss_end as *const usize as usize
+                | &_app_blinky_text_main as *const usize as usize
+                | &_app_blinky_bss_struct as *const usize as usize
+        };
         self.context = Context::new();
+        self.context.t0 = provides;
+        compiler_fence(core::sync::atomic::Ordering::SeqCst);
+
+        self.context.t0 = 0;
         self.context.sp = unsafe { STACK.last().unwrap_unchecked() as *const usize as usize + 0x4 };
         self.context.gp = &self.context as *const Context as usize;
         self.context.ra = Self::ecall as *const fn() as usize;

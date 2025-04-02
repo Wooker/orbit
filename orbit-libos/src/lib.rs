@@ -6,11 +6,7 @@ use orbit_common::feature_mod;
 use orbit_kernel::kernel::Kernel;
 
 unsafe extern "Rust" {
-    #[cfg(feature = "ch32v208wbu6")]
-    pub static mut KERNEL: Kernel<4>;
-
-    #[cfg(feature = "ch32v003")]
-    pub static mut KERNEL: Kernel<0>;
+    pub static mut KERNEL: Kernel<'static>;
 }
 
 feature_mod!("ch592", pub, uart);

@@ -2,16 +2,15 @@
 
 use std::{
     env,
-    fs::File,
+    fs::{self, File},
     io::{Read, Write},
     path::PathBuf,
     str::FromStr,
 };
 
-#[allow(unused)]
 macro_rules! p {
     ($($tokens: tt)*) => {
-        println!("cargo:warning={}", format!($($tokens)*))
+        println!("cargo:warning=\r\x1b[34;1m   {}: \x1b[0m{}", "orbit-bin", format!($($tokens)*))
     }
 }
 
@@ -20,12 +19,10 @@ fn print_env() {
         .into_iter()
         .filter(|(key, _)| key.starts_with("CARGO"))
         .for_each(|f| p!("{} {}", f.0, f.1));
-}
-
-macro_rules! p {
-    ($($tokens: tt)*) => {
-        println!("cargo:warning={}", format!($($tokens)*))
-    }
+    env::vars()
+        .into_iter()
+        .filter(|(key, _)| key.starts_with("DEP"))
+        .for_each(|f| p!("{} {}", f.0, f.1));
 }
 
 fn link_script_from_feature(feature: &String, script_name: &str) -> Vec<u8> {
@@ -39,9 +36,14 @@ fn link_script_from_feature(feature: &String, script_name: &str) -> Vec<u8> {
 }
 
 fn main() {
-    // print_env();
+    // Set verbosity
+    println!("cargo:rustc-link-arg={}", "--verbose");
+    println!("cargo:rustc-link-arg={}", "--error-limit=0");
 
+    // Get crate dir
     let crate_dir = env::var("CARGO_PKG_NAME").unwrap();
+
+    // Get features
     let features: Vec<String> = env::vars()
         .filter_map(|(key, _)| {
             // Check for the feature-related environment variables (e.g., CARGO_FEATURE_FOO)
@@ -54,52 +56,49 @@ fn main() {
         .collect();
     p!("Features: {:?}", features);
     if features.len() != 1 {
-        // panic!("Use only one feature for the chip.");
+        panic!("Use only one feature for the chip.");
     }
-    let chip = features.first().unwrap();
 
-    println!("cargo:rustc-link-arg={}", "--verbose");
-    println!("cargo:rustc-link-arg={}", "--error-limit=0");
-
+    // Get OUT_DIR and save the main linker script there
     let out = &PathBuf::from(env::var_os("OUT_DIR").unwrap());
     File::create(out.join("link.x"))
         .unwrap()
         .write_all(include_bytes!("link.x"))
         .expect("Could not find link.x");
 
-    let out = &PathBuf::from(env::var_os("OUT_DIR").unwrap());
-    match chip.as_str() {
-        "ch592" => {
-            println!("cargo:rustc-link-arg={}", "-Tlink.x");
+    // Get OUT_DIR of orbit-app crate
+    let app_var = "DEP_ORBIT_APP_OUT_DIR";
+    let app_out = &PathBuf::from(
+        env::var_os(app_var).expect(format!("Cannot find the {} env var", app_var).as_str()),
+    );
+
+    // Add linker scripts of memory and kernel
+    println!("cargo:rustc-link-arg={}", "-Tmemory.x");
+    println!("cargo:rustc-link-arg={}", "-Tkernel.x");
+
+    // Add linker scripts of applications
+    for entry in fs::read_dir(app_out).unwrap() {
+        let e = entry.unwrap();
+        let file_name = e.file_name().into_string().unwrap();
+        if file_name.starts_with("app") && file_name.ends_with("link.x") {
+            p!("Including linker script: {}", file_name);
+            println!("cargo:rustc-link-arg=-T{}", e.file_name().to_str().unwrap());
         }
-        "ch32v003" => {
-            println!("cargo:rustc-link-arg={}", "-Tmemory.x");
-            println!("cargo:rustc-link-arg={}", "-Tkernel.x");
-            println!("cargo:rustc-link-arg={}", "-Tapp-link.x");
-            println!("cargo:rustc-link-arg={}", "-Tlink.x");
-        }
-        "ch32v208wbu6" => {
-            println!("cargo:rustc-link-arg={}", "-Tmemory.x");
-            println!("cargo:rustc-link-arg={}", "-Tkernel.x");
-            println!("cargo:rustc-link-arg={}", "-Tapp-link.x");
-            println!("cargo:rustc-link-arg={}", "-Tlink.x");
-        }
-        "bl702" => {
-            println!("cargo:rustc-link-arg={}", "-Tmemory.x");
-            println!("cargo:rustc-link-arg={}", "-Tlink.x");
-        }
-        "esp32c3" => {
-            // println!("cargo:rustc-link-arg={}", "-Tmemory.x");
-            // println!("cargo:rustc-link-arg={}", "-Triscv.x");
-            // println!("cargo:rustc-link-arg={}", "-Torbit-kernel/kernel.x");
-            println!("cargo:rustc-link-arg={}", "-Tlinkall.x");
-        }
-        _ => {}
     }
+
+    // Add final linker scripts
+    println!("cargo:rustc-link-arg={}", "-Tapp.x");
+    println!("cargo:rustc-link-arg={}", "-Tlink.x");
+
+    // Create the binary map
     println!(
         "cargo:rustc-link-arg={}{}/{}",
         "-Map=", crate_dir, "bin.map"
     );
+
+    // Add OUT_DIR to link search
     println!("cargo:rustc-link-search={}", out.display());
+
+    // Recompile if this file changes
     println!("cargo:rerun-if-changed={}/build.rs", crate_dir);
 }

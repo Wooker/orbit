@@ -11,6 +11,12 @@ use qingke::riscv::{
     result::{Error as RiscvError, Result},
 };
 
+#[cfg(feature = "qingke_v4")]
+pub const PMP: usize = 4;
+
+#[cfg(feature = "qingke_v2")]
+pub const PMP: usize = 0;
+
 pub struct Core<const PMP: usize> {
     pub pmp: RiscvPmp<PMP>,
     pub timer: CoreClock,

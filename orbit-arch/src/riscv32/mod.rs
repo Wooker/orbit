@@ -1,11 +1,12 @@
 use core::arch::global_asm;
 
 #[cfg(any(feature = "qingke_v4", feature = "qingke_v2"))]
+pub use qingke::*;
+
+#[cfg(any(feature = "qingke_v4", feature = "qingke_v2"))]
 mod qingke_cpu;
 #[cfg(any(feature = "qingke_v4", feature = "qingke_v2"))]
-pub use qingke::*;
-#[cfg(any(feature = "qingke_v4", feature = "qingke_v2"))]
-pub use qingke_cpu::Core;
+pub use qingke_cpu::{Core, PMP};
 // #[cfg(any(feature = "qingke_v4", feature = "qingke_v2"))]
 // pub use qingke_rt::entry;
 

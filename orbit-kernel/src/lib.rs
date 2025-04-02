@@ -2,9 +2,9 @@
 #![no_main]
 #![allow(elided_named_lifetimes)]
 #![allow(static_mut_refs)]
-#![feature(maybe_uninit_uninit_array)]
 #![feature(naked_functions)]
 #![feature(stmt_expr_attributes)]
+#![feature(generic_const_exprs)]
 
 use core::arch::{asm, global_asm};
 
@@ -12,26 +12,16 @@ pub mod application;
 pub mod claim;
 pub mod clock;
 pub mod kernel;
+mod port;
 pub mod task;
 
 pub use chip;
 pub use orbit_arch as arch;
 
-// #[no_mangle]
-// #[link_section = ".kernel.text"]
-// fn DefaultHandler() {
-//     loop {}
-// }
-
 #[panic_handler]
 pub fn panic_handler<'a, 'b>(_: &'a core::panic::PanicInfo<'b>) -> ! {
     loop {}
 }
-
-// #[cfg(feature = "pfic")]
-// #[used]
-// #[link_section = ".vector_table.interrupts"]
-// pub(crate) static mut _VECTOR_TABLE_INTERRUPTS: [usize; 255] = [0x000003fc; 255];
 
 #[inline(never)]
 #[no_mangle]

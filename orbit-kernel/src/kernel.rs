@@ -1,12 +1,20 @@
+use core::{
+    arch::{asm, naked_asm},
+    mem::MaybeUninit,
+    sync::atomic::compiler_fence,
+};
+
+use chip::{pac::Peripherals, PortPeripheral, PORT_PTR};
+use orbit_arch::{interface::pmp::Pmp, riscv::register::mtvec, Core, PMP};
+
 use crate::{
     application::{AppContainer, Context, PmpEntry},
+    claim::KernelPeripherals,
     clock::Clocks,
+    port::Port,
 };
-use chip::pac::Peripherals;
-use core::arch::naked_asm;
-use core::{arch::asm, mem::MaybeUninit};
-use orbit_arch::riscv::register::mtvec;
-use orbit_arch::{interface::pmp::Pmp, Core};
+
+const APPS: usize = 4;
 
 #[used]
 #[no_mangle]
@@ -22,48 +30,40 @@ pub static KERNEL_MINOR: u8 = 1;
 #[used]
 #[no_mangle]
 #[link_section = ".kernel.bss"]
-pub static mut KERNEL: MaybeUninit<Kernel<4>> = MaybeUninit::uninit();
+pub static mut KERNEL: MaybeUninit<Kernel> = MaybeUninit::uninit();
 
 #[cfg(feature = "ch32v003")]
 #[used]
 #[no_mangle]
 #[link_section = ".kernel.bss"]
-pub static mut KERNEL: MaybeUninit<Kernel<0>> = MaybeUninit::uninit();
-
-#[cfg(feature = "ch32v208wbu6")]
-const VECTOR_TABLE_SIZE: usize = 103;
-
-#[cfg(feature = "ch32v003")]
-const VECTOR_TABLE_SIZE: usize = 38;
+pub static mut KERNEL: MaybeUninit<Kernel> = MaybeUninit::uninit();
 
 extern "C" {
     static _handler: usize;
 }
 
-#[used]
-#[no_mangle]
-#[link_section = ".kernel.bss"]
-pub static mut VECTOR_TABLE: [usize; VECTOR_TABLE_SIZE] = [0; VECTOR_TABLE_SIZE];
-
 #[repr(C, align(4))]
-pub struct Kernel<const PMP: usize> {
+pub struct Kernel<'k> {
     context: Context,
-    apps: [MaybeUninit<AppContainer<PMP>>; 4],
+    apps: [MaybeUninit<AppContainer<PMP>>; APPS],
     running: usize,
+    port: MaybeUninit<Port<'k>>,
     pub(crate) peripherals: MaybeUninit<Peripherals>,
     pub core: Core<PMP>,
     pub clock: Clocks,
 }
-unsafe impl<const PMP: usize> Sync for Kernel<PMP> {}
 
-impl<const PMP: usize> Kernel<PMP> {
+unsafe impl<'k> Sync for Kernel<'k> {}
+
+impl<'k> Kernel<'k> {
     #[link_section = ".kernel.text"]
     pub const fn new() -> Self {
         Self {
             context: Context::new(),
             peripherals: { MaybeUninit::<Peripherals>::uninit() },
             core: Core::new(),
-            apps: MaybeUninit::uninit_array::<4>(),
+            port: MaybeUninit::<Port>::uninit(),
+            apps: [MaybeUninit::uninit(); APPS],
             clock: Clocks::default(),
             running: 0,
         }
@@ -84,6 +84,7 @@ impl<const PMP: usize> Kernel<PMP> {
         app_main_addr: usize,
         app_interrupt_addr: Option<usize>,
         context: Context,
+        peripherals: [Option<KernelPeripherals>; PMP],
     ) {
         let app = unsafe { self.apps.get_unchecked_mut(index) };
         app.write(AppContainer::new(
@@ -92,7 +93,26 @@ impl<const PMP: usize> Kernel<PMP> {
             app_struct,
             app_main_addr,
             app_interrupt_addr,
+            peripherals,
         ));
+    }
+
+    #[inline(never)]
+    #[link_section = ".kernel.text"]
+    fn set_pmp(&mut self, app: &AppContainer<PMP>) {
+        for (i, pe) in app.get_pmp().iter().enumerate() {
+            let _ = self
+                .core
+                .pmp
+                .write_cfg(0, i, pe.range, pe.permission, pe.locked);
+            let _ = self.core.pmp.write_addr(i, pe.address);
+        }
+    }
+
+    #[inline(never)]
+    #[link_section = ".kernel.text"]
+    pub fn clock(&self) -> u32 {
+        self.clock.hclk.raw()
     }
 
     #[inline(never)]
@@ -105,6 +125,8 @@ impl<const PMP: usize> Kernel<PMP> {
 
         // self.clock.freeze();
         self.peripherals.write(unsafe { Peripherals::steal() });
+        self.port.write(Port::new(unsafe { &*(PORT_PTR) }));
+
         self.core.pmp.default();
         self.running = 0;
         self.context = Context::new();
@@ -147,7 +169,7 @@ impl<const PMP: usize> Kernel<PMP> {
         unsafe {
             asm!(
                 "",
-                in("a0") self as *const Kernel<PMP> as usize,
+                in("a0") self as *const Kernel as usize,
                 in("a1") app_cont.struct_addr(),
                 in("a2") app_cont.main_addr(),
                 in("a3") app_cont.interrupt_addr().unwrap(),
@@ -597,24 +619,6 @@ impl<const PMP: usize> Kernel<PMP> {
                 )
             }
         }
-    }
-
-    #[inline(never)]
-    #[link_section = ".kernel.text"]
-    fn set_pmp(&mut self, app: &AppContainer<PMP>) {
-        for (i, pe) in app.get_pmp().iter().enumerate() {
-            let _ = self
-                .core
-                .pmp
-                .write_cfg(0, i, pe.range, pe.permission, pe.locked);
-            let _ = self.core.pmp.write_addr(i, pe.address);
-        }
-    }
-
-    #[inline(never)]
-    #[link_section = ".kernel.text"]
-    pub fn clock(&self) -> u32 {
-        self.clock.hclk.raw()
     }
 
     #[naked]
