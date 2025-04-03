@@ -54,6 +54,27 @@ pub struct Uart<'a> {
 impl<'a> Uart<'a> {
     #[inline(never)]
     pub fn new(mut uart: &'a PortPeripheral, config: Config) -> Self {
+        // PC11 RX as Floating input
+        // PC10 TX as push-pull alternate output
+        #[cfg(feature = "ch32v208wbu6")]
+        let gpio = unsafe { &*chip::pac::GPIOC::PTR };
+        #[cfg(feature = "ch32v208wbu6")]
+        unsafe {
+            gpio.cfghr.write(|w| w.bits(0b1011 << 8 | 0b1000 << 12));
+            gpio.outdr.write(|w| w.bits(1 << 11));
+        };
+
+        // PD6 RX as pull-up input
+        // PD5 TX as push-pull multiplexed output
+        #[cfg(feature = "ch32v003")]
+        let gpio = unsafe { &*chip::pac::GPIOD::PTR };
+        #[cfg(feature = "ch32v003")]
+        unsafe {
+            gpio.cfglr
+                .write(|w| unsafe { w.bits(0b1000 << 24 | 0b1011 << 20) });
+            gpio.outdr.write(|w| unsafe { w.bits(1 << 6) });
+        };
+
         // uart.modify(|p| p.statr.write(|w| unsafe { w.bits(0) }));
         uart.ctlr1.write(|w| unsafe {
             // Data bits and parity configuratoin
@@ -113,16 +134,11 @@ impl<'a> Uart<'a> {
         // Read TC
         // while self.uart.read(|p| p.statr.read().bits() & (1 << 6)) == 0 {} // wait tx complete
         self.uart.datar.write(|w| unsafe { w.bits(c as u32) });
-
-        // self.uart.modify(|p| {
-        //     p.statr
-        //         .modify(|r, w| unsafe { w.bits(r.bits() & !(1 << 6)) })
-        // });
     }
 
     #[inline(never)]
-    pub fn read(&mut self, byte: &mut u8) {
-        *byte = self.uart.datar.read().dr().bits() as u8;
+    pub fn read(&mut self) -> u8 {
+        self.uart.datar.read().dr().bits() as u8
     }
 
     #[inline(never)]

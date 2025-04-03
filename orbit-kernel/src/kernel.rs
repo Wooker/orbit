@@ -5,7 +5,12 @@ use core::{
 };
 
 use chip::{pac::Peripherals, PortPeripheral, PORT_PTR};
-use orbit_arch::{interface::pmp::Pmp, riscv::register::mtvec, Core, PMP};
+
+use orbit_arch::{
+    interface::{pmp::Pmp, timer::Timer},
+    riscv::register::mtvec,
+    Core, PMP,
+};
 
 use crate::{
     application::{AppContainer, Context, PmpEntry},
@@ -26,20 +31,16 @@ pub static KERNEL_MAJOR: u8 = 0;
 #[link_section = ".kernel.rodata"]
 pub static KERNEL_MINOR: u8 = 1;
 
-#[cfg(feature = "ch32v208wbu6")]
-#[used]
-#[no_mangle]
-#[link_section = ".kernel.bss"]
-pub static mut KERNEL: MaybeUninit<Kernel> = MaybeUninit::uninit();
-
-#[cfg(feature = "ch32v003")]
 #[used]
 #[no_mangle]
 #[link_section = ".kernel.bss"]
 pub static mut KERNEL: MaybeUninit<Kernel> = MaybeUninit::uninit();
 
 extern "C" {
+    static _main: usize;
     static _handler: usize;
+    static _port_handler: usize;
+    static _context_switch: usize;
 }
 
 #[repr(C, align(4))]
@@ -117,7 +118,31 @@ impl<'k> Kernel<'k> {
 
     #[inline(never)]
     #[link_section = ".kernel.text.port_handler"]
-    pub fn port_handler(&mut self) {}
+    pub fn port_handler(&mut self) {
+        let mut a1: usize;
+        unsafe { asm!("mv {}, a1", out(reg) a1) };
+        if a1 == 0x100 {
+            return;
+        }
+        compiler_fence(core::sync::atomic::Ordering::SeqCst);
+
+        let port = unsafe { self.port.assume_init_mut() };
+        port.read();
+        port.write(0x1);
+        self.core.timer.delay(1000);
+        port.write(0x2);
+    }
+
+    #[naked]
+    #[no_mangle]
+    #[link_section = ".kernel.text"]
+    unsafe extern "C" fn port_handler_exit() {
+        naked_asm!(
+            "
+            mret;
+            ",
+        );
+    }
 
     #[inline(never)]
     #[link_section = ".kernel.text"]
@@ -126,6 +151,9 @@ impl<'k> Kernel<'k> {
 
         // Calling the handler here to prevent optimizations
         unsafe { Self::handler() };
+        unsafe {
+            self.port_handler();
+        };
 
         // self.clock.freeze();
         self.peripherals.write(unsafe { Peripherals::steal() });
@@ -134,6 +162,9 @@ impl<'k> Kernel<'k> {
         self.core.pmp.default();
         self.running = 0;
         self.context = Context::new();
+        unsafe { self.context.ra |= _port_handler | _main | _context_switch };
+        compiler_fence(core::sync::atomic::Ordering::SeqCst);
+
         self.context.ra = Self::main as *const fn() as usize;
         self.context.a5 = 0xffffffff;
 
@@ -150,13 +181,20 @@ impl<'k> Kernel<'k> {
             orbit_arch::pfic::enable_interrupt(66);
         }
 
+        unsafe { asm!("li a1, 0x100;") };
         // Calling the method to prevent optimization
         self.setup_event_loop();
     }
 
+    #[no_mangle]
+    #[inline(never)]
+    fn wait(&self) {
+        loop {}
+    }
+
     #[naked]
     #[link_section = ".kernel.text.main"]
-    unsafe fn main(&self) {
+    unsafe fn main() {
         naked_asm!(
             "
             call setup_event_loop;
@@ -168,6 +206,12 @@ impl<'k> Kernel<'k> {
     #[inline(never)]
     #[link_section = ".kernel.text.setup_event_loop"]
     fn setup_event_loop(&mut self) {
+        let mut a1: usize;
+        unsafe { asm!("mv {}, a1", out(reg) a1) };
+        if a1 == 0x100 {
+            unsafe { asm!("li a1, 0; mret") };
+        }
+
         let app_cont = unsafe { self.apps.get_unchecked(self.running).assume_init_read() };
         self.set_pmp(&app_cont);
         unsafe {
@@ -672,8 +716,23 @@ impl<'k> Kernel<'k> {
             naked_asm!(
                 "
                 // csrr t1, mepc;
+                la t1, _port_int;
+                beq t0, t1, handle_port;
                 call save_context;
                 call load_context;
+                ",
+            );
+        }
+
+        #[naked]
+        #[no_mangle]
+        #[link_section = ".kernel.text"]
+        unsafe extern "C" fn handle_port() {
+            naked_asm!(
+                "
+                csrr a0, mscratch;
+                la ra, port_handler_exit;
+                j _port_handler
                 ",
             );
         }

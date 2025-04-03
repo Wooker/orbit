@@ -77,13 +77,13 @@ impl_claim!(
     "ch32v003",
     GPIOA = 0x40010800,
     GPIOC = 0x40011000,
-    GPIOD = 0x40011400,
+    // GPIOD = 0x40011400,
     USART1 = 0x40013800
 );
 impl_claim!(
     "ch32v208wbu6",
     GPIOA = 0x40010800,
     GPIOB = 0x40010c00,
-    GPIOC = 0x40011000,
+    // GPIOC = 0x40011000,
     UART4 = 0x40004c00
 );

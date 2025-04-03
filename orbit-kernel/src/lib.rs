@@ -46,9 +46,9 @@ _start:
     // li t0, 0x08
     // csrw 0x804, t0
     // ",
-    "li t0, 0x1800",
+    "li t0, 0x1880",
     "csrw mstatus, t0",
-    "la t0, main",
+    "la t0, wait",
     "csrw mepc, t0",
     // Set dcsr 9 and 11 bits
     "
@@ -57,6 +57,5 @@ _start:
     or t0, t0, t1;
     csrw dcsr, t0;
     ",
-    "mret",
-    // "jalr zero, t0, 0"
+    "j main"
 );

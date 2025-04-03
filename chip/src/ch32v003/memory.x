@@ -1,3 +1,5 @@
+PROVIDE(_port_int = 300); /* TODO: provide correct value */
+
 MEMORY
 {
 	FLASH (rx) : ORIGIN = 0x00000000, LENGTH = 16K

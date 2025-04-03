@@ -9,7 +9,7 @@ use orbit_common_proc_macro::{app_init, app_interrupt, app_main};
 use orbit_kernel::{
     application::Context,
     arch::interface::timer::Timer,
-    chip::pac::GPIOD,
+    chip::pac::GPIOA,
     claim::{Claim, Claimed},
 };
 
@@ -31,10 +31,10 @@ impl Blinky {
 
 #[app_main("blinky Blinky")]
 fn main(&mut self) {
-    let mut gpio: Claimed<GPIOD> = unsafe { KERNEL.claim().unwrap_unchecked() };
+    let mut gpio: Claimed<GPIOA> = unsafe { KERNEL.claim().unwrap_unchecked() };
 
     // PD7 to push-pull output
-    let offset = 7;
+    let offset = 1;
 
     gpio.modify(|p| {
         p.cfglr

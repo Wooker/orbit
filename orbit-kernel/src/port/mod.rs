@@ -1,12 +1,29 @@
+use crate::port::uart_v208::{Config, Uart};
 use chip::PortPeripheral;
+use core::mem::MaybeUninit;
+
+mod ringbuf;
+use ringbuf::RingBuf;
 
 pub(crate) struct Port<'p> {
-    peripheral: &'p PortPeripheral,
+    peripheral: Uart<'p>,
+    rbuf: RingBuf<32, u8>,
 }
 
 impl<'p> Port<'p> {
-    pub(crate) const fn new(peripheral: &'p PortPeripheral) -> Self {
-        Self { peripheral }
+    pub(crate) fn new(p: &'p PortPeripheral) -> Self {
+        Self {
+            peripheral: Uart::new(p, Config::default()),
+            rbuf: RingBuf::new(),
+        }
+    }
+
+    pub(crate) fn read(&mut self) {
+        self.rbuf.push(self.peripheral.read());
+    }
+
+    pub(crate) fn write(&mut self, ch: u8) {
+        self.peripheral.blocking_write_char(ch);
     }
 }
 
