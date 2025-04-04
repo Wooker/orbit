@@ -29,5 +29,5 @@ impl Wfi {
     pub fn interrupt(&mut self) {}
 }
 
-#[app_main("wfi Wfi")]
+#[app_main("wfi", Wfi)]
 fn main(&mut self) {}

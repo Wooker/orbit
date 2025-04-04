@@ -1,6 +1,27 @@
 use proc_macro::TokenStream;
 use quote::{format_ident, quote};
-use syn::{Ident, ItemFn, LitStr, parse_macro_input};
+use syn::{
+    Ident, ItemFn, LitStr, Token,
+    parse::{Parse, ParseStream},
+    parse_macro_input,
+    punctuated::Punctuated,
+};
+
+struct AppMainArgs {
+    app_name: LitStr,   // "app"
+    _comma: Token![,],  // Comma separator
+    struct_name: Ident, // App
+}
+
+impl Parse for AppMainArgs {
+    fn parse(input: ParseStream) -> syn::Result<Self> {
+        Ok(AppMainArgs {
+            app_name: input.parse()?,    // Parse "app"
+            _comma: input.parse()?,      // Parse the comma
+            struct_name: input.parse()?, // Parse App
+        })
+    }
+}
 
 #[proc_macro_attribute]
 pub fn app_init(attr: TokenStream, item: TokenStream) -> TokenStream {
@@ -74,10 +95,9 @@ pub fn app_interrupt(attr: TokenStream, item: TokenStream) -> TokenStream {
 
 #[proc_macro_attribute]
 pub fn app_main(attr: TokenStream, item: TokenStream) -> TokenStream {
-    let attr_args = parse_macro_input!(attr as LitStr).value();
-    let mut args = attr_args.split_whitespace();
-    let app_name = args.next().expect("Expected application name").to_string();
-    let struct_name = args.next().expect("Expected struct name").to_string();
+    let attr_args = parse_macro_input!(attr as AppMainArgs);
+    let app_name = attr_args.app_name;
+    let struct_name = attr_args.struct_name;
     let struct_ident = format_ident!("{}", struct_name);
     let function = parse_macro_input!(item as ItemFn);
     let block = &function.block;
@@ -87,6 +107,7 @@ pub fn app_main(attr: TokenStream, item: TokenStream) -> TokenStream {
             #[inline(never)]
             #[unsafe(link_section = concat!(".", #app_name, ".text.main"))]
             fn main(&mut self) {
+                // #[forbid(unsafe_code)]
                 #block
                 unsafe { asm!("li a0, 0;li a1, 0;") };
             }
@@ -102,6 +123,73 @@ pub fn app_main(attr: TokenStream, item: TokenStream) -> TokenStream {
             extern "C" fn ecall() {
                 unsafe {naked_asm!("ecall")};
             }
+        }
+    };
+
+    TokenStream::from(expanded)
+}
+
+struct OrbitMainArgs {
+    structs: Punctuated<Ident, Token![,]>, // Structs
+}
+
+impl Parse for OrbitMainArgs {
+    fn parse(input: ParseStream) -> syn::Result<Self> {
+        Ok(OrbitMainArgs {
+            structs: input.parse_terminated(Ident::parse)?,
+        })
+    }
+}
+
+#[proc_macro_attribute]
+pub fn orbit_main_attribute(attr: TokenStream, _item: TokenStream) -> TokenStream {
+    let attr_args = parse_macro_input!(attr as OrbitMainArgs);
+    let args: Vec<Ident> = attr_args.structs.into_iter().collect();
+
+    let statics = args
+        .iter()
+        .map(|s| {
+            let struct_upper = format_ident!("{}", s.to_string().to_uppercase());
+            quote! {
+                static mut #struct_upper: #s;
+            }
+        })
+        .collect::<Vec<proc_macro2::TokenStream>>();
+
+    let inits = args
+        .iter()
+        .enumerate()
+        .map(|(i, s)| {
+            let struct_upper = format_ident!("{}", s.to_string().to_uppercase());
+            let _struct_lower = format_ident!("{}", s.to_string().to_lowercase());
+            quote! {
+                #struct_upper.init();
+                KERNEL.add_application(
+                    #i,
+                    unsafe { &#struct_upper as *const #s as usize },
+                    #s::main as usize,
+                    Some(#s::interrupt as usize),
+                    #struct_upper.context(),
+                );
+            }
+        })
+        .collect::<Vec<proc_macro2::TokenStream>>();
+
+    let expanded = quote! {
+        unsafe extern "Rust" {
+            static mut KERNEL: Kernel<'static>;
+            #(#statics)*
+        }
+
+        #[unsafe(no_mangle)]
+        #[unsafe(link_section = ".text.bin")]
+        unsafe fn main() -> ! {
+            KERNEL.clock.freeze();
+
+            #(#inits)*
+
+            KERNEL.initialize();
+            panic!();
         }
     };
 

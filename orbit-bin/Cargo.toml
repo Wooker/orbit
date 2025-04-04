@@ -7,9 +7,10 @@ edition = "2024"
 orbit-kernel = { path = "../orbit-kernel" }
 orbit-app = { path = "../orbit-app" }
 orbit-common = { path = "../orbit-common" }
+orbit-common-proc-macro = { path = "../orbit-common-proc-macro" }
 
-[build.dependencies]
-orbit-app = { path = "../orbit-app" }
+[build-dependencies]
+regex = "1.11.1"
 
 [features]
 ch592 = [ "orbit-kernel/ch592", "orbit-app/ch592" ]

@@ -4,7 +4,7 @@ use core::{
     sync::atomic::compiler_fence,
 };
 
-use chip::{pac::Peripherals, PortPeripheral, PORT_PTR};
+use chip::{pac::Peripherals, PORT_PTR};
 
 use orbit_arch::{
     interface::{pmp::Pmp, timer::Timer},
@@ -14,7 +14,6 @@ use orbit_arch::{
 
 use crate::{
     application::{AppContainer, Context, PmpEntry},
-    claim::KernelPeripherals,
     clock::Clocks,
     port::Port,
 };
@@ -85,7 +84,7 @@ impl<'k> Kernel<'k> {
         app_main_addr: usize,
         app_interrupt_addr: Option<usize>,
         context: Context,
-        peripherals: [Option<KernelPeripherals>; PMP],
+        // peripherals: [Option<KernelPeripherals>; PMP],
     ) {
         let app = unsafe { self.apps.get_unchecked_mut(index) };
         app.write(AppContainer::new(
@@ -94,7 +93,7 @@ impl<'k> Kernel<'k> {
             app_struct,
             app_main_addr,
             app_interrupt_addr,
-            peripherals,
+            [None; PMP], // peripherals,
         ));
     }
 
@@ -232,7 +231,7 @@ impl<'k> Kernel<'k> {
 
     #[inline(never)]
     #[link_section = ".kernel.text.context_switch"]
-    fn context_switch(&mut self, struct_addr: usize, main_addr: usize, interrupt_addr: usize) {
+    fn context_switch(&mut self, _struct_addr: usize, _main_addr: usize, _interrupt_addr: usize) {
         unsafe {
             asm!(
                 "

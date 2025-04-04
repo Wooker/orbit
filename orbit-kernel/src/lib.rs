@@ -4,7 +4,6 @@
 #![allow(static_mut_refs)]
 #![feature(naked_functions)]
 #![feature(stmt_expr_attributes)]
-#![feature(generic_const_exprs)]
 
 use core::arch::{asm, global_asm};
 

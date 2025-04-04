@@ -27,9 +27,12 @@ impl Blinky {
     }
     #[app_init("blinky")]
     pub fn init(&mut self) {}
+
+    #[app_interrupt("blinky")]
+    pub fn interrupt(&mut self) {}
 }
 
-#[app_main("blinky Blinky")]
+#[app_main("blinky", Blinky)]
 fn main(&mut self) {
     let mut gpio: Claimed<GPIOA> = unsafe { KERNEL.claim().unwrap_unchecked() };
 

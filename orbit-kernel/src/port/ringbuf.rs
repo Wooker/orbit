@@ -1,5 +1,3 @@
-use core::slice::SliceIndex;
-
 pub(super) struct RingBuf<const SIZE: usize, T: Sized + Default + Copy> {
     start: usize,
     end: usize,

@@ -1,12 +1,8 @@
 //! UART: Uni
 
 // Default UART is UART4()
-use crate::claim::Claimed;
 use chip::PortPeripheral;
 use core::sync::atomic::{compiler_fence, Ordering};
-use orbit_arch::interface::timer::Timer;
-
-use crate::kernel::KERNEL;
 
 #[derive(Clone, Copy, PartialEq, Eq, Debug)]
 pub enum Parity {
@@ -53,7 +49,7 @@ pub struct Uart<'a> {
 
 impl<'a> Uart<'a> {
     #[inline(never)]
-    pub fn new(mut uart: &'a PortPeripheral, config: Config) -> Self {
+    pub fn new(uart: &'a PortPeripheral, config: Config) -> Self {
         // PC11 RX as Floating input
         // PC10 TX as push-pull alternate output
         #[cfg(feature = "ch32v208wbu6")]

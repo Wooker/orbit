@@ -6,7 +6,7 @@ SECTIONS
         *(.rodata.apps.*);
     } >FLASH
 
-    .apps : ALIGN(4)
+    .bss.apps : ALIGN(4)
     {
         *(.data.apps.*);
         *(.bss.apps.*);

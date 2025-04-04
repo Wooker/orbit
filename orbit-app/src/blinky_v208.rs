@@ -26,6 +26,7 @@ impl Blinky {
             context: Context::new(),
         }
     }
+
     #[app_init("blinky")]
     pub fn init(&mut self) {}
 
@@ -33,7 +34,7 @@ impl Blinky {
     pub fn interrupt(&mut self) {}
 }
 
-#[app_main("blinky Blinky")]
+#[app_main("blinky", Blinky)]
 fn main(&mut self) -> () {
     let mut gpiob: Claimed<GPIOB> = unsafe { KERNEL.claim().unwrap_unchecked() };
     gpiob.modify(|p| p.cfghr.write(|w| unsafe { w.bits(0b0101) }));
