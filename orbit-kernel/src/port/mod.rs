@@ -35,9 +35,15 @@ impl<'p> Port<'p> {
     pub(crate) fn read(&mut self) {
         self.rbuf.push(self.peripheral.read());
     }
+    pub(crate) fn read_buf(&mut self, index: usize) -> u8 {
+        self.rbuf.at(index)
+    }
 
     pub(crate) fn write(&mut self, ch: u8) {
         self.peripheral.blocking_write_char(ch);
+        for i in 5..=9 {
+            self.peripheral.clear_int(i);
+        }
     }
 
     pub(crate) fn respond(&mut self) {}

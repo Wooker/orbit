@@ -33,16 +33,6 @@ feature_mod!("ch32v003", pub, blinky_v003);
 /// Macros
 
 #[macro_export]
-macro_rules! app_struct {
-    ($name:ident: $type:ty = $value:expr, $app_name:expr) => {
-        #[used]
-        #[no_mangle]
-        #[link_section = concat!(".", $app_name, ".bss.struct")]
-        pub static mut $name: $type = $value;
-    };
-}
-
-#[macro_export]
 macro_rules! app_stack {
     ($size:expr, $app_name:expr) => {
         #[used]

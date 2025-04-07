@@ -1,45 +1,90 @@
 use proc_macro::TokenStream;
 use quote::{format_ident, quote};
 use syn::{
-    Ident, ItemFn, LitStr, Token,
+    Data, DeriveInput, Field, Fields, Ident, ItemFn, ItemStruct, LitStr, Member, Token,
     parse::{Parse, ParseStream},
     parse_macro_input,
     punctuated::Punctuated,
 };
 
-struct AppMainArgs {
-    app_name: LitStr,   // "app"
-    _comma: Token![,],  // Comma separator
-    struct_name: Ident, // App
+struct OrbitAppArgs {
+    peripherals: Punctuated<Ident, Token![,]>, // Structs
 }
 
-impl Parse for AppMainArgs {
+impl Parse for OrbitAppArgs {
     fn parse(input: ParseStream) -> syn::Result<Self> {
-        Ok(AppMainArgs {
-            app_name: input.parse()?,    // Parse "app"
-            _comma: input.parse()?,      // Parse the comma
-            struct_name: input.parse()?, // Parse App
+        Ok(OrbitAppArgs {
+            peripherals: input.parse_terminated(Ident::parse)?,
         })
     }
 }
 
 #[proc_macro_attribute]
-pub fn app_init(attr: TokenStream, item: TokenStream) -> TokenStream {
-    let app_name = parse_macro_input!(attr as LitStr).value();
-    let function = parse_macro_input!(item as ItemFn);
-    let fn_name = &function.sig.ident;
-    let block = &function.block;
+pub fn orbit_app(attr: TokenStream, item: TokenStream) -> TokenStream {
+    let args: Vec<Ident> = parse_macro_input!(attr as OrbitAppArgs)
+        .peripherals
+        .into_iter()
+        .collect();
+    let struct_item = parse_macro_input!(item as ItemStruct);
+    let struct_name = struct_item.ident;
+    let struct_generics = struct_item.generics;
+    let app_name = format_ident!("{}", struct_name.to_string().to_lowercase());
+    let app_name = LitStr::new(
+        format_ident!("{}", struct_name.to_string().to_lowercase())
+            .to_string()
+            .as_str(),
+        struct_name.span(),
+    );
 
-    let app_text_start = Ident::new(&format!("_app_{}_text_start", app_name), fn_name.span());
-    let app_text_end = Ident::new(&format!("_app_{}_text_end", app_name), fn_name.span());
-    let app_bss_start = Ident::new(&format!("_app_{}_bss_start", app_name), fn_name.span());
-    let app_bss_end = Ident::new(&format!("_app_{}_bss_end", app_name), fn_name.span());
-    let app_text_main = Ident::new(&format!("_app_{}_text_main", app_name), fn_name.span());
-    let app_bss_struct = Ident::new(&format!("_app_{}_bss_struct", app_name), fn_name.span());
+    let static_name = format_ident!("{}", struct_name.to_string().to_uppercase());
 
-    let expanded = quote! {
+    let existing_fields = match struct_item.fields {
+        Fields::Named(fields_named) => fields_named.named,
+        _ => {
+            return syn::Error::new_spanned(
+                struct_item.fields.clone(),
+                "Only structs with named fields are supported",
+            )
+            .to_compile_error()
+            .into();
+        }
+    };
+
+    let peripherals = args.iter().map(|i| {
+        let lower = format_ident!("{}", i.to_string().to_lowercase());
+        quote! {
+            #lower: MaybeUninit<Claimed<'static, #i>>,
+        }
+    });
+
+    let app_text_start = Ident::new(
+        &format!("_app_{}_text_start", app_name.value()),
+        struct_name.span(),
+    );
+    let app_text_end = Ident::new(
+        &format!("_app_{}_text_end", app_name.value()),
+        struct_name.span(),
+    );
+    let app_bss_start = Ident::new(
+        &format!("_app_{}_bss_start", app_name.value()),
+        struct_name.span(),
+    );
+    let app_bss_end = Ident::new(
+        &format!("_app_{}_bss_end", app_name.value()),
+        struct_name.span(),
+    );
+    let app_text_main = Ident::new(
+        &format!("_app_{}_text_main", app_name.value()),
+        struct_name.span(),
+    );
+    let app_bss_struct = Ident::new(
+        &format!("_app_{}_bss_struct", app_name.value()),
+        struct_name.span(),
+    );
+
+    let _init = quote! {
         #[unsafe(link_section = concat!(".", #app_name, ".text"))]
-        pub fn #fn_name(&mut self) {
+        pub fn _init(&mut self) {
             unsafe extern "C" {
                 static #app_text_start: usize;
                 static #app_text_end: usize;
@@ -67,7 +112,60 @@ pub fn app_init(attr: TokenStream, item: TokenStream) -> TokenStream {
             self.context.sp = unsafe { STACK.last().unwrap_unchecked() as *const usize as usize + 0x4 };
             self.context.gp = &self.context as *const Context as usize;
             self.context.ra = Self::ecall as *const fn() as usize;
+        }
+    };
 
+    let expanded = quote! {
+        use core::mem::MaybeUninit;
+        use orbit_kernel::{application::Context,claim::{KernelPeripherals, Claim, Claimed}};
+
+        #[used]
+        #[unsafe(no_mangle)]
+        #[unsafe(link_section=concat!(".", #app_name, ".bss.struct"))]
+        static mut #static_name: MaybeUninit<#struct_name> = MaybeUninit::uninit();
+
+        #[repr(C,align(4))]
+        pub struct #struct_name<#struct_generics> {
+            context: Context,
+            #existing_fields
+            #(#peripherals)*
+        }
+
+        impl<#struct_generics> #struct_name<#struct_generics> {
+            #_init
+        }
+    };
+
+    TokenStream::from(expanded)
+}
+
+struct AppMainArgs {
+    app_name: LitStr,   // "app"
+    _comma: Token![,],  // Comma separator
+    struct_name: Ident, // App
+}
+
+impl Parse for AppMainArgs {
+    fn parse(input: ParseStream) -> syn::Result<Self> {
+        Ok(AppMainArgs {
+            app_name: input.parse()?,    // Parse "app"
+            _comma: input.parse()?,      // Parse the comma
+            struct_name: input.parse()?, // Parse App
+        })
+    }
+}
+
+#[proc_macro_attribute]
+pub fn app_init(attr: TokenStream, item: TokenStream) -> TokenStream {
+    let app_name = parse_macro_input!(attr as LitStr).value();
+    let function = parse_macro_input!(item as ItemFn);
+    let fn_name = &function.sig.ident;
+    let block = &function.block;
+
+    let expanded = quote! {
+        #[unsafe(link_section = concat!(".", #app_name, ".text"))]
+        pub fn #fn_name(&mut self) {
+            self._init();
             #block
         }
     };

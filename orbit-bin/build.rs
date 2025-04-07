@@ -129,10 +129,10 @@ fn main() {
             }
         })
         .collect();
-    p!("Features: {:?}", features);
     if features.len() != 1 {
         panic!("Use only one feature for the chip.");
     }
+    p!("Chip: {}", features[0]);
 
     // Get OUT_DIR and save the main linker script there
     let out = &PathBuf::from(env::var_os("OUT_DIR").unwrap());
@@ -174,7 +174,6 @@ fn main() {
                 .split(",")
                 .map(|s| s.trim().to_string().to_lowercase())
                 .collect::<Vec<String>>();
-            p!("Args: {:?}", args);
             p!("Apps: {:?}", names);
             for name in names {
                 write_linker_script(app_out, name.clone(), true);

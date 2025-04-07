@@ -39,7 +39,9 @@ extern "C" {
     static _main: usize;
     static _handler: usize;
     static _port_handler: usize;
+    static _port_handler_exit: usize;
     static _context_switch: usize;
+    static _setup_event_loop: usize;
 }
 
 #[repr(C, align(4))]
@@ -128,13 +130,24 @@ impl<'k> Kernel<'k> {
         let port = unsafe { self.port.assume_init_mut() };
         port.read();
         port.write(0x1);
-        self.core.timer.delay(1000);
-        port.write(0x2);
+        if port.read_buf(0) == 0x0 {
+            self.core.timer.delay(1000);
+            port.write(0x2);
+            self.running = 0;
+
+            unsafe {
+                orbit_arch::riscv::register::mepc::write(
+                    &_setup_event_loop as *const usize as usize,
+                );
+
+                asm!("mv a0, gp");
+            }
+        }
     }
 
     #[naked]
     #[no_mangle]
-    #[link_section = ".kernel.text"]
+    #[link_section = ".kernel.text.port_handler_exit"]
     unsafe extern "C" fn port_handler_exit() {
         naked_asm!(
             "
@@ -164,10 +177,10 @@ impl<'k> Kernel<'k> {
         unsafe { self.context.ra |= _port_handler | _main | _context_switch };
         compiler_fence(core::sync::atomic::Ordering::SeqCst);
 
-        self.context.ra = Self::main as *const fn() as usize;
         self.context.a5 = 0xffffffff;
 
         unsafe {
+            self.context.ra = &_port_handler_exit as *const usize as usize;
             // Save kernel context to mscratch
             orbit_arch::riscv::register::mscratch::write(&self.context as *const Context as usize);
             // Set gp
@@ -192,8 +205,9 @@ impl<'k> Kernel<'k> {
     }
 
     #[naked]
+    #[no_mangle]
     #[link_section = ".kernel.text.main"]
-    unsafe fn main() {
+    unsafe fn kernel_main() {
         naked_asm!(
             "
             call setup_event_loop;
@@ -661,8 +675,14 @@ impl<'k> Kernel<'k> {
                     ",
                     // Set a0 to gp (&self)
                     "mv a0, gp;",
+                    "
+                    li t0, 0x1880;
+                    csrw mstatus, t0;
+                    ",
+                    "la t0, wait",
+                    "csrw mepc, t0",
                     // Return to ra location
-                    "ret; ",
+                    "mret; ",
                 )
             }
         }
@@ -742,7 +762,10 @@ impl<'k> Kernel<'k> {
         unsafe extern "C" fn user_ecall() {
             naked_asm!(
                 "
-                bnez a0, user_ecall_int;
+                li t0, -1;
+                beq a0, t0, user_ecall_int;
+                // li t0, 1;
+                // beq a0, t0, syscall_delay;
                 call save_context;
                 call load_context;
                 "

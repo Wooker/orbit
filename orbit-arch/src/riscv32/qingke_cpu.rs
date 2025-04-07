@@ -151,6 +151,7 @@ impl CoreClock {
 impl Timer for CoreClock {
     /// Delay in nanoseconds. Arguments shows the minimum amount as the
     /// operation may take longer time
+    #[inline(always)]
     fn delay(&self, ns: u32) {
         asm::delay(ns)
     }

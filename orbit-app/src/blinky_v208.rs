@@ -2,41 +2,39 @@
 #![allow(unsafe_code)]
 use core::arch::{asm, naked_asm};
 
-use crate::{app_stack, app_struct, application::Application, KERNEL};
+use crate::{app_stack, application::Application, KERNEL};
 use core::sync::atomic::compiler_fence;
-use orbit_common_proc_macro::{app_init, app_interrupt, app_main};
-use orbit_kernel::{
-    application::Context,
-    arch::interface::timer::Timer,
-    chip::pac::GPIOB,
-    claim::{Claim, Claimed},
-};
-app_struct!(BLINKY: Blinky = Blinky::new(), "blinky");
+use orbit_common_proc_macro::{app_init, app_interrupt, app_main, orbit_app};
+use orbit_kernel::{arch::interface::timer::Timer, chip::pac::GPIOB};
+
 app_stack!(64, "blinky");
 
-#[repr(C, align(4))]
-pub struct Blinky {
-    context: Context,
-}
-impl Blinky {
-    #[inline(never)]
-    #[link_section = ".blinky.text"]
-    pub const fn new() -> Self {
-        Self {
-            context: Context::new(),
-        }
-    }
+#[orbit_app(GPIOB)]
+pub struct Blinky {}
 
+impl Blinky {
     #[app_init("blinky")]
     pub fn init(&mut self) {}
 
     #[app_interrupt("blinky")]
-    pub fn interrupt(&mut self) {}
+    pub fn interrupt(&mut self) {
+        let gpiob = unsafe { self.gpiob.assume_init_mut() };
+        gpiob.modify(|p| p.cfghr.write(|w| unsafe { w.bits(0b0101) }));
+
+        gpiob.modify(|p| {
+            p.bshr.write(|w| unsafe { w.bits(1 << 24) });
+            unsafe { KERNEL.core.timer.delay(100000) };
+        });
+        gpiob.modify(|p| {
+            p.bshr.write(|w| unsafe { w.bits(1 << 8) });
+            // unsafe { KERNEL.core.timer.delay(100000) };
+        });
+    }
 }
 
 #[app_main("blinky", Blinky)]
 fn main(&mut self) -> () {
-    let mut gpiob: Claimed<GPIOB> = unsafe { KERNEL.claim().unwrap_unchecked() };
+    let gpiob = unsafe { self.gpiob.assume_init_mut() };
     gpiob.modify(|p| p.cfghr.write(|w| unsafe { w.bits(0b0101) }));
 
     gpiob.modify(|p| {

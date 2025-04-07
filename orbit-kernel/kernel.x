@@ -26,6 +26,10 @@ SECTIONS
         *(.kernel.text.port_handler);
 
         . = ALIGN(4);
+        PROVIDE(_port_handler_exit = .);
+        *(.kernel.text.port_handler_exit);
+
+        . = ALIGN(4);
         PROVIDE(_context_switch = .);
         *(.kernel.text.context_switch);
         *(.kernel.text);

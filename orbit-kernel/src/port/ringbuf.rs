@@ -16,6 +16,7 @@ impl<const SIZE: usize, T: Sized + Default + Copy> RingBuf<SIZE, T> {
 
     pub(super) fn push(&mut self, value: T) {
         self.buf[self.end] = value;
+        /*
         if self.end + 1 == SIZE {
             self.end = 0;
         } else if self.end + 1 == self.start {
@@ -27,5 +28,9 @@ impl<const SIZE: usize, T: Sized + Default + Copy> RingBuf<SIZE, T> {
         } else {
             self.end += 1;
         }
+        */
+    }
+    pub(super) fn at(&self, index: usize) -> T {
+        self.buf[index]
     }
 }
