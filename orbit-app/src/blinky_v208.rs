@@ -14,35 +14,25 @@ pub struct Blinky {}
 
 impl Blinky {
     #[app_init("blinky")]
-    pub fn init(&mut self) {}
-
-    #[app_interrupt("blinky")]
-    pub fn interrupt(&mut self) {
+    pub fn init(&mut self) {
         let gpiob = unsafe { self.gpiob.assume_init_mut() };
-        gpiob.modify(|p| p.cfghr.write(|w| unsafe { w.bits(0b0101) }));
-
         gpiob.modify(|p| {
-            p.bshr.write(|w| unsafe { w.bits(1 << 24) });
-            unsafe { KERNEL.core.timer.delay(100000) };
-        });
-        gpiob.modify(|p| {
+            p.cfghr.write(|w| unsafe { w.bits(0b0101) });
             p.bshr.write(|w| unsafe { w.bits(1 << 8) });
-            // unsafe { KERNEL.core.timer.delay(100000) };
         });
     }
+
+    #[app_interrupt("blinky")]
+    pub fn interrupt(&mut self) {}
 }
 
 #[app_main("blinky", Blinky)]
 fn main(&mut self) -> () {
     let gpiob = unsafe { self.gpiob.assume_init_mut() };
-    gpiob.modify(|p| p.cfghr.write(|w| unsafe { w.bits(0b0101) }));
 
     gpiob.modify(|p| {
         p.bshr.write(|w| unsafe { w.bits(1 << 24) });
-        unsafe { KERNEL.core.timer.delay(1000000) };
-    });
-    gpiob.modify(|p| {
+        unsafe { KERNEL.core.timer.delay(100000) };
         p.bshr.write(|w| unsafe { w.bits(1 << 8) });
-        unsafe { KERNEL.core.timer.delay(1000000) };
     });
 }

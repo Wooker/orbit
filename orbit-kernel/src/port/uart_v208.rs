@@ -128,13 +128,20 @@ impl<'a> Uart<'a> {
     #[inline(never)]
     pub fn blocking_write_char(&mut self, c: u8) {
         // Read TC
-        // while self.uart.read(|p| p.statr.read().bits() & (1 << 6)) == 0 {} // wait tx complete
+        // while (self.uart.statr.read().bits() & (1 << 6)) == 0 {} // wait tx complete
         self.uart.datar.write(|w| unsafe { w.bits(c as u32) });
+        for i in 5..=9 {
+            self.clear_int(i);
+        }
     }
 
     #[inline(never)]
     pub fn read(&mut self) -> u8 {
-        self.uart.datar.read().dr().bits() as u8
+        let val = self.uart.datar.read().dr().bits() as u8;
+        for i in 5..=9 {
+            self.clear_int(i);
+        }
+        val
     }
 
     #[inline(never)]

@@ -14,7 +14,17 @@ app_stack!(32, "blinky");
 pub struct Blinky {}
 impl Blinky {
     #[app_init("blinky")]
-    pub fn init(&mut self) {}
+    pub fn init(&mut self) {
+        let gpioa = unsafe { self.gpioa.assume_init_mut() };
+
+        let offset = 1;
+
+        gpioa.modify(|p| {
+            p.cfglr
+                .write(|w| unsafe { w.bits(0b0011 << (offset << 2)) });
+            p.bshr.write(|w| unsafe { w.bits(1 << (offset + 16)) });
+        });
+    }
 
     #[app_interrupt("blinky")]
     pub fn interrupt(&mut self) {}
@@ -24,7 +34,7 @@ impl Blinky {
 fn main(&mut self) {
     let gpioa = unsafe { self.gpioa.assume_init_mut() };
 
-    // PD7 to push-pull output
+    // PA1 to push-pull output
     let offset = 1;
 
     gpioa.modify(|p| {

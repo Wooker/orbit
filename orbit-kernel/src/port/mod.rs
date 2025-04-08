@@ -1,26 +1,28 @@
-use crate::port::uart_v208::{Config, Uart};
+use crate::{
+    arch::interface::timer::Timer,
+    kernel::KERNEL,
+    port::uart_v208::{Config, Uart},
+};
+
+use action::Action;
 use chip::PortPeripheral;
 
-mod ringbuf;
+pub(crate) mod action;
+pub(crate) mod message;
+
+pub(crate) mod ringbuf;
 use ringbuf::RingBuf;
 
-enum Role {
+pub(crate) enum Role {
     Leader,
     Follower,
     Candidate,
 }
 
-enum Message {
-    Hell0,
-    Bye,
-    Invoke(u8),
-    Unknown,
-}
-
 pub(crate) struct Port<'p> {
     role: Role,
     peripheral: Uart<'p>,
-    rbuf: RingBuf<32, u8>,
+    pub rbuf: RingBuf<32, u8>,
 }
 
 impl<'p> Port<'p> {
@@ -28,11 +30,11 @@ impl<'p> Port<'p> {
         Self {
             peripheral: Uart::new(p, Config::default()),
             role: Role::Candidate,
-            rbuf: RingBuf::new(),
+            rbuf: RingBuf::new(0x0),
         }
     }
 
-    pub(crate) fn read(&mut self) {
+    pub(crate) fn push(&mut self) {
         self.rbuf.push(self.peripheral.read());
     }
     pub(crate) fn read_buf(&mut self, index: usize) -> u8 {
@@ -43,6 +45,16 @@ impl<'p> Port<'p> {
         self.peripheral.blocking_write_char(ch);
         for i in 5..=9 {
             self.peripheral.clear_int(i);
+        }
+        unsafe { KERNEL.assume_init_read().core.timer.delay(100) };
+    }
+
+    pub(crate) fn handle(&mut self) -> Action {
+        self.push();
+        if let Some(slice) = self.rbuf.read() {
+            slice.into()
+        } else {
+            Action::Nothing
         }
     }
 

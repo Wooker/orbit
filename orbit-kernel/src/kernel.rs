@@ -15,7 +15,7 @@ use orbit_arch::{
 use crate::{
     application::{AppContainer, Context, PmpEntry},
     clock::Clocks,
-    port::Port,
+    port::{self, action::Action, message::Message, Port},
 };
 
 const APPS: usize = 4;
@@ -128,20 +128,21 @@ impl<'k> Kernel<'k> {
         compiler_fence(core::sync::atomic::Ordering::SeqCst);
 
         let port = unsafe { self.port.assume_init_mut() };
-        port.read();
-        port.write(0x1);
-        if port.read_buf(0) == 0x0 {
-            self.core.timer.delay(1000);
-            port.write(0x2);
-            self.running = 0;
+        let action = port.handle();
+        match action {
+            Action::Invoke(app) => {
+                port.write(Message::Ok.into());
+                self.running = 0;
 
-            unsafe {
-                orbit_arch::riscv::register::mepc::write(
-                    &_setup_event_loop as *const usize as usize,
-                );
+                unsafe {
+                    orbit_arch::riscv::register::mepc::write(
+                        &_setup_event_loop as *const usize as usize,
+                    );
 
-                asm!("mv a0, gp");
+                    asm!("mv a0, gp");
+                }
             }
+            Action::Nothing => {}
         }
     }
 
@@ -255,6 +256,8 @@ impl<'k> Kernel<'k> {
                 // switch to interrupt handler
                 "
                 csrr t0, mcause;
+                la t1, _port_int;
+                beq t0, t1, {1};
                 srli t0, t0, 31;
                 bnez t0, {0};
                 ",
