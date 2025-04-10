@@ -1,6 +1,4 @@
-#![allow(unsafe_code)]
 use crate::{app_stack, application::Application};
-use orbit_common_proc_macro::{app_init, app_interrupt, app_main, orbit_app};
 use orbit_kernel::chip::pac::SPI1;
 
 app_stack!(128, "spi");
@@ -19,8 +17,9 @@ impl Spi {
             p.ctlr1.write(|w| unsafe { w.bits(ctlr1) });
         });
     }
-}
-#[app_main("spi", Spi)]
-fn main(&mut self) {
-    let spi = unsafe { self.spi1.assume_init_mut() };
+
+    #[app_main("spi")]
+    fn main(&mut self) {
+        let spi = unsafe { self.spi1.assume_init_mut() };
+    }
 }

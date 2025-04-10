@@ -1,9 +1,17 @@
 use orbit_common_proc_macro::{app_init, app_interrupt, app_main, orbit_app};
 
-#[orbit_app()]
-pub struct Calc<'c>{}
+use crate::app_stack;
 
-#[app_main]
-fn main(&mut self, ) {
-    
+app_stack!(32, "calc");
+
+#[orbit_app()]
+pub struct Calc {}
+
+impl Calc {
+    #[app_init("calc")]
+    pub fn init(&mut self) {}
+    #[app_interrupt("calc")]
+    pub fn interrupt(&mut self) {}
+    #[app_main("calc")]
+    pub fn main(&mut self) -> usize {}
 }

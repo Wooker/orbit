@@ -1,4 +1,6 @@
-trait TraitBound
+#![allow(unused)]
+
+pub trait TraitBound
 where
     Self: Sized + Default + Copy + PartialEq,
 {

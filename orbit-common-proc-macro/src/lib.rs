@@ -1,9 +1,9 @@
 use proc_macro::TokenStream;
 use quote::{format_ident, quote};
 use syn::{
-    Data, DeriveInput, Field, Fields, Ident, ItemFn, ItemStruct, LitStr, Member, Token,
+    Fields, Ident, ItemFn, ItemStruct, LitStr, Token,
     parse::{Parse, ParseStream},
-    parse_macro_input,
+    parse_macro_input, parse_quote,
     punctuated::Punctuated,
 };
 
@@ -27,8 +27,15 @@ pub fn orbit_app(attr: TokenStream, item: TokenStream) -> TokenStream {
         .collect();
     let struct_item = parse_macro_input!(item as ItemStruct);
     let struct_name = struct_item.ident;
-    let struct_generics = struct_item.generics;
-    let app_name = format_ident!("{}", struct_name.to_string().to_lowercase());
+    let mut static_generics = struct_item.generics.clone();
+    for param in &mut static_generics.params {
+        if let syn::GenericParam::Lifetime(lifetime_def) = param {
+            // Replace the lifetime ident with `'static`
+            *lifetime_def = parse_quote!('static);
+        }
+    }
+    let (_, ty_static_generics, _) = static_generics.split_for_impl();
+    let (impl_generics, ty_generics, where_clause) = struct_item.generics.split_for_impl();
     let app_name = LitStr::new(
         format_ident!("{}", struct_name.to_string().to_lowercase())
             .to_string()
@@ -112,47 +119,68 @@ pub fn orbit_app(attr: TokenStream, item: TokenStream) -> TokenStream {
             self.context.sp = unsafe { STACK.last().unwrap_unchecked() as *const usize as usize + 0x4 };
             self.context.gp = &self.context as *const Context as usize;
             self.context.ra = Self::ecall as *const fn() as usize;
+
+            self._buf
+                .buf
+                .iter_mut()
+                .for_each(|i| *i = RingbufType::default());
         }
     };
 
     let expanded = quote! {
-        use core::mem::MaybeUninit;
-        use orbit_kernel::{application::Context,claim::{KernelPeripherals, Claim, Claimed}};
+
+        use crate::application::Application;
+        use core::{
+            arch::{asm, naked_asm},
+            mem::MaybeUninit,
+            sync::atomic::compiler_fence,
+        };
+        use orbit_kernel::{
+            application::Context,
+            claim::{Claim, Claimed, KernelPeripherals},
+            port::{RINGBUF_SIZE, RingbufType, ringbuf::RingBuf},
+        };
 
         #[used]
         #[unsafe(no_mangle)]
         #[unsafe(link_section=concat!(".", #app_name, ".bss.struct"))]
-        static mut #static_name: MaybeUninit<#struct_name> = MaybeUninit::uninit();
+        static mut #static_name: MaybeUninit<#struct_name #ty_static_generics> = MaybeUninit::uninit();
 
         #[repr(C,align(4))]
-        pub struct #struct_name<#struct_generics> {
+        pub struct #struct_name #ty_generics {
             context: Context,
+            _buf: RingBuf<RINGBUF_SIZE, RingbufType>,
             #existing_fields
             #(#peripherals)*
         }
 
-        impl<#struct_generics> #struct_name<#struct_generics> {
+        impl #impl_generics #struct_name #ty_generics {
             #_init
+        }
+
+        impl #impl_generics Application for #struct_name #ty_generics #where_clause {
+            #[inline(never)]
+            #[unsafe(link_section = concat!(".", #app_name, ".text"))]
+            fn _main(&mut self) {
+                unsafe { asm!("li a0, 0;li a1, 0;") };
+            }
+
+            #[inline(never)]
+            #[unsafe(link_section = concat!(".", #app_name, ".text"))]
+            fn context(&self) -> Context {
+                self.context
+            }
+
+            #[naked]
+            #[unsafe(link_section = concat!(".", #app_name, ".text.ecall"))]
+            extern "C" fn ecall() {
+                unsafe {naked_asm!("ecall")};
+            }
+
         }
     };
 
     TokenStream::from(expanded)
-}
-
-struct AppMainArgs {
-    app_name: LitStr,   // "app"
-    _comma: Token![,],  // Comma separator
-    struct_name: Ident, // App
-}
-
-impl Parse for AppMainArgs {
-    fn parse(input: ParseStream) -> syn::Result<Self> {
-        Ok(AppMainArgs {
-            app_name: input.parse()?,    // Parse "app"
-            _comma: input.parse()?,      // Parse the comma
-            struct_name: input.parse()?, // Parse App
-        })
-    }
 }
 
 #[proc_macro_attribute]
@@ -193,34 +221,17 @@ pub fn app_interrupt(attr: TokenStream, item: TokenStream) -> TokenStream {
 
 #[proc_macro_attribute]
 pub fn app_main(attr: TokenStream, item: TokenStream) -> TokenStream {
-    let attr_args = parse_macro_input!(attr as AppMainArgs);
-    let app_name = attr_args.app_name;
-    let struct_name = attr_args.struct_name;
-    let struct_ident = format_ident!("{}", struct_name);
+    let app_name = parse_macro_input!(attr as LitStr);
     let function = parse_macro_input!(item as ItemFn);
     let block = &function.block;
 
     let expanded = quote! {
-        impl Application for #struct_ident {
-            #[inline(never)]
-            #[unsafe(link_section = concat!(".", #app_name, ".text.main"))]
-            fn main(&mut self) {
-                // #[forbid(unsafe_code)]
-                #block
-                unsafe { asm!("li a0, 0;li a1, 0;") };
-            }
-
-            #[inline(never)]
-            #[unsafe(link_section = concat!(".", #app_name, ".text.interrupt"))]
-            fn context(&self) -> Context {
-                self.context
-            }
-
-            #[naked]
-            #[unsafe(link_section = concat!(".", #app_name, ".text.ecall"))]
-            extern "C" fn ecall() {
-                unsafe {naked_asm!("ecall")};
-            }
+        #[inline(never)]
+        #[unsafe(link_section = concat!(".", #app_name, ".text.main"))]
+        pub fn main(&mut self) {
+            // #[forbid(unsafe_code)]
+            #block
+            self._main();
         }
     };
 

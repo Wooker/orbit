@@ -13,18 +13,8 @@ orbit-common-proc-macro = { path = "../orbit-common-proc-macro" }
 orbit-kernel = { path = "../orbit-kernel" }
 orbit-libos = { path = "../orbit-libos" }
 
-postcard = { version = "1.1.1", default-features = false }
-serde = { version="1.0.*", default-features = false }
-
-# [profile.dev]
-# opt-level=0
-
 [features]
 ch592 = [ "orbit-kernel/ch592", "orbit-libos/ch592" ]
 ch32v208wbu6 = [ "orbit-kernel/ch32v208wbu6", "orbit-libos/ch32v208wbu6" ]
 ch32v003 = [ "orbit-kernel/ch32v003", "orbit-libos/ch32v003" ]
 bl702 = [ "orbit-kernel/bl702", "orbit-libos/bl702" ]
-
-
-[[bin]]
-name = "test"

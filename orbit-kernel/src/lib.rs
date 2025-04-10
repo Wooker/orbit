@@ -11,7 +11,7 @@ pub mod application;
 pub mod claim;
 pub mod clock;
 pub mod kernel;
-mod port;
+pub mod port;
 pub mod task;
 
 pub use chip;

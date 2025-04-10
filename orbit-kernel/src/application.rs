@@ -1,3 +1,5 @@
+#![allow(unused)]
+
 use crate::claim::KernelPeripherals;
 use orbit_arch::{riscv::register::Permission, riscv::register::Range};
 
@@ -158,9 +160,6 @@ impl<const PMP_REGS: usize> AppContainer<PMP_REGS> {
         app_interrupt_addr: Option<usize>,
         peripherals: [Option<KernelPeripherals>; PMP_REGS],
     ) -> Self {
-        extern "C" {
-            static _app_uart_text_main: usize;
-        }
         // if PMP_REGS > 0 {
         //     let mut pmps: [PmpEntry; PMP_REGS] = [PmpEntry::default(); PMP_REGS];
         //     pmps[0].address = unsafe { &_app_uart_text_main as *const usize as usize };

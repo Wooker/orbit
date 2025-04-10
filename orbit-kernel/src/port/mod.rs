@@ -1,3 +1,5 @@
+#![allow(unused)]
+
 use crate::{
     arch::interface::timer::Timer,
     kernel::KERNEL,
@@ -10,7 +12,7 @@ use chip::PortPeripheral;
 pub(crate) mod action;
 pub(crate) mod message;
 
-pub(crate) mod ringbuf;
+pub mod ringbuf;
 use ringbuf::RingBuf;
 
 pub(crate) enum Role {
@@ -19,10 +21,13 @@ pub(crate) enum Role {
     Candidate,
 }
 
+pub const RINGBUF_SIZE: usize = 32;
+pub type RingbufType = u8;
+
 pub(crate) struct Port<'p> {
     role: Role,
     peripheral: Uart<'p>,
-    pub rbuf: RingBuf<32, u8>,
+    pub rbuf: RingBuf<RINGBUF_SIZE, RingbufType>,
 }
 
 impl<'p> Port<'p> {
@@ -37,11 +42,11 @@ impl<'p> Port<'p> {
     pub(crate) fn push(&mut self) {
         self.rbuf.push(self.peripheral.read());
     }
-    pub(crate) fn read_buf(&mut self, index: usize) -> u8 {
+    pub(crate) fn read_buf(&mut self, index: usize) -> RingbufType {
         self.rbuf.at(index)
     }
 
-    pub(crate) fn write(&mut self, ch: u8) {
+    pub(crate) fn write(&mut self, ch: RingbufType) {
         self.peripheral.blocking_write_char(ch);
         for i in 5..=9 {
             self.peripheral.clear_int(i);

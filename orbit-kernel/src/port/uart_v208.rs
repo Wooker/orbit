@@ -1,4 +1,5 @@
 //! UART: Uni
+#![allow(unused)]
 
 // Default UART is UART4()
 use chip::PortPeripheral;

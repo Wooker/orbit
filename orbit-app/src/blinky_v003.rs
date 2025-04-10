@@ -1,9 +1,4 @@
-#![allow(static_mut_refs)]
-#![allow(unsafe_code)]
-
-use crate::{app_stack, application::Application, KERNEL};
-use core::arch::{asm, naked_asm};
-use core::sync::atomic::compiler_fence;
+use crate::{app_stack, KERNEL};
 use orbit_common_proc_macro::{app_init, app_interrupt, app_main, orbit_app};
 
 use orbit_kernel::{arch::interface::timer::Timer, chip::pac::GPIOA};
@@ -28,26 +23,26 @@ impl Blinky {
 
     #[app_interrupt("blinky")]
     pub fn interrupt(&mut self) {}
-}
 
-#[app_main("blinky", Blinky)]
-fn main(&mut self) {
-    let gpioa = unsafe { self.gpioa.assume_init_mut() };
+    #[app_main("blinky")]
+    fn main(&mut self) {
+        let gpioa = unsafe { self.gpioa.assume_init_mut() };
 
-    // PA1 to push-pull output
-    let offset = 1;
+        // PA1 to push-pull output
+        let offset = 1;
 
-    gpioa.modify(|p| {
-        p.cfglr
-            .write(|w| unsafe { w.bits(0b0011 << (offset << 2)) })
-    });
+        gpioa.modify(|p| {
+            p.cfglr
+                .write(|w| unsafe { w.bits(0b0011 << (offset << 2)) })
+        });
 
-    unsafe { KERNEL.core.timer.delay(200000) };
-    gpioa.modify(|p| {
-        p.bshr.write(|w| unsafe { w.bits(1 << offset) });
-    });
-    unsafe { KERNEL.core.timer.delay(200000) };
-    gpioa.modify(|p| {
-        p.bshr.write(|w| unsafe { w.bits(1 << (offset + 16)) });
-    });
+        unsafe { KERNEL.core.timer.delay(200000) };
+        gpioa.modify(|p| {
+            p.bshr.write(|w| unsafe { w.bits(1 << offset) });
+        });
+        unsafe { KERNEL.core.timer.delay(200000) };
+        gpioa.modify(|p| {
+            p.bshr.write(|w| unsafe { w.bits(1 << (offset + 16)) });
+        });
+    }
 }

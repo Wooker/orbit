@@ -6,16 +6,12 @@ use core::{
 
 use chip::{pac::Peripherals, PORT_PTR};
 
-use orbit_arch::{
-    interface::{pmp::Pmp, timer::Timer},
-    riscv::register::mtvec,
-    Core, PMP,
-};
+use orbit_arch::{interface::pmp::Pmp, riscv::register::mtvec, Core, PMP};
 
 use crate::{
     application::{AppContainer, Context, PmpEntry},
     clock::Clocks,
-    port::{self, action::Action, message::Message, Port},
+    port::{action::Action, message::Message, Port},
 };
 
 const APPS: usize = 4;
@@ -130,7 +126,7 @@ impl<'k> Kernel<'k> {
         let port = unsafe { self.port.assume_init_mut() };
         let action = port.handle();
         match action {
-            Action::Invoke(app) => {
+            Action::Invoke(_app) => {
                 port.write(Message::Ok.into());
                 self.running = 0;
 
@@ -164,9 +160,7 @@ impl<'k> Kernel<'k> {
 
         // Calling the handler here to prevent optimizations
         unsafe { Self::handler() };
-        unsafe {
-            self.port_handler();
-        };
+        self.port_handler();
 
         // self.clock.freeze();
         self.peripherals.write(unsafe { Peripherals::steal() });
@@ -205,6 +199,7 @@ impl<'k> Kernel<'k> {
         loop {}
     }
 
+    #[allow(undefined_naked_function_abi)]
     #[naked]
     #[no_mangle]
     #[link_section = ".kernel.text.main"]

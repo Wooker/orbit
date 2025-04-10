@@ -1,6 +1,6 @@
 #![no_std]
 #![no_main]
-#![deny(unsafe_code)]
+#![allow(static_mut_refs)]
 #![feature(naked_functions)]
 
 pub mod application;
@@ -14,6 +14,7 @@ unsafe extern "Rust" {
     pub static mut KERNEL: Kernel<'static>;
 }
 
+pub mod calc;
 pub mod wfi;
 
 feature_mod!("ch592", pub, blinky);
