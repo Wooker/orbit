@@ -4,6 +4,9 @@
 #![allow(static_mut_refs)]
 #![feature(naked_functions)]
 #![feature(stmt_expr_attributes)]
+#![feature(ascii_char)]
+#![feature(concat_bytes)]
+#![feature(fn_align)]
 
 use core::arch::{asm, global_asm};
 
@@ -13,6 +16,7 @@ pub mod clock;
 pub mod kernel;
 pub mod port;
 pub mod task;
+pub mod usizebuf;
 
 pub use chip;
 pub use orbit_arch as arch;

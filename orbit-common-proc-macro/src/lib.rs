@@ -1,7 +1,7 @@
 use proc_macro::TokenStream;
 use quote::{format_ident, quote};
 use syn::{
-    Fields, Ident, ItemFn, ItemStruct, LitStr, Token,
+    Fields, Ident, ItemFn, ItemStruct, LitStr, ReturnType, Token,
     parse::{Parse, ParseStream},
     parse_macro_input, parse_quote,
     punctuated::Punctuated,
@@ -26,6 +26,7 @@ pub fn orbit_app(attr: TokenStream, item: TokenStream) -> TokenStream {
         .into_iter()
         .collect();
     let struct_item = parse_macro_input!(item as ItemStruct);
+    let attributes = struct_item.attrs;
     let struct_name = struct_item.ident;
     let mut static_generics = struct_item.generics.clone();
     for param in &mut static_generics.params {
@@ -57,6 +58,7 @@ pub fn orbit_app(attr: TokenStream, item: TokenStream) -> TokenStream {
         }
     };
 
+    // Parsing peripherals
     let peripherals = args.iter().map(|i| {
         let lower = format_ident!("{}", i.to_string().to_lowercase());
         quote! {
@@ -90,6 +92,7 @@ pub fn orbit_app(attr: TokenStream, item: TokenStream) -> TokenStream {
     );
 
     let _init = quote! {
+        #[inline(never)]
         #[unsafe(link_section = concat!(".", #app_name, ".text"))]
         pub fn _init(&mut self) {
             unsafe extern "C" {
@@ -120,6 +123,7 @@ pub fn orbit_app(attr: TokenStream, item: TokenStream) -> TokenStream {
             self.context.gp = &self.context as *const Context as usize;
             self.context.ra = Self::ecall as *const fn() as usize;
 
+            self._buf = RingBuf::new(b'\0');
             self._buf
                 .buf
                 .iter_mut()
@@ -128,12 +132,11 @@ pub fn orbit_app(attr: TokenStream, item: TokenStream) -> TokenStream {
     };
 
     let expanded = quote! {
-
-        use crate::application::Application;
+        use crate::application::{Application, AsBytes};
         use core::{
             arch::{asm, naked_asm},
             mem::MaybeUninit,
-            sync::atomic::compiler_fence,
+            sync::atomic::{compiler_fence,Ordering},
         };
         use orbit_kernel::{
             application::Context,
@@ -147,9 +150,10 @@ pub fn orbit_app(attr: TokenStream, item: TokenStream) -> TokenStream {
         static mut #static_name: MaybeUninit<#struct_name #ty_static_generics> = MaybeUninit::uninit();
 
         #[repr(C,align(4))]
+        #(#attributes)*
         pub struct #struct_name #ty_generics {
             context: Context,
-            _buf: RingBuf<RINGBUF_SIZE, RingbufType>,
+            pub _buf: RingBuf<RINGBUF_SIZE, RingbufType>,
             #existing_fields
             #(#peripherals)*
         }
@@ -160,8 +164,13 @@ pub fn orbit_app(attr: TokenStream, item: TokenStream) -> TokenStream {
 
         impl #impl_generics Application for #struct_name #ty_generics #where_clause {
             #[inline(never)]
-            #[unsafe(link_section = concat!(".", #app_name, ".text"))]
-            fn _main(&mut self) {
+            #[unsafe(link_section = concat!(".", #app_name, ".text.main"))]
+            fn main(&mut self) {
+                let output = self._main();
+                for byte in output.as_bytes().iter() {
+                    self._buf.push(*byte);
+                }
+                self._buf.push(self._buf.termination);
                 unsafe { asm!("li a0, 0;li a1, 0;") };
             }
 
@@ -223,15 +232,21 @@ pub fn app_interrupt(attr: TokenStream, item: TokenStream) -> TokenStream {
 pub fn app_main(attr: TokenStream, item: TokenStream) -> TokenStream {
     let app_name = parse_macro_input!(attr as LitStr);
     let function = parse_macro_input!(item as ItemFn);
+    let sig = &function.sig;
     let block = &function.block;
+
+    let inputs = &sig.inputs;
+    let output = match &sig.output {
+        ReturnType::Default => quote! { () }, // No return type (i.e. -> ())
+        ReturnType::Type(_, ty) => quote! { #ty }, // ty is a Box<Type>
+    };
 
     let expanded = quote! {
         #[inline(never)]
-        #[unsafe(link_section = concat!(".", #app_name, ".text.main"))]
-        pub fn main(&mut self) {
+        #[unsafe(link_section = concat!(".", #app_name, ".text"))]
+        pub fn _main<'a>(#inputs) -> impl AsBytes<Output = #output> + use<'a>{
             // #[forbid(unsafe_code)]
             #block
-            self._main();
         }
     };
 
@@ -277,8 +292,10 @@ pub fn orbit_main_attribute(attr: TokenStream, _item: TokenStream) -> TokenStrea
                     #i,
                     unsafe { &#struct_upper as *const #s as usize },
                     #s::main as usize,
-                    Some(#s::interrupt as usize),
+                    #s::interrupt as usize,
                     #struct_upper.context(),
+                    // #struct_upper.buf(),
+                    unsafe { &mut (&mut #struct_upper)._buf as *mut _ },
                 );
             }
         })

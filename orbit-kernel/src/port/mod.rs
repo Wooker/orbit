@@ -13,6 +13,7 @@ pub(crate) mod action;
 pub(crate) mod message;
 
 pub mod ringbuf;
+use message::Message;
 use ringbuf::RingBuf;
 
 pub(crate) enum Role {
@@ -31,6 +32,7 @@ pub(crate) struct Port<'p> {
 }
 
 impl<'p> Port<'p> {
+    #[inline(never)]
     pub(crate) fn new(p: &'p PortPeripheral) -> Self {
         Self {
             peripheral: Uart::new(p, Config::default()),
@@ -39,27 +41,39 @@ impl<'p> Port<'p> {
         }
     }
 
+    #[inline(never)]
     pub(crate) fn push(&mut self) {
         self.rbuf.push(self.peripheral.read());
     }
+
+    #[inline(never)]
     pub(crate) fn read_buf(&mut self, index: usize) -> RingbufType {
         self.rbuf.at(index)
     }
 
+    #[inline(never)]
     pub(crate) fn write(&mut self, ch: RingbufType) {
         self.peripheral.blocking_write_char(ch);
         for i in 5..=9 {
             self.peripheral.clear_int(i);
         }
-        unsafe { KERNEL.assume_init_read().core.timer.delay(100) };
+        unsafe { KERNEL.assume_init_read().core.timer.delay(400) };
     }
 
-    pub(crate) fn handle(&mut self) -> Action {
+    #[inline(never)]
+    pub(crate) fn write_str<'a>(&'a mut self, buf: &[RingbufType]) {
+        for ch in buf.iter() {
+            self.write(*ch);
+        }
+    }
+
+    #[inline(never)]
+    pub(crate) fn handle(&mut self) -> Option<Action> {
         self.push();
         if let Some(slice) = self.rbuf.read() {
-            slice.into()
+            Some(slice.into())
         } else {
-            Action::Nothing
+            None
         }
     }
 

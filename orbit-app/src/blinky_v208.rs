@@ -8,6 +8,18 @@ app_stack!(64, "blinky");
 #[orbit_app(GPIOB)]
 pub struct Blinky {}
 
+#[repr(C)]
+struct Output {
+    value: [u8; 3],
+}
+
+impl AsBytes for Output {
+    type Output = Self;
+    fn as_bytes(&self) -> &[u8] {
+        self.value.as_slice()
+    }
+}
+
 impl Blinky {
     #[app_init("blinky")]
     pub fn init(&mut self) {
@@ -22,7 +34,7 @@ impl Blinky {
     pub fn interrupt(&mut self) {}
 
     #[app_main("blinky")]
-    pub fn main(&mut self) -> () {
+    pub fn main(&mut self) -> Output {
         let gpiob = unsafe { self.gpiob.assume_init_mut() };
 
         gpiob.modify(|p| {
@@ -30,5 +42,7 @@ impl Blinky {
             unsafe { KERNEL.core.timer.delay(100000) };
             p.bshr.write(|w| unsafe { w.bits(1 << 8) });
         });
+
+        Output { value: [1, 2, 3] }
     }
 }

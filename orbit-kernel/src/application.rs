@@ -1,6 +1,11 @@
 #![allow(unused)]
 
-use crate::claim::KernelPeripherals;
+use core::borrow::BorrowMut;
+
+use crate::{
+    claim::KernelPeripherals,
+    port::{ringbuf::RingBuf, RingbufType, RINGBUF_SIZE},
+};
 use orbit_arch::{riscv::register::Permission, riscv::register::Range};
 
 #[derive(Clone, Copy)]
@@ -38,10 +43,11 @@ impl Default for PmpEntry {
 #[derive(Clone, Copy)]
 pub struct AppContainer<const PMP_REGS: usize> {
     context: Context,
+    buf: *mut RingBuf<RINGBUF_SIZE, RingbufType>,
     pmp: [PmpEntry; PMP_REGS],
     app_struct: usize,
     app_main_addr: usize,
-    app_interrupt_addr: Option<usize>,
+    app_interrupt_addr: usize,
     peripherals: [Option<KernelPeripherals>; PMP_REGS],
 }
 
@@ -154,10 +160,11 @@ impl Context {
 impl<const PMP_REGS: usize> AppContainer<PMP_REGS> {
     pub fn new(
         context: Context,
+        buf: *mut RingBuf<RINGBUF_SIZE, RingbufType>,
         pmp: [PmpEntry; PMP_REGS],
         app_struct: usize,
         app_main_addr: usize,
-        app_interrupt_addr: Option<usize>,
+        app_interrupt_addr: usize,
         peripherals: [Option<KernelPeripherals>; PMP_REGS],
     ) -> Self {
         // if PMP_REGS > 0 {
@@ -166,6 +173,7 @@ impl<const PMP_REGS: usize> AppContainer<PMP_REGS> {
         // }
         Self {
             context,
+            buf,
             pmp,
             app_struct,
             app_main_addr,
@@ -182,12 +190,16 @@ impl<const PMP_REGS: usize> AppContainer<PMP_REGS> {
         self.app_main_addr
     }
 
-    pub fn interrupt_addr(&self) -> Option<usize> {
+    pub fn interrupt_addr(&self) -> usize {
         self.app_interrupt_addr
     }
 
     pub fn context(&self) -> Context {
         self.context
+    }
+
+    pub fn buf(&mut self) -> &mut RingBuf<RINGBUF_SIZE, RingbufType> {
+        unsafe { &mut *self.buf }
     }
 
     pub fn get_pmp(&self) -> [PmpEntry; PMP_REGS] {

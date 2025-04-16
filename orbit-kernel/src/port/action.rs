@@ -1,18 +1,39 @@
 use core::mem::MaybeUninit;
 
-use super::message::Message;
+use super::{message::Message, ringbuf::RingBuf, RingbufType, RINGBUF_SIZE};
 
-pub(crate) enum Action {
-    Invoke(u8),
-    Nothing,
+pub(crate) struct Action {
+    pub(crate) message: Message,
+    pub rbuf: RingBuf<RINGBUF_SIZE, RingbufType>,
+}
+
+impl Action {
+    pub fn new(message: Message, termination: RingbufType) -> Self {
+        Self {
+            message,
+            rbuf: RingBuf::new(termination),
+        }
+    }
 }
 
 impl From<&[u8]> for Action {
     fn from(value: &[u8]) -> Self {
-        let mut message: Message = value[0].into();
+        let message: Message = value[0].into();
+        let mut rbuf = RingBuf::new(0);
         match message {
-            Message::Invoke(uninit) => Action::Invoke(value[1]),
-            _ => Action::Nothing,
+            Message::Invoke => {
+                for ch in value[1..].iter() {
+                    rbuf.push(*ch);
+                }
+                Self {
+                    message: Message::Invoke,
+                    rbuf,
+                }
+            }
+            message => Self {
+                message,
+                rbuf: RingBuf::new(0),
+            },
         }
     }
 }

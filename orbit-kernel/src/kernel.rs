@@ -11,7 +11,7 @@ use orbit_arch::{interface::pmp::Pmp, riscv::register::mtvec, Core, PMP};
 use crate::{
     application::{AppContainer, Context, PmpEntry},
     clock::Clocks,
-    port::{action::Action, message::Message, Port},
+    port::{message::Message, ringbuf::RingBuf, Port, RingbufType, RINGBUF_SIZE},
 };
 
 const APPS: usize = 4;
@@ -80,13 +80,15 @@ impl<'k> Kernel<'k> {
         index: usize,
         app_struct: usize,
         app_main_addr: usize,
-        app_interrupt_addr: Option<usize>,
+        app_interrupt_addr: usize,
         context: Context,
+        buf: *mut RingBuf<RINGBUF_SIZE, RingbufType>,
         // peripherals: [Option<KernelPeripherals>; PMP],
     ) {
         let app = unsafe { self.apps.get_unchecked_mut(index) };
         app.write(AppContainer::new(
             context,
+            buf,
             [PmpEntry::default(); PMP],
             app_struct,
             app_main_addr,
@@ -124,22 +126,64 @@ impl<'k> Kernel<'k> {
         compiler_fence(core::sync::atomic::Ordering::SeqCst);
 
         let port = unsafe { self.port.assume_init_mut() };
-        let action = port.handle();
-        match action {
-            Action::Invoke(_app) => {
-                port.write(Message::Ok.into());
-                self.running = 0;
+        if let Some(mut action) = port.handle() {
+            match action.message {
+                Message::Invoke => {
+                    if let Some(info) = action.rbuf.read() {
+                        let app_index = 0;
 
-                unsafe {
-                    orbit_arch::riscv::register::mepc::write(
-                        &_setup_event_loop as *const usize as usize,
-                    );
+                        // Get application container
+                        let app =
+                            unsafe { self.apps.get_unchecked_mut(app_index).assume_init_mut() };
 
-                    asm!("mv a0, gp");
+                        // Flush the application buffer
+                        app.buf().flush();
+
+                        // Write command arguments after the space to
+                        // the application buffer
+                        for ch in info.iter().skip_while(|e| **e != b' ').skip(1) {
+                            app.buf().push(*ch);
+                        }
+
+                        // Run the application
+                        unsafe {
+                            Self::save_context();
+                            self.running = app_index;
+                            Self::port_handler_call_app();
+                        }
+
+                        // Goes here after application call
+
+                        // Write application output
+                        if let Some(output) = app.buf().read() {
+                            port.write_str(output);
+                        }
+
+                        // Exit the handler
+                        unsafe { asm!("la ra, _port_handler_exit") };
+                    }
+                }
+                Message::Ok => {}
+                Message::Unknown => {
+                    port.write_str(b"Unknown message\r");
                 }
             }
-            Action::Nothing => {}
         }
+    }
+
+    #[naked]
+    #[no_mangle]
+    #[link_section = ".kernel.text"]
+    unsafe extern "C" fn port_handler_call_app() {
+        naked_asm!(
+            "
+            la t0, _setup_event_loop;
+            csrw mepc, t0;
+            sw ra, 0x0(gp);
+            mv a0, gp;
+            mret;
+            ",
+        );
     }
 
     #[naked]
@@ -148,6 +192,8 @@ impl<'k> Kernel<'k> {
     unsafe extern "C" fn port_handler_exit() {
         naked_asm!(
             "
+            la t0, wait;
+            csrw mepc, t0;
             mret;
             ",
         );
@@ -195,6 +241,7 @@ impl<'k> Kernel<'k> {
 
     #[no_mangle]
     #[inline(never)]
+    #[link_section = ".kernel.text"]
     fn wait(&self) {
         loop {}
     }
@@ -229,13 +276,87 @@ impl<'k> Kernel<'k> {
                 in("a0") self as *const Kernel as usize,
                 in("a1") app_cont.struct_addr(),
                 in("a2") app_cont.main_addr(),
-                in("a3") app_cont.interrupt_addr().unwrap(),
+                in("a3") app_cont.interrupt_addr(),
             )
         }
         self.context_switch(
             app_cont.struct_addr(),
             app_cont.main_addr(),
-            app_cont.interrupt_addr().unwrap(),
+            app_cont.interrupt_addr(),
+        );
+    }
+
+    // Save registers if not _e_ extension
+    #[cfg(target_feature = "e")]
+    #[naked]
+    #[no_mangle]
+    #[link_section = ".kernel.text"]
+    unsafe extern "C" fn save_context() {
+        naked_asm!(
+            // "sw ra, 0x0(gp);",
+            // Save registers
+            "
+                    sw sp, 0x4(gp);
+                    sw gp, 0x8(gp);
+                    sw tp, 0xc(gp);
+                    sw t0, 0x10(gp);
+                    sw t1, 0x14(gp);
+                    sw t2, 0x18(gp);
+                    sw s0, 0x1c(gp);
+                    sw s1, 0x20(gp);
+                    sw a0, 0x24(gp);
+                    sw a1, 0x28(gp);
+                    sw a2, 0x2c(gp);
+                    sw a3, 0x30(gp);
+                    sw a4, 0x34(gp);
+                    sw a5, 0x38(gp);
+                    ",
+            "ret"
+        );
+    }
+
+    // Save registers if not _e_ extension
+    #[cfg(not(target_feature = "e"))]
+    #[naked]
+    #[no_mangle]
+    #[link_section = ".kernel.text"]
+    unsafe extern "C" fn save_context() {
+        naked_asm!(
+            // "sw ra, 0x0(gp);",
+            // Save registers
+            "
+                    sw sp, 0x4(gp);
+                    sw gp, 0x8(gp);
+                    sw tp, 0xc(gp);
+                    sw t0, 0x10(gp);
+                    sw t1, 0x14(gp);
+                    sw t2, 0x18(gp);
+                    sw s0, 0x1c(gp);
+                    sw s1, 0x20(gp);
+                    sw a0, 0x24(gp);
+                    sw a1, 0x28(gp);
+                    sw a2, 0x2c(gp);
+                    sw a3, 0x30(gp);
+                    sw a4, 0x34(gp);
+                    sw a5, 0x38(gp);
+                    sw a6, 0x3c(gp);
+                    sw a7, 0x40(gp);
+                    sw s2, 0x44(gp);
+                    sw s3, 0x48(gp);
+                    sw s4, 0x4c(gp);
+                    sw s5, 0x50(gp);
+                    sw s6, 0x54(gp);
+                    sw s7, 0x58(gp);
+                    sw s8, 0x5c(gp);
+                    sw s9, 0x60(gp);
+                    sw s1, 0x64(gp);
+                    sw s1, 0x68(gp);
+                    sw t3, 0x6c(gp);
+                    sw t4, 0x70(gp);
+                    sw t5, 0x74(gp);
+                    sw t6, 0x78(gp);
+                    ",
+            "ret"
         );
     }
 
@@ -297,8 +418,9 @@ impl<'k> Kernel<'k> {
             unsafe extern "C" fn switch_to_app() {
                 naked_asm!(
                     "
-                    bltz a5, {0};
-                    bgez a5, {1};
+                    j {0}
+                    // bltz a5, {0};
+                    // bgez a5, {1};
                     ",
                     sym switch_to_app_main,
                     sym switch_to_app_from_interrupt
@@ -322,8 +444,8 @@ impl<'k> Kernel<'k> {
                     "
                     li a5, -1;
                     ",
+                    // call save_context;
                     "
-                    call save_context;
                     call load_context;
                     ",
                 );
@@ -346,80 +468,6 @@ impl<'k> Kernel<'k> {
                     call save_context;
                     call load_context;
                     "
-                );
-            }
-
-            // Save registers if not _e_ extension
-            #[cfg(target_feature = "e")]
-            #[naked]
-            #[no_mangle]
-            #[link_section = ".kernel.text"]
-            unsafe extern "C" fn save_context() {
-                naked_asm!(
-                    // "sw ra, 0x0(gp);",
-                    // Save registers
-                    "
-                    sw sp, 0x4(gp);
-                    sw gp, 0x8(gp);
-                    sw tp, 0xc(gp);
-                    sw t0, 0x10(gp);
-                    sw t1, 0x14(gp);
-                    sw t2, 0x18(gp);
-                    sw s0, 0x1c(gp);
-                    sw s1, 0x20(gp);
-                    sw a0, 0x24(gp);
-                    sw a1, 0x28(gp);
-                    sw a2, 0x2c(gp);
-                    sw a3, 0x30(gp);
-                    sw a4, 0x34(gp);
-                    sw a5, 0x38(gp);
-                    ",
-                    "ret"
-                );
-            }
-
-            // Save registers if not _e_ extension
-            #[cfg(not(target_feature = "e"))]
-            #[naked]
-            #[no_mangle]
-            #[link_section = ".kernel.text"]
-            unsafe extern "C" fn save_context() {
-                naked_asm!(
-                    // "sw ra, 0x0(gp);",
-                    // Save registers
-                    "
-                    sw sp, 0x4(gp);
-                    sw gp, 0x8(gp);
-                    sw tp, 0xc(gp);
-                    sw t0, 0x10(gp);
-                    sw t1, 0x14(gp);
-                    sw t2, 0x18(gp);
-                    sw s0, 0x1c(gp);
-                    sw s1, 0x20(gp);
-                    sw a0, 0x24(gp);
-                    sw a1, 0x28(gp);
-                    sw a2, 0x2c(gp);
-                    sw a3, 0x30(gp);
-                    sw a4, 0x34(gp);
-                    sw a5, 0x38(gp);
-                    sw a6, 0x3c(gp);
-                    sw a7, 0x40(gp);
-                    sw s2, 0x44(gp);
-                    sw s3, 0x48(gp);
-                    sw s4, 0x4c(gp);
-                    sw s5, 0x50(gp);
-                    sw s6, 0x54(gp);
-                    sw s7, 0x58(gp);
-                    sw s8, 0x5c(gp);
-                    sw s9, 0x60(gp);
-                    sw s1, 0x64(gp);
-                    sw s1, 0x68(gp);
-                    sw t3, 0x6c(gp);
-                    sw t4, 0x70(gp);
-                    sw t5, 0x74(gp);
-                    sw t6, 0x78(gp);
-                    ",
-                    "ret"
                 );
             }
 
@@ -677,8 +725,8 @@ impl<'k> Kernel<'k> {
                     li t0, 0x1880;
                     csrw mstatus, t0;
                     ",
-                    "la t0, wait",
-                    "csrw mepc, t0",
+                    // "lw t0, wait",
+                    "csrw mepc, ra",
                     // Return to ra location
                     "mret; ",
                 )
@@ -761,9 +809,9 @@ impl<'k> Kernel<'k> {
             naked_asm!(
                 "
                 li t0, -1;
-                beq a0, t0, user_ecall_int;
+                beq a1, t0, user_ecall_int;
                 // li t0, 1;
-                // beq a0, t0, syscall_delay;
+                // beq a1, t0, syscall_delay;
                 call save_context;
                 call load_context;
                 "

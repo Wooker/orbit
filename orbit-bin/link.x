@@ -2,7 +2,7 @@ SECTIONS
 {
     .text : ALIGN(4)
     {
-        *(.text.*);
+        *(.text .text.*);
     } >FLASH
 
     .rodata : ALIGN(4)

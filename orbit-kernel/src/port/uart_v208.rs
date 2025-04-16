@@ -33,7 +33,9 @@ pub struct Config {
     pub parity: Parity,
 }
 impl Default for Config {
+    #[repr(align(4))]
     #[inline(never)]
+    #[link_section = ".kernel.text"]
     fn default() -> Self {
         Self {
             baudrate: 115200,
@@ -49,7 +51,9 @@ pub struct Uart<'a> {
 }
 
 impl<'a> Uart<'a> {
+    #[repr(align(4))]
     #[inline(never)]
+    #[link_section = ".kernel.text"]
     pub fn new(uart: &'a PortPeripheral, config: Config) -> Self {
         // PC11 RX as Floating input
         // PC10 TX as push-pull alternate output
@@ -112,7 +116,9 @@ impl<'a> Uart<'a> {
         Self { uart }
     }
 
+    #[repr(align(4))]
     #[inline(never)]
+    #[link_section = ".kernel.text"]
     pub fn blocking_write(&mut self, buf: &[u8]) {
         for c in buf {
             // Read TC
@@ -126,7 +132,9 @@ impl<'a> Uart<'a> {
         // });
     }
 
+    #[repr(align(4))]
     #[inline(never)]
+    #[link_section = ".kernel.text"]
     pub fn blocking_write_char(&mut self, c: u8) {
         // Read TC
         // while (self.uart.statr.read().bits() & (1 << 6)) == 0 {} // wait tx complete
@@ -136,7 +144,9 @@ impl<'a> Uart<'a> {
         }
     }
 
+    #[repr(align(4))]
     #[inline(never)]
+    #[link_section = ".kernel.text"]
     pub fn read(&mut self) -> u8 {
         let val = self.uart.datar.read().dr().bits() as u8;
         for i in 5..=9 {
@@ -145,12 +155,16 @@ impl<'a> Uart<'a> {
         val
     }
 
+    #[repr(align(4))]
     #[inline(never)]
+    #[link_section = ".kernel.text"]
     pub fn status(&mut self) -> u32 {
         self.uart.statr.read().bits()
     }
 
+    #[repr(align(4))]
     #[inline(never)]
+    #[link_section = ".kernel.text"]
     pub fn clear_int(&mut self, bit: u8) {
         self.uart
             .statr

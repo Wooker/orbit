@@ -60,18 +60,13 @@ SECTIONS
         PROVIDE( _app_{0}_text_ecall = .);
         *(.{0}.text.ecall);
 
-    }} >FLASH
-
-    .rodata.apps.{0} : ALIGN(4)
-    {{
-        *(.{0}.rodata);
         PROVIDE( _app_{0}_text_end = .);
     }} >FLASH
 }}
 ",
                 name
             ),
-            Path::new(&out).join(format!("app-flash-{}-link.x", name)),
+            Path::new(&out).join(format!("app-{}-flash-link.x", name)),
         )
     } else {
         (
@@ -79,14 +74,9 @@ SECTIONS
                 "
 SECTIONS
 {{
-    .data.apps.{0} : ALIGN(4)
-    {{
-        PROVIDE( _app_{0}_bss_start = .);
-        *(.{0}.data);
-    }} >RAM AT>FLASH
-
     .bss.apps.{0} : ALIGN(4)
     {{
+        PROVIDE( _app_{0}_bss_start = .);
         . = ALIGN(4);
         PROVIDE( _app_{0}_bss_struct = .);
         *(.{0}.bss.struct);
@@ -104,7 +94,7 @@ SECTIONS
 ",
                 name
             ),
-            Path::new(&out).join(format!("app-ram-{}-link.x", name)),
+            Path::new(&out).join(format!("app-{}-ram-link.x", name)),
         )
     };
     write(dest_path, content).expect("Failed to write to applicatoin linker script");
@@ -190,9 +180,15 @@ fn main() {
     println!("cargo:rustc-link-arg={}", "-Tmemory.x");
     println!("cargo:rustc-link-arg={}", "-Tkernel.x");
 
+    let mut dir: Vec<_> = fs::read_dir(app_out)
+        .unwrap()
+        .filter_map(Result::ok)
+        .collect();
+
+    dir.sort_by_key(|entry| entry.file_name());
+
     // Add linker scripts of applications
-    for entry in fs::read_dir(app_out).unwrap() {
-        let e = entry.unwrap();
+    for e in dir {
         let file_name = e.file_name().into_string().unwrap();
         if file_name.starts_with("app") && file_name.ends_with("link.x") {
             // p!("Including linker script: {}", file_name);
