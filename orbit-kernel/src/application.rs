@@ -41,7 +41,8 @@ impl Default for PmpEntry {
 }
 
 #[derive(Clone, Copy)]
-pub struct AppContainer<const PMP_REGS: usize> {
+pub struct AppContainer<'a, const PMP_REGS: usize> {
+    name: &'a str,
     context: Context,
     buf: *mut RingBuf<RINGBUF_SIZE, RingbufType>,
     pmp: [PmpEntry; PMP_REGS],
@@ -157,8 +158,9 @@ impl Context {
     }
 }
 
-impl<const PMP_REGS: usize> AppContainer<PMP_REGS> {
+impl<'a, const PMP_REGS: usize> AppContainer<'a, PMP_REGS> {
     pub fn new(
+        name: &'a str,
         context: Context,
         buf: *mut RingBuf<RINGBUF_SIZE, RingbufType>,
         pmp: [PmpEntry; PMP_REGS],
@@ -172,6 +174,7 @@ impl<const PMP_REGS: usize> AppContainer<PMP_REGS> {
         //     pmps[0].address = unsafe { &_app_uart_text_main as *const usize as usize };
         // }
         Self {
+            name,
             context,
             buf,
             pmp,
@@ -180,6 +183,10 @@ impl<const PMP_REGS: usize> AppContainer<PMP_REGS> {
             app_interrupt_addr,
             peripherals,
         }
+    }
+
+    pub fn name(&self) -> &str {
+        self.name
     }
 
     pub fn struct_addr(&self) -> usize {

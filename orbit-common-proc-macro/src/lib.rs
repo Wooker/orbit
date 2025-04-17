@@ -285,11 +285,12 @@ pub fn orbit_main_attribute(attr: TokenStream, _item: TokenStream) -> TokenStrea
         .enumerate()
         .map(|(i, s)| {
             let struct_upper = format_ident!("{}", s.to_string().to_uppercase());
-            let _struct_lower = format_ident!("{}", s.to_string().to_lowercase());
+            let struct_lower = format_ident!("{}", s.to_string().to_lowercase());
             quote! {
                 #struct_upper.init();
                 KERNEL.add_application(
                     #i,
+                    stringify!(#struct_lower),
                     unsafe { &#struct_upper as *const #s as usize },
                     #s::main as usize,
                     #s::interrupt as usize,

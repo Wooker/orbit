@@ -34,7 +34,7 @@ pub static mut KERNEL: MaybeUninit<Kernel> = MaybeUninit::uninit();
 #[repr(C, align(4))]
 pub struct Kernel<'k> {
     context: Context,
-    apps: [MaybeUninit<AppContainer<PMP>>; APPS],
+    apps: [MaybeUninit<AppContainer<'k, PMP>>; APPS],
     running: usize,
     port: MaybeUninit<Port<'k>>,
     pub(crate) peripherals: MaybeUninit<Peripherals>,
@@ -69,15 +69,16 @@ impl<'k> Kernel<'k> {
     pub fn add_application(
         &mut self,
         index: usize,
+        name: &'k str,
         app_struct: usize,
         app_main_addr: usize,
         app_interrupt_addr: usize,
         context: Context,
         buf: *mut RingBuf<RINGBUF_SIZE, RingbufType>,
-        // peripherals: [Option<KernelPeripherals>; PMP],
     ) {
         let app = unsafe { self.apps.get_unchecked_mut(index) };
         app.write(AppContainer::new(
+            name,
             context,
             buf,
             [PmpEntry::default(); PMP],
@@ -122,37 +123,44 @@ impl<'k> Kernel<'k> {
             match action.message {
                 Message::Invoke => {
                     if let Some(info) = action.rbuf.read() {
-                        let app_index = 0;
+                        let delimiter = info.iter().take_while(|e| **e != b' ').count();
+                        let (name, arg) = info.split_at(delimiter);
 
                         // Get application container
-                        let app =
-                            unsafe { self.apps.get_unchecked_mut(app_index).assume_init_mut() };
+                        if let Some((i, _)) = self.apps.iter().enumerate().find(|(_, app)| unsafe {
+                            app.assume_init_read().name().as_bytes().eq(name)
+                        }) {
+                            // Get the app container
+                            let app = unsafe { self.apps.get_unchecked_mut(i).assume_init_mut() };
 
-                        // Flush the application buffer
-                        app.buf().flush();
+                            // Flush the application buffer
+                            app.buf().flush();
 
-                        // Write command arguments after the space to
-                        // the application buffer
-                        for ch in info.iter().skip_while(|e| **e != b' ').skip(1) {
-                            app.buf().push(*ch);
+                            // Write command arguments after the space to
+                            // the application buffer
+                            for ch in arg.iter().skip(1) {
+                                app.buf().push(*ch);
+                            }
+
+                            // Run the application
+                            unsafe {
+                                Self::save_context();
+                                self.running = i;
+                                Self::port_handler_call_app();
+                            }
+
+                            // Goes here after application call
+
+                            // Write application output
+                            if let Some(output) = app.buf().read() {
+                                port.write_str(output);
+                            }
+
+                            // Exit the handler
+                            unsafe { asm!("la ra, port_handler_exit") };
+                        } else {
+                            port.write_str(b"No such app");
                         }
-
-                        // Run the application
-                        unsafe {
-                            Self::save_context();
-                            self.running = app_index;
-                            Self::port_handler_call_app();
-                        }
-
-                        // Goes here after application call
-
-                        // Write application output
-                        if let Some(output) = app.buf().read() {
-                            port.write_str(output);
-                        }
-
-                        // Exit the handler
-                        unsafe { asm!("la ra, port_handler_exit") };
                     }
                 }
                 Message::Ok => {}
