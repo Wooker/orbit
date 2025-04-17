@@ -13,4 +13,4 @@ feature_mod!("ch592", pub, uart);
 // feature_mod!("ch32v208wbu6", pub, uart_v208);
 
 // #[cfg(any(feature = "ch32v208wbu6", feature = "ch32v003"))]
-pub mod uart_v208;
+// pub mod uart_v208;

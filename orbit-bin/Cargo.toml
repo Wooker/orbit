@@ -15,12 +15,17 @@ regex = "1.11.1"
 [features]
 ch592 = [ "orbit-kernel/ch592", "orbit-app/ch592" ]
 ch32v208wbu6 = [ "orbit-kernel/ch32v208wbu6", "orbit-app/ch32v208wbu6" ]
+ch32x035 = [ "orbit-kernel/ch32x035", "orbit-app/ch32x035" ]
 ch32v003 = [ "orbit-kernel/ch32v003", "orbit-app/ch32v003" ]
 bl702 = [ "orbit-kernel/bl702", "orbit-app/bl702" ]
 
 [[bin]]
 name = "ch592f"
 required-features = [ "ch592" ]
+
+[[bin]]
+name = "ch32x035"
+required-features = [ "ch32x035" ]
 
 [[bin]]
 name = "ch32v208wbu6"

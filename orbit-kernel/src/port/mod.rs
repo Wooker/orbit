@@ -1,20 +1,21 @@
 #![allow(unused)]
 
-use crate::{
-    arch::interface::timer::Timer,
-    kernel::KERNEL,
-    port::uart_v208::{Config, Uart},
-};
-
-use action::Action;
+use crate::kernel::KERNEL;
 use chip::PortPeripheral;
+use orbit_arch::interface::timer::Timer;
+use orbit_common::feature_mod_use_mutual;
 
 pub(crate) mod action;
+use action::Action;
+
 pub(crate) mod message;
+use message::Message;
 
 pub mod ringbuf;
-use message::Message;
 use ringbuf::RingBuf;
+
+feature_mod_use_mutual!(uart_v208, "ch32v208wbu6", "ch32v003");
+feature_mod_use_mutual!(uart_x035, "ch32x035");
 
 pub(crate) enum Role {
     Leader,
@@ -79,9 +80,6 @@ impl<'p> Port<'p> {
 
     pub(crate) fn respond(&mut self) {}
 }
-
-#[cfg(any(feature = "ch32v208wbu6", feature = "ch32v003"))]
-mod uart_v208;
 
 // use orbit_common::feature_mod_use;
 //

@@ -1,8 +1,6 @@
 /* Taken from */
 /* https://github.com/ch32-rs/ch32-metapac/blob/main/src/chips/ch32v208wbu6/memory_x/memory.x */
 
-PROVIDE(_port_int = 66 + 0x80000000);
-
 MEMORY
 {
     FLASH : ORIGIN = 0x00000000, LENGTH = 144K /* BANK_1 */
@@ -14,3 +12,5 @@ REGION_ALIAS("REGION_DATA", RAM);
 REGION_ALIAS("REGION_BSS", RAM);
 REGION_ALIAS("REGION_HEAP", RAM);
 REGION_ALIAS("REGION_STACK", RAM);
+
+PROVIDE(_port_int = 66 + 0x80000000);

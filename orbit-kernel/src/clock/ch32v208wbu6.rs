@@ -14,9 +14,10 @@ impl Clocks {
 
         // Reset GPIOB GPIOC
         let gpios = 1 << 3 | 1 << 4;
-        rcc.apb2prstr.write(|w| unsafe { w.bits(gpios) });
-        rcc.apb2prstr
-            .modify(|r, w| unsafe { w.bits(r.bits() & !(gpios)) });
+        unsafe {
+            rcc.apb2prstr.write(|w| w.bits(gpios));
+            rcc.apb2prstr.modify(|r, w| w.bits(r.bits() & !(gpios)));
+        }
 
         // Enable GPIOB GPIOC
         rcc.apb2pcenr.write(|w| unsafe { w.bits(gpios) });

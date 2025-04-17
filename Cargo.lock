@@ -66,6 +66,17 @@ dependencies = [
 ]
 
 [[package]]
+name = "ch32x0"
+version = "0.1.7"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "a45ffa2438a9b8d712e297686e439a96ef3074ca8de5a68a90071f8061cb74a2"
+dependencies = [
+ "critical-section",
+ "riscv 0.10.1",
+ "vcell",
+]
+
+[[package]]
 name = "ch59x"
 version = "0.1.8"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -83,6 +94,7 @@ dependencies = [
  "bl702-pac",
  "ch32v0",
  "ch32v2",
+ "ch32x0",
  "ch59x",
  "esp32c3",
  "orbit-common",

@@ -83,7 +83,15 @@ impl_claim!(
 impl_claim!(
     "ch32v208wbu6",
     GPIOA = 0x40010800,
-    GPIOB = 0x40010c00,
+    GPIOB = 0x40010C00,
     // GPIOC = 0x40011000,
-    UART4 = 0x40004c00
+    UART4 = 0x40004C00
+);
+impl_claim!(
+    "ch32x035",
+    GPIOA = 0x40010800,
+    GPIOB = 0x40010C00,
+    GPIOC = 0x40011000,
+    // GPIOC = 0x40011000,
+    USART1 = 0x40013800,
 );

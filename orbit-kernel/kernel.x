@@ -10,27 +10,21 @@ SECTIONS
         *(.init);
 
         . = ALIGN(4);
-        PROVIDE(_main = .);
         *(.kernel.text.main);
 
         . = ALIGN(4);
-        PROVIDE(_setup_event_loop = .);
         *(.kernel.text.setup_event_loop);
 
         . = ALIGN(4);
-        PROVIDE(_handler = .);
         *(.kernel.text.handler);
 
         . = ALIGN(4);
-        PROVIDE(_port_handler = .);
         *(.kernel.text.port_handler);
 
         . = ALIGN(4);
-        PROVIDE(_port_handler_exit = .);
         *(.kernel.text.port_handler_exit);
 
         . = ALIGN(4);
-        PROVIDE(_context_switch = .);
         *(.kernel.text.context_switch);
         *(.kernel.text);
     } >FLASH

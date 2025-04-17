@@ -20,6 +20,7 @@ pub mod wfi;
 feature_mod!("ch592", pub, blinky);
 feature_mod!("ch32v208wbu6", pub, blinky_v208);
 feature_mod!("ch32v003", pub, blinky_v003);
+feature_mod!("ch32x035", pub, blinky_x035);
 
 /// Macros
 

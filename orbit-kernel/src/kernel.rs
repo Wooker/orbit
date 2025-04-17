@@ -31,15 +31,6 @@ pub static KERNEL_MINOR: u8 = 1;
 #[link_section = ".kernel.bss"]
 pub static mut KERNEL: MaybeUninit<Kernel> = MaybeUninit::uninit();
 
-extern "C" {
-    static _main: usize;
-    static _handler: usize;
-    static _port_handler: usize;
-    static _port_handler_exit: usize;
-    static _context_switch: usize;
-    static _setup_event_loop: usize;
-}
-
 #[repr(C, align(4))]
 pub struct Kernel<'k> {
     context: Context,
@@ -116,6 +107,7 @@ impl<'k> Kernel<'k> {
     }
 
     #[inline(never)]
+    #[no_mangle]
     #[link_section = ".kernel.text.port_handler"]
     pub fn port_handler(&mut self) {
         let mut a1: usize;
@@ -160,7 +152,7 @@ impl<'k> Kernel<'k> {
                         }
 
                         // Exit the handler
-                        unsafe { asm!("la ra, _port_handler_exit") };
+                        unsafe { asm!("la ra, port_handler_exit") };
                     }
                 }
                 Message::Ok => {}
@@ -177,7 +169,7 @@ impl<'k> Kernel<'k> {
     unsafe extern "C" fn port_handler_call_app() {
         naked_asm!(
             "
-            la t0, _setup_event_loop;
+            la t0, setup_event_loop;
             csrw mepc, t0;
             sw ra, 0x0(gp);
             mv a0, gp;
@@ -202,41 +194,36 @@ impl<'k> Kernel<'k> {
     #[inline(never)]
     #[link_section = ".kernel.text"]
     pub fn initialize(&mut self) {
-        unsafe { asm!("li a1, 0x100;") };
-
-        // Calling the handler here to prevent optimizations
-        unsafe { Self::handler() };
-        self.port_handler();
-
         // self.clock.freeze();
         self.peripherals.write(unsafe { Peripherals::steal() });
         self.port.write(Port::new(unsafe { &*(PORT_PTR) }));
-
         self.core.pmp.default();
         self.running = 0;
         self.context = Context::new();
-        unsafe { self.context.ra |= _port_handler | _main | _context_switch };
-        compiler_fence(core::sync::atomic::Ordering::SeqCst);
+        self.context.ra = Self::port_handler_exit as *const fn() as usize;
 
-        self.context.a5 = 0xffffffff;
+        // Save kernel context to mscratch
+        orbit_arch::riscv::register::mscratch::write(&self.context as *const Context as usize);
 
         unsafe {
-            self.context.ra = &_port_handler_exit as *const usize as usize;
-            // Save kernel context to mscratch
-            orbit_arch::riscv::register::mscratch::write(&self.context as *const Context as usize);
             // Set gp
             asm!("csrr gp, mscratch");
             // Save trap handler
-            mtvec::write(&_handler as *const usize as usize, mtvec::TrapMode::Direct);
+            mtvec::write(
+                Self::handler as *const fn() as usize,
+                mtvec::TrapMode::Direct,
+            );
 
+            // TODO: Move to port init
             // Enable UART4 interrupt
             #[cfg(feature = "ch32v208wbu6")]
             orbit_arch::pfic::enable_interrupt(66);
+
+            #[cfg(feature = "ch32x035")]
+            orbit_arch::pfic::enable_interrupt(32);
         }
 
-        unsafe { asm!("li a1, 0x100;") };
-        // Calling the method to prevent optimization
-        self.setup_event_loop();
+        unsafe { asm!("mret") };
     }
 
     #[no_mangle]
@@ -262,12 +249,6 @@ impl<'k> Kernel<'k> {
     #[inline(never)]
     #[link_section = ".kernel.text.setup_event_loop"]
     fn setup_event_loop(&mut self) {
-        let mut a1: usize;
-        unsafe { asm!("mv {}, a1", out(reg) a1) };
-        if a1 == 0x100 {
-            unsafe { asm!("li a1, 0; mret") };
-        }
-
         let app_cont = unsafe { self.apps.get_unchecked(self.running).assume_init_read() };
         self.set_pmp(&app_cont);
         unsafe {
@@ -287,9 +268,9 @@ impl<'k> Kernel<'k> {
     }
 
     // Save registers if not _e_ extension
-    #[cfg(target_feature = "e")]
     #[naked]
     #[no_mangle]
+    #[cfg(target_feature = "e")]
     #[link_section = ".kernel.text"]
     unsafe extern "C" fn save_context() {
         naked_asm!(
@@ -361,6 +342,7 @@ impl<'k> Kernel<'k> {
     }
 
     #[inline(never)]
+    #[no_mangle]
     #[link_section = ".kernel.text.context_switch"]
     fn context_switch(&mut self, _struct_addr: usize, _main_addr: usize, _interrupt_addr: usize) {
         unsafe {
@@ -735,6 +717,7 @@ impl<'k> Kernel<'k> {
     }
 
     #[naked]
+    #[no_mangle]
     #[link_section = ".kernel.text.handler"]
     unsafe extern "C" fn handler() {
         naked_asm!(
@@ -754,7 +737,7 @@ impl<'k> Kernel<'k> {
             ",
             // If not interrupt mask cause number
             "
-            andi t0, t0, 0xff;
+            andi t0, t0, 0x7ff;
             ",
             // Check if cause is ecall
             "
@@ -783,8 +766,7 @@ impl<'k> Kernel<'k> {
                 // csrr t1, mepc;
                 la t1, _port_int;
                 beq t0, t1, handle_port;
-                call save_context;
-                call load_context;
+                j kernel_main;
                 ",
             );
         }
@@ -797,7 +779,7 @@ impl<'k> Kernel<'k> {
                 "
                 csrr a0, mscratch;
                 la ra, port_handler_exit;
-                j _port_handler
+                j port_handler
                 ",
             );
         }

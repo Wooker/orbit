@@ -1,5 +1,6 @@
 /* Taken from */
 /* https://github.com/ch32-rs/ch59x-hal/blob/main/memory.x */
+
 MEMORY
 {
     /* Code Flash, 448KB max */
