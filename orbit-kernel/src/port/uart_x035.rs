@@ -5,14 +5,16 @@
 use chip::PortPeripheral;
 use core::sync::atomic::{compiler_fence, Ordering};
 
-#[derive(Clone, Copy, PartialEq, Eq, Debug)]
+use super::{ConfigureGPIO, PortKinds};
+
+#[derive(Clone, Copy)]
 pub enum Parity {
     ParityNone = 0x00,
     ParityEven = 0b10,
     ParityOdd = 0b11,
 }
 
-#[derive(Clone, Copy, PartialEq, Eq, Debug)]
+#[derive(Clone, Copy)]
 pub enum StopBits {
     #[doc = "1 stop bit"]
     STOP1 = 0b00,
@@ -20,12 +22,13 @@ pub enum StopBits {
     STOP2 = 0b10,
 }
 
-#[derive(Clone, Copy, PartialEq, Eq, Debug)]
+#[derive(Clone, Copy)]
 pub enum DataBits {
     DataBits8 = 0b0,
     DataBits9 = 0b1,
 }
 
+#[derive(Clone, Copy)]
 pub struct Config {
     pub baudrate: u32,
     pub data_bits: DataBits,
@@ -46,6 +49,7 @@ impl Default for Config {
     }
 }
 
+#[derive(Clone, Copy)]
 pub struct Uart<'a> {
     uart: &'a PortPeripheral,
 }
@@ -54,18 +58,8 @@ impl<'a> Uart<'a> {
     #[repr(align(4))]
     #[inline(never)]
     #[link_section = ".kernel.text"]
-    pub fn new(uart: &'a PortPeripheral, config: Config) -> Self {
-        // PB11 RX as Floating input
-        // PB10 TX as push-pull alternate output
-        #[cfg(feature = "ch32x035")]
-        let gpio = unsafe { &*chip::pac::GPIOB::PTR };
-        #[cfg(feature = "ch32x035")]
-        unsafe {
-            // TODO: configure registers
-            gpio.cfglr()
-                .write(|w| unsafe { w.bits(0b1000 << 24 | 0b1011 << 20) });
-            gpio.outdr().write(|w| unsafe { w.bits(1 << 6) });
-        };
+    pub fn new(uart: &'a PortPeripheral, kind: impl ConfigureGPIO, config: Config) -> Self {
+        kind.configure();
 
         // uart.modify(|p| p.statr.write(|w| unsafe { w.bits(0) }));
         uart.ctlr1().write(|w| unsafe {

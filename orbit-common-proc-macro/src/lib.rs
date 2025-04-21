@@ -1,7 +1,7 @@
 use proc_macro::TokenStream;
 use quote::{format_ident, quote};
 use syn::{
-    Fields, Ident, ItemFn, ItemStruct, LitStr, ReturnType, Token,
+    Expr, Fields, Ident, ItemFn, ItemStruct, LitStr, ReturnType, Token,
     parse::{Parse, ParseStream},
     parse_macro_input, parse_quote,
     punctuated::Punctuated,
@@ -315,9 +315,78 @@ pub fn orbit_main_attribute(attr: TokenStream, _item: TokenStream) -> TokenStrea
 
             #(#inits)*
 
-            KERNEL.initialize();
-            panic!();
+            KERNEL.initialize()
         }
+    };
+
+    TokenStream::from(expanded)
+}
+
+struct PortBinding {
+    ident: Ident,
+    _eq_token: Token![=],
+    expr: Expr,
+}
+
+impl Parse for PortBinding {
+    fn parse(input: ParseStream) -> syn::Result<Self> {
+        Ok(PortBinding {
+            ident: input.parse()?,
+            _eq_token: input.parse()?,
+            expr: input.parse()?,
+        })
+    }
+}
+
+#[proc_macro]
+pub fn define_ports(input: TokenStream) -> TokenStream {
+    let bindings =
+        parse_macro_input!(input with Punctuated::<PortBinding, Token![,]>::parse_terminated);
+
+    let mut uses = vec![];
+    let mut consts = vec![];
+    let mut ptrs = vec![];
+
+    for (i, binding) in bindings.iter().enumerate() {
+        let lower = Ident::new(
+            &binding.ident.to_string().to_lowercase(),
+            binding.ident.span(),
+        );
+        let upper = Ident::new(
+            &binding.ident.to_string().to_uppercase(),
+            binding.ident.span(),
+        );
+
+        let int_num = &binding.expr;
+
+        let port_struct = format_ident!("PortPeripheral{}", i + 1);
+        let ptr_const = format_ident!("PORT_PTR{}", i + 1);
+
+        uses.push(quote! {
+            pub use chip::pac::#lower::RegisterBlock as #port_struct;
+        });
+
+        consts.push(quote! {
+            pub const #ptr_const: *const PortPeripheral = chip::pac::#upper::PTR;
+        });
+
+        ptrs.push(quote! {(#ptr_const, #int_num, PortKinds::#upper)});
+    }
+    let len = ptrs.len();
+
+    let expanded = quote! {
+        #(#consts)*
+
+        pub const PORT_NUM: usize = #len;
+
+        pub struct PortInterruptTable(pub [(*const PortPeripheral, usize, PortKinds); PORT_NUM]);
+        unsafe impl Sync for PortInterruptTable {}
+
+        #[used]
+        #[unsafe(no_mangle)]
+        #[unsafe(link_section = ".kernel.bss")]
+        pub static PORT_INTERRUPTS: PortInterruptTable =
+            PortInterruptTable([#(#ptrs),*]);
     };
 
     TokenStream::from(expanded)

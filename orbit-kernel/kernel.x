@@ -19,6 +19,9 @@ SECTIONS
         *(.kernel.text.handler);
 
         . = ALIGN(4);
+        *(.kernel.text.interrupt_handler);
+
+        . = ALIGN(4);
         *(.kernel.text.port_handler);
 
         . = ALIGN(4);

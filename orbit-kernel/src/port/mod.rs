@@ -3,7 +3,7 @@
 use crate::kernel::KERNEL;
 use chip::PortPeripheral;
 use orbit_arch::interface::timer::Timer;
-use orbit_common::feature_mod_use_mutual;
+use orbit_common::{feature_mod_use, feature_mod_use_mutual};
 
 pub(crate) mod action;
 use action::Action;
@@ -11,12 +11,16 @@ use action::Action;
 pub(crate) mod message;
 use message::Message;
 
+pub mod port_kind;
+pub(crate) use port_kind::PortKinds;
+
 pub mod ringbuf;
 use ringbuf::RingBuf;
 
 feature_mod_use_mutual!(uart_v208, "ch32v208wbu6", "ch32v003");
 feature_mod_use_mutual!(uart_x035, "ch32x035");
 
+#[derive(Clone, Copy)]
 pub(crate) enum Role {
     Leader,
     Follower,
@@ -26,6 +30,11 @@ pub(crate) enum Role {
 pub const RINGBUF_SIZE: usize = 32;
 pub type RingbufType = u8;
 
+pub trait ConfigureGPIO {
+    fn configure(&self);
+}
+
+#[derive(Clone, Copy)]
 pub(crate) struct Port<'p> {
     role: Role,
     peripheral: Uart<'p>,
@@ -34,9 +43,9 @@ pub(crate) struct Port<'p> {
 
 impl<'p> Port<'p> {
     #[inline(never)]
-    pub(crate) fn new(p: &'p PortPeripheral) -> Self {
+    pub(crate) fn new(p: &'p PortPeripheral, kind: PortKinds) -> Self {
         Self {
-            peripheral: Uart::new(p, Config::default()),
+            peripheral: Uart::new(p, kind, Config::default()),
             role: Role::Candidate,
             rbuf: RingBuf::new(0x0),
         }

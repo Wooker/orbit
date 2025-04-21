@@ -5,14 +5,16 @@
 use chip::PortPeripheral;
 use core::sync::atomic::{compiler_fence, Ordering};
 
-#[derive(Clone, Copy, PartialEq, Eq, Debug)]
+use super::{ConfigureGPIO, PortKinds};
+
+#[derive(Clone, Copy)]
 pub enum Parity {
     ParityNone = 0x00,
     ParityEven = 0b10,
     ParityOdd = 0b11,
 }
 
-#[derive(Clone, Copy, PartialEq, Eq, Debug)]
+#[derive(Clone, Copy)]
 pub enum StopBits {
     #[doc = "1 stop bit"]
     STOP1 = 0b00,
@@ -20,7 +22,7 @@ pub enum StopBits {
     STOP2 = 0b10,
 }
 
-#[derive(Clone, Copy, PartialEq, Eq, Debug)]
+#[derive(Clone, Copy)]
 pub enum DataBits {
     DataBits8 = 0b0,
     DataBits9 = 0b1,
@@ -46,6 +48,7 @@ impl Default for Config {
     }
 }
 
+#[derive(Clone, Copy)]
 pub struct Uart<'a> {
     uart: &'a PortPeripheral,
 }
@@ -54,27 +57,8 @@ impl<'a> Uart<'a> {
     #[repr(align(4))]
     #[inline(never)]
     #[link_section = ".kernel.text"]
-    pub fn new(uart: &'a PortPeripheral, config: Config) -> Self {
-        // PC11 RX as Floating input
-        // PC10 TX as push-pull alternate output
-        #[cfg(feature = "ch32v208wbu6")]
-        let gpio = unsafe { &*chip::pac::GPIOC::PTR };
-        #[cfg(feature = "ch32v208wbu6")]
-        unsafe {
-            gpio.cfghr.write(|w| w.bits(0b1011 << 8 | 0b1000 << 12));
-            gpio.outdr.write(|w| w.bits(1 << 11));
-        };
-
-        // PD6 RX as pull-up input
-        // PD5 TX as push-pull multiplexed output
-        #[cfg(feature = "ch32v003")]
-        let gpio = unsafe { &*chip::pac::GPIOD::PTR };
-        #[cfg(feature = "ch32v003")]
-        unsafe {
-            gpio.cfglr
-                .write(|w| unsafe { w.bits(0b1000 << 24 | 0b1011 << 20) });
-            gpio.outdr.write(|w| unsafe { w.bits(1 << 6) });
-        };
+    pub fn new(uart: &'a PortPeripheral, kind: impl ConfigureGPIO, config: Config) -> Self {
+        kind.configure();
 
         // uart.modify(|p| p.statr.write(|w| unsafe { w.bits(0) }));
         uart.ctlr1.write(|w| unsafe {

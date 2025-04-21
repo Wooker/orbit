@@ -6,6 +6,7 @@ description = "Library crate containing linker scripts for a given microcontroll
 
 [dependencies]
 orbit-common = { path = "../orbit-common" }
+orbit-common-proc-macro = { path = "../orbit-common-proc-macro" }
 
 ch32v2 = { version = "0.1.6", optional = true }
 ch59x = { version = "0.1.7", optional = true }

@@ -24,7 +24,6 @@ impl Blinky {
         let gpiob = unsafe { self.gpiob.assume_init_mut() };
         gpiob.modify(|p| {
             p.cfghr().write(|w| unsafe { w.bits(0b0001 << 16) });
-            p.bshr().write(|w| unsafe { w.bits(1 << 12) });
         });
     }
 
@@ -35,10 +34,16 @@ impl Blinky {
     pub fn main(&mut self) -> Output {
         let gpiob = unsafe { self.gpiob.assume_init_mut() };
 
+        let arg = if let Some(msg) = self._buf.read() {
+            unsafe { msg.split_last().unwrap_unchecked().1 }
+        } else {
+            &[0u8]
+        };
+
         gpiob.modify(|p| {
-            p.bshr().write(|w| unsafe { w.bits(1 << 28) });
-            unsafe { KERNEL.core.timer.delay(100000) };
             p.bshr().write(|w| unsafe { w.bits(1 << 12) });
+            unsafe { KERNEL.core.timer.delay(100000 * (arg[0] as u32)) };
+            p.bshr().write(|w| unsafe { w.bits(1 << 28) });
         });
 
         Output([0])

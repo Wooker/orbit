@@ -98,6 +98,7 @@ dependencies = [
  "ch59x",
  "esp32c3",
  "orbit-common",
+ "orbit-common-proc-macro",
 ]
 
 [[package]]
@@ -266,6 +267,7 @@ dependencies = [
  "fugit",
  "orbit-arch",
  "orbit-common",
+ "orbit-common-proc-macro",
 ]
 
 [[package]]

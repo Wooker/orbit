@@ -1,17 +1,20 @@
 use core::{
     arch::{asm, naked_asm},
     mem::MaybeUninit,
-    sync::atomic::compiler_fence,
 };
 
-use chip::{pac::Peripherals, PORT_PTR};
-
+use chip::pac::Peripherals;
 use orbit_arch::{interface::pmp::Pmp, riscv::register::mtvec, Core, PMP};
 
 use crate::{
     application::{AppContainer, Context, PmpEntry},
     clock::Clocks,
-    port::{message::Message, ringbuf::RingBuf, Port, RingbufType, RINGBUF_SIZE},
+    port::{
+        message::Message,
+        port_kind::{PORT_INTERRUPTS, PORT_NUM},
+        ringbuf::RingBuf,
+        Port, RingbufType, RINGBUF_SIZE,
+    },
 };
 
 const APPS: usize = 4;
@@ -36,13 +39,11 @@ pub struct Kernel<'k> {
     context: Context,
     apps: [MaybeUninit<AppContainer<'k, PMP>>; APPS],
     running: usize,
-    port: MaybeUninit<Port<'k>>,
+    ports: [MaybeUninit<Port<'k>>; PORT_NUM],
     pub(crate) peripherals: MaybeUninit<Peripherals>,
     pub core: Core<PMP>,
     pub clock: Clocks,
 }
-
-unsafe impl<'k> Sync for Kernel<'k> {}
 
 impl<'k> Kernel<'k> {
     #[link_section = ".kernel.text"]
@@ -51,7 +52,7 @@ impl<'k> Kernel<'k> {
             context: Context::new(),
             peripherals: { MaybeUninit::<Peripherals>::uninit() },
             core: Core::new(),
-            port: MaybeUninit::<Port>::uninit(),
+            ports: [MaybeUninit::<Port>::uninit(); PORT_NUM],
             apps: [MaybeUninit::uninit(); APPS],
             clock: Clocks::default(),
             running: 0,
@@ -110,15 +111,8 @@ impl<'k> Kernel<'k> {
     #[inline(never)]
     #[no_mangle]
     #[link_section = ".kernel.text.port_handler"]
-    pub fn port_handler(&mut self) {
-        let mut a1: usize;
-        unsafe { asm!("mv {}, a1", out(reg) a1) };
-        if a1 == 0x100 {
-            return;
-        }
-        compiler_fence(core::sync::atomic::Ordering::SeqCst);
-
-        let port = unsafe { self.port.assume_init_mut() };
+    pub fn port_handler(&mut self, i: usize) {
+        let port = unsafe { self.ports[i].assume_init_mut() };
         if let Some(mut action) = port.handle() {
             match action.message {
                 Message::Invoke => {
@@ -127,11 +121,14 @@ impl<'k> Kernel<'k> {
                         let (name, arg) = info.split_at(delimiter);
 
                         // Get application container
-                        if let Some((i, _)) = self.apps.iter().enumerate().find(|(_, app)| unsafe {
-                            app.assume_init_read().name().as_bytes().eq(name)
-                        }) {
+                        if let Some((app_index, _)) =
+                            self.apps.iter().enumerate().find(|(_, app)| unsafe {
+                                app.assume_init_read().name().as_bytes().eq(name)
+                            })
+                        {
                             // Get the app container
-                            let app = unsafe { self.apps.get_unchecked_mut(i).assume_init_mut() };
+                            let app =
+                                unsafe { self.apps.get_unchecked_mut(app_index).assume_init_mut() };
 
                             // Flush the application buffer
                             app.buf().flush();
@@ -145,7 +142,7 @@ impl<'k> Kernel<'k> {
                             // Run the application
                             unsafe {
                                 Self::save_context();
-                                self.running = i;
+                                self.running = app_index;
                                 Self::port_handler_call_app();
                             }
 
@@ -157,7 +154,7 @@ impl<'k> Kernel<'k> {
                             }
 
                             // Exit the handler
-                            unsafe { asm!("la ra, port_handler_exit") };
+                            // unsafe { asm!("la ra, port_handler_exit") };
                         } else {
                             port.write_str(b"No such app");
                         }
@@ -169,6 +166,23 @@ impl<'k> Kernel<'k> {
                 }
             }
         }
+    }
+
+    #[inline(never)]
+    #[no_mangle]
+    #[link_section = ".kernel.text.interrupt_handler"]
+    pub fn interrupt_handler(&mut self) {
+        let code = orbit_arch::riscv::register::mcause::read().code();
+        if let Some((index, _)) = PORT_INTERRUPTS
+            .0
+            .iter()
+            .enumerate()
+            .find(|(_, (_, interrupt, _))| *interrupt == code)
+        {
+            self.port_handler(index);
+        }
+
+        unsafe { Self::port_handler_exit() }
     }
 
     #[naked]
@@ -189,7 +203,7 @@ impl<'k> Kernel<'k> {
     #[naked]
     #[no_mangle]
     #[link_section = ".kernel.text.port_handler_exit"]
-    unsafe extern "C" fn port_handler_exit() {
+    unsafe extern "C" fn port_handler_exit() -> ! {
         naked_asm!(
             "
             la t0, wait;
@@ -201,14 +215,27 @@ impl<'k> Kernel<'k> {
 
     #[inline(never)]
     #[link_section = ".kernel.text"]
-    pub fn initialize(&mut self) {
+    pub fn initialize(&mut self) -> ! {
         // self.clock.freeze();
         self.peripherals.write(unsafe { Peripherals::steal() });
-        self.port.write(Port::new(unsafe { &*(PORT_PTR) }));
+
+        for p in 0..PORT_NUM {
+            let ptr = PORT_INTERRUPTS.0[p].0;
+            let interrupt = PORT_INTERRUPTS.0[p].1;
+            let kind = PORT_INTERRUPTS.0[p].2;
+            unsafe {
+                orbit_arch::pfic::enable_interrupt(interrupt as u8);
+            }
+            self.ports[p].write(Port::new(unsafe { &*(ptr) }, kind));
+        }
+
         self.core.pmp.default();
         self.running = 0;
         self.context = Context::new();
         self.context.ra = Self::port_handler_exit as *const fn() as usize;
+        unsafe {
+            asm!("la ra, port_handler_exit");
+        }
 
         // Save kernel context to mscratch
         orbit_arch::riscv::register::mscratch::write(&self.context as *const Context as usize);
@@ -224,14 +251,10 @@ impl<'k> Kernel<'k> {
 
             // TODO: Move to port init
             // Enable UART4 interrupt
-            #[cfg(feature = "ch32v208wbu6")]
-            orbit_arch::pfic::enable_interrupt(66);
-
             #[cfg(feature = "ch32x035")]
             orbit_arch::pfic::enable_interrupt(32);
+            Self::port_handler_exit()
         }
-
-        unsafe { asm!("mret") };
     }
 
     #[no_mangle]
@@ -361,11 +384,9 @@ impl<'k> Kernel<'k> {
                 // If mcause is interrupt
                 // switch to interrupt handler
                 "
-                csrr t0, mcause;
-                la t1, _port_int;
-                beq t0, t1, {1};
-                srli t0, t0, 31;
-                bnez t0, {0};
+                // csrr t0, mcause;
+                // srli t0, t0, 31;
+                // bnez t0, {0};
                 ",
                 // Switch to app
                 "
@@ -771,10 +792,9 @@ impl<'k> Kernel<'k> {
         unsafe extern "C" fn handle_int() {
             naked_asm!(
                 "
-                // csrr t1, mepc;
-                la t1, _port_int;
-                beq t0, t1, handle_port;
-                j kernel_main;
+                csrr t0, mscratch;
+                mv a0, t0;
+                j interrupt_handler;
                 ",
             );
         }

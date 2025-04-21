@@ -12,14 +12,14 @@ impl Clocks {
         let rcc = unsafe { &*chip::pac::RCC::PTR };
         let extend = unsafe { &*chip::pac::EXTEND::PTR };
 
-        // Reset GPIOB GPIOC
-        let gpios = 1 << 3 | 1 << 4;
+        // Reset GPIOA GPIOB GPIOC USART1
+        let gpios = 1 << 2 | 1 << 3 | 1 << 4 | 1 << 14;
         unsafe {
             rcc.apb2prstr.write(|w| w.bits(gpios));
             rcc.apb2prstr.modify(|r, w| w.bits(r.bits() & !(gpios)));
         }
 
-        // Enable GPIOB GPIOC
+        // Enable GPIOA GPIOB GPIOC USART1
         rcc.apb2pcenr.write(|w| unsafe { w.bits(gpios) });
 
         extend.extend_ctr.write(|w| unsafe { w.bits(1 << 4) }); // set hsipre
