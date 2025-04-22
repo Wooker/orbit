@@ -15,6 +15,7 @@ use crate::{
         ringbuf::RingBuf,
         Port, RingbufType, RINGBUF_SIZE,
     },
+    syscall::SysCall,
 };
 
 const APPS: usize = 4;
@@ -160,10 +161,7 @@ impl<'k> Kernel<'k> {
                         }
                     }
                 }
-                Message::Ok => {}
-                Message::Unknown => {
-                    port.write_str(b"Unknown message\r");
-                }
+                _ => {}
             }
         }
     }
@@ -185,6 +183,54 @@ impl<'k> Kernel<'k> {
         unsafe { Self::port_handler_exit() }
     }
 
+    #[inline(never)]
+    #[no_mangle]
+    #[link_section = ".kernel.text.syscall_handler"]
+    pub fn syscall_handler(&mut self, a1: usize) {
+        {
+            let app_cont = unsafe { self.apps.get_unchecked_mut(self.running).assume_init_mut() };
+
+            let syscall = From::from(a1);
+            match syscall {
+                SysCall::NumPorts => {
+                    app_cont.buf().flush();
+                    for b in usize::to_le_bytes(PORT_NUM) {
+                        app_cont.buf().push(b);
+                    }
+                }
+                _ => {}
+            }
+        }
+
+        let app_cont = unsafe { self.apps.get_unchecked(self.running).assume_init_read() };
+        // self.set_pmp(&app_cont);
+        unsafe {
+            asm!(
+                "",
+                in("a0") self as *const Kernel as usize,
+                in("a1") app_cont.struct_addr(),
+                in("a2") app_cont.main_addr(),
+                in("a3") app_cont.interrupt_addr(),
+            )
+        }
+        unsafe { Self::syscall_handler_exit() }
+    }
+
+    #[naked]
+    #[no_mangle]
+    #[link_section = ".kernel.text"]
+    unsafe extern "C" fn syscall_handler_exit() {
+        naked_asm!(
+            "
+            // la t0, wait; // should go to port_handler
+            // sw t0, 0x0(a0)
+            li t0, 0;
+            sw t0, 0x28(a0);
+            call load_context
+            ",
+        );
+    }
+
     #[naked]
     #[no_mangle]
     #[link_section = ".kernel.text"]
@@ -203,7 +249,7 @@ impl<'k> Kernel<'k> {
     #[naked]
     #[no_mangle]
     #[link_section = ".kernel.text.port_handler_exit"]
-    unsafe extern "C" fn port_handler_exit() -> ! {
+    unsafe extern "C" fn port_handler_exit() {
         naked_asm!(
             "
             la t0, wait;
@@ -215,7 +261,7 @@ impl<'k> Kernel<'k> {
 
     #[inline(never)]
     #[link_section = ".kernel.text"]
-    pub fn initialize(&mut self) -> ! {
+    pub fn initialize(&mut self) {
         // self.clock.freeze();
         self.peripherals.write(unsafe { Peripherals::steal() });
 
@@ -233,9 +279,6 @@ impl<'k> Kernel<'k> {
         self.running = 0;
         self.context = Context::new();
         self.context.ra = Self::port_handler_exit as *const fn() as usize;
-        unsafe {
-            asm!("la ra, port_handler_exit");
-        }
 
         // Save kernel context to mscratch
         orbit_arch::riscv::register::mscratch::write(&self.context as *const Context as usize);
@@ -253,7 +296,8 @@ impl<'k> Kernel<'k> {
             // Enable UART4 interrupt
             #[cfg(feature = "ch32x035")]
             orbit_arch::pfic::enable_interrupt(32);
-            Self::port_handler_exit()
+
+            asm!("la ra, port_handler_exit");
         }
     }
 
@@ -379,64 +423,10 @@ impl<'k> Kernel<'k> {
         unsafe {
             asm!(
                 "
-                lw a5, 0x38(gp);
+                j {0}
                 ",
-                // If mcause is interrupt
-                // switch to interrupt handler
-                "
-                // csrr t0, mcause;
-                // srli t0, t0, 31;
-                // bnez t0, {0};
-                ",
-                // Switch to app
-                "
-                j {1}
-                ",
-                sym switch_to_interrupt,
-                sym switch_to_app,
+                sym switch_to_app_main,
             );
-
-            #[naked]
-            #[link_section = ".kernel.text"]
-            unsafe extern "C" fn switch_to_interrupt() {
-                naked_asm!(
-                    // Save mepc to a5
-                    "
-                    csrr a5, mepc;
-                    ",
-                    // Set mepc to interrupt handler
-                    "
-                    csrw mepc, a3;
-                    ",
-                    "
-                    li t0, 0;
-                    csrw mcause, t0;
-                    ",
-                    // Set mstatus 0x0
-                    "
-                    li t0, 0x0;
-                    csrw mstatus, t0;
-                    ",
-                    "
-                    call save_context;
-                    call load_context;
-                    "
-                );
-            }
-
-            #[naked]
-            #[link_section = ".kernel.text"]
-            unsafe extern "C" fn switch_to_app() {
-                naked_asm!(
-                    "
-                    j {0}
-                    // bltz a5, {0};
-                    // bgez a5, {1};
-                    ",
-                    sym switch_to_app_main,
-                    sym switch_to_app_from_interrupt
-                );
-            }
 
             #[naked]
             #[link_section = ".kernel.text"]
@@ -451,10 +441,6 @@ impl<'k> Kernel<'k> {
                     li t0, 0x80;
                     csrw mstatus, t0;
                     ",
-                    // Set a5 to some value
-                    "
-                    li a5, -1;
-                    ",
                     // call save_context;
                     "
                     call load_context;
@@ -466,10 +452,6 @@ impl<'k> Kernel<'k> {
             #[link_section = ".kernel.text"]
             unsafe extern "C" fn switch_to_app_from_interrupt() {
                 naked_asm!(
-                    // Set mepc to where interrupt has fired
-                    "
-                    csrw mepc, a5;
-                    ",
                     // Set mstatus 0x80
                     "
                     li t0, 0x80;
@@ -654,8 +636,7 @@ impl<'k> Kernel<'k> {
                 naked_asm!(
                     "
                     csrr t0, mepc;
-                    bne t0, a5, load_finish_for_app_to_main;
-                    beq t0, a5, load_finish_for_app_from_interrupt;
+                    j load_finish_for_app_to_main;
                     "
                 )
             }
@@ -674,10 +655,6 @@ impl<'k> Kernel<'k> {
                     "
                     lw sp, 0x4(gp);
                     ",
-                    // Load a5
-                    "
-                    lw a5, 0x38(gp);
-                    ",
                     "
                     mv a0, gp;
                     ",
@@ -691,12 +668,6 @@ impl<'k> Kernel<'k> {
             #[link_section = ".kernel.text"]
             unsafe extern "C" fn load_finish_for_app_from_interrupt() {
                 naked_asm!(
-                    // Reset a5 and save
-                    "
-                    csrr t0, mscratch;
-                    li a5, -1;
-                    sw a5, 0x38(t0);
-                    ",
                     // Restore t0
                     "
                     lw t0, 0x0(sp);
@@ -705,10 +676,6 @@ impl<'k> Kernel<'k> {
                     // Load sp
                     "
                     lw sp, 0x4(gp);
-                    ",
-                    // Load a5
-                    "
-                    lw a5, 0x38(gp);
                     ",
                     // Return to mepc location
                     "mret;"
@@ -725,18 +692,18 @@ impl<'k> Kernel<'k> {
                     lw t0, 0x0(sp);
                     addi sp, sp, 0x4;
                     ",
-                    // Load sp, a5
+                    // Load sp
                     "
                     lw sp, 0x4(gp);
-                    lw a5, 0x38(gp);
                     ",
                     // Set a0 to gp (&self)
-                    "mv a0, gp;",
+                    "mv a0, gp;
+                    bgtz a1, syscall_handler;
+                    ",
                     "
                     li t0, 0x1880;
                     csrw mstatus, t0;
                     ",
-                    // "lw t0, wait",
                     "csrw mepc, ra",
                     // Return to ra location
                     "mret; ",
@@ -818,10 +785,29 @@ impl<'k> Kernel<'k> {
         unsafe extern "C" fn user_ecall() {
             naked_asm!(
                 "
+                csrr t0, mscratch;
+                sw a1, 0x28(t0);
+
                 li t0, -1;
                 beq a1, t0, user_ecall_int;
-                // li t0, 1;
-                // beq a1, t0, syscall_delay;
+                bgtz a1, handle_syscall;
+
+                call save_context;
+                call load_context;
+                "
+            );
+        }
+
+        #[naked]
+        #[no_mangle]
+        #[link_section = ".kernel.text"]
+        unsafe extern "C" fn handle_syscall() {
+            naked_asm!(
+                "
+                csrr t0, mepc;
+                addi t0, t0, 4;
+                csrw mepc, t0;
+
                 call save_context;
                 call load_context;
                 "

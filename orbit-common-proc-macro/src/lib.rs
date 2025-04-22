@@ -310,12 +310,12 @@ pub fn orbit_main_attribute(attr: TokenStream, _item: TokenStream) -> TokenStrea
 
         #[unsafe(no_mangle)]
         #[unsafe(link_section = ".text.bin")]
-        unsafe fn main() -> ! {
+        unsafe fn main() {
             KERNEL.clock.freeze();
 
             #(#inits)*
 
-            KERNEL.initialize()
+            KERNEL.initialize();
         }
     };
 
