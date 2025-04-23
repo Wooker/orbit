@@ -1,7 +1,7 @@
 use orbit_common_proc_macro::{app_init, app_interrupt, app_main, orbit_app};
 use orbit_kernel::syscall::SysCall;
 
-use crate::app_stack;
+use crate::{app_stack, syscall};
 
 app_stack!(32, "calc");
 
@@ -46,51 +46,13 @@ impl Calc {
             }
         }
 
-        unsafe {
-            asm!(
-                "
-            addi sp, sp, -0x8;
-            sw a0, 0x0(sp);
-            sw a1, 0x4(sp);
-            "
-            );
+        let msg = b"\x01blinky \x25";
+        for ch in msg {
+            self._buf.push(*ch);
         }
-        let syscall: usize = SysCall::NumPorts.into();
-        unsafe {
-            asm!(
-                "
-            li a0, 0;
-            
-            ",
-                in("a1") syscall
-            );
-            asm!("ecall");
-        }
+        self._buf.push(self._buf.termination);
 
-        unsafe {
-            asm!(
-                "
-            sw a0, 0x0(sp);
-            sw a1, 0x4(sp);
-            addi sp, sp, 0x8;
-            "
-            )
-        }
-
-        let mut num_ports = {
-            let bytes = if let Some(msg) = self._buf.read() {
-                unsafe {
-                    msg.split_last()
-                        .unwrap_unchecked()
-                        .1
-                        .first_chunk::<4>()
-                        .unwrap_unchecked()
-                }
-            } else {
-                &[0u8; 4]
-            };
-            usize::from_le_bytes(*bytes)
-        };
+        syscall!(SysCall::SendAll);
 
         // Calculate the output
         match expr[1] {
@@ -99,7 +61,7 @@ impl Calc {
             b'*' => Output([expr[0] * expr[2]]),
             b'/' => Output([expr[0] / expr[2]]),
             // _ => Output([u8::MAX]),
-            _ => Output([num_ports as u8]),
+            _ => Output([0 as u8]),
         }
     }
 }

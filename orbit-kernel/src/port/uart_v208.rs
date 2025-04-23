@@ -95,7 +95,7 @@ impl<'a> Uart<'a> {
 
         // With the default clock frequency of 8MHz the
         // value of uart_div is 69
-        uart.brr.write(|w| unsafe { w.bits(69) });
+        uart.brr.write(|w| unsafe { w.bits(68) });
 
         Self { uart }
     }

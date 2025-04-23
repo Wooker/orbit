@@ -26,6 +26,7 @@ impl ConfigureGPIO for PortKinds {
                 unsafe {
                     gpio.cfghr
                         .modify(|r, w| w.bits(r.bits() | 0b1011 << 4 | 0b1000 << 8));
+                    gpio.outdr.write(|w| w.bits(1 << 10));
                 };
             }
             PortKinds::USART2 => {}
@@ -37,6 +38,7 @@ impl ConfigureGPIO for PortKinds {
                 unsafe {
                     gpio.cfghr
                         .modify(|r, w| w.bits(r.bits() | 0b1011 << 8 | 0b1000 << 12));
+                    gpio.outdr.write(|w| w.bits(1 << 11));
                 };
             }
         }

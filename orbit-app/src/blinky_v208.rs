@@ -1,7 +1,7 @@
 use orbit_common_proc_macro::{app_init, app_interrupt, app_main, orbit_app};
-use orbit_kernel::{arch::interface::timer::Timer, chip::pac::GPIOB};
+use orbit_kernel::{arch::interface::timer::Timer, chip::pac::GPIOB, syscall::SysCall};
 
-use crate::{app_stack, KERNEL};
+use crate::{app_stack, syscall, KERNEL};
 
 app_stack!(64, "blinky");
 
@@ -35,18 +35,33 @@ impl Blinky {
     pub fn main(&mut self) -> Output {
         let gpiob = unsafe { self.gpiob.assume_init_mut() };
 
-        let arg = if let Some(msg) = self._buf.read() {
-            unsafe { msg.split_last().unwrap_unchecked().1 }
-        } else {
-            &[0u8]
-        };
+        let mut expr = [0u8; 1];
+        // Parse the input from the application buffer
+        {
+            let arg = if let Some(msg) = self._buf.read() {
+                unsafe { msg.split_last().unwrap_unchecked().1 }
+            } else {
+                &[1u8]
+            };
+            for (i, b) in arg.iter().enumerate() {
+                expr[i] = *b;
+            }
+        }
+
+        let msg = b"\x01blinky \x25";
+        for ch in msg {
+            self._buf.push(*ch);
+        }
+        self._buf.push(self._buf.termination);
+
+        syscall!(SysCall::SendAll);
 
         gpiob.modify(|p| {
             p.bshr.write(|w| unsafe { w.bits(1 << 24) });
-            unsafe { KERNEL.core.timer.delay(100000 * (arg[0] as u32)) };
+            unsafe { KERNEL.core.timer.delay(100000 * (expr[0] as u32)) };
             p.bshr.write(|w| unsafe { w.bits(1 << 8) });
         });
 
-        Output([0])
+        Output([0 as u8])
     }
 }

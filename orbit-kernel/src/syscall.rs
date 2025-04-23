@@ -1,5 +1,5 @@
 pub enum SysCall {
-    Delay,
+    Delay = 1,
     Claim,
     NumPorts,
     Send,

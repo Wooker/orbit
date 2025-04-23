@@ -32,3 +32,32 @@ macro_rules! app_stack {
         pub static mut STACK: [usize; $size] = [0; $size];
     };
 }
+
+#[macro_export]
+macro_rules! syscall {
+    ($syscall:path) => {
+        let syscall: usize = $syscall.into();
+        unsafe {
+            asm!(
+                "
+                addi sp, sp, -0x10;
+                sw a0, 0x0(sp);
+                sw a1, 0x4(sp);
+                sw a2, 0x8(sp);
+                sw a3, 0xc(sp);
+                ",
+                "li a1, {syscall}",
+                "li a0, 0",
+                "ecall",
+                "
+                lw a0, 0x0(sp);
+                lw a1, 0x4(sp);
+                lw a2, 0x8(sp);
+                lw a3, 0xc(sp);
+                addi sp, sp, 0x10;
+                ",
+                syscall = const ($syscall as usize),
+            );
+        }
+    };
+}

@@ -114,6 +114,7 @@ impl<'k> Kernel<'k> {
     #[link_section = ".kernel.text.port_handler"]
     pub fn port_handler(&mut self, i: usize) {
         let port = unsafe { self.ports[i].assume_init_mut() };
+        port.msg += 1;
         if let Some(mut action) = port.handle() {
             match action.message {
                 Message::Invoke => {
@@ -164,6 +165,7 @@ impl<'k> Kernel<'k> {
                 _ => {}
             }
         }
+        port.msg = 0;
     }
 
     #[inline(never)]
@@ -198,7 +200,26 @@ impl<'k> Kernel<'k> {
                         app_cont.buf().push(b);
                     }
                 }
-                _ => {}
+                SysCall::SendAll => {
+                    if let Some(info) = app_cont.buf().read() {
+                        for port in self.ports.iter_mut().filter_map(|p| {
+                            let port = unsafe { p.assume_init_mut() };
+                            port.msg.eq(&0usize).then(|| port)
+                        }) {
+                            port.write_str(info);
+                        }
+                    }
+                }
+                _ => {
+                    for port in self.ports.iter_mut().filter_map(|p| {
+                        let port = unsafe { p.assume_init_mut() };
+                        port.msg.eq(&0usize).then(|| port)
+                    }) {
+                        let start = app_cont.buf().start;
+                        let end = app_cont.buf().end;
+                        port.write_str(&[start as u8, end as u8, a1 as u8]);
+                    }
+                }
             }
         }
 

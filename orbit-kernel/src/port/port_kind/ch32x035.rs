@@ -29,6 +29,7 @@ impl ConfigureGPIO for PortKinds {
                 let gpio = unsafe { &*chip::pac::GPIOB::PTR };
                 unsafe {
                     gpio.cfghr().write(|w| w.bits(0b1011 << 8 | 0b1000 << 12));
+                    gpio.outdr().write(|w| w.bits(1 << 11));
                 };
             }
             PortKinds::USART2 => {
@@ -37,6 +38,7 @@ impl ConfigureGPIO for PortKinds {
                 let gpio = unsafe { &*chip::pac::GPIOA::PTR };
                 unsafe {
                     gpio.cfglr().write(|w| w.bits(0b1011 << 8 | 0b1000 << 12));
+                    gpio.outdr().write(|w| w.bits(1 << 3));
                 };
             }
             PortKinds::USART3 => {
@@ -45,6 +47,7 @@ impl ConfigureGPIO for PortKinds {
                 let gpio = unsafe { &*chip::pac::GPIOB::PTR };
                 unsafe {
                     gpio.cfglr().write(|w| w.bits(0b1011 << 12 | 0b1000 << 16));
+                    gpio.outdr().write(|w| w.bits(1 << 4));
                 };
             }
             PortKinds::USART4 => {
@@ -53,6 +56,7 @@ impl ConfigureGPIO for PortKinds {
                 let gpio = unsafe { &*chip::pac::GPIOB::PTR };
                 unsafe {
                     gpio.cfglr().write(|w| w.bits(0b1011 | 0b1000 << 4));
+                    gpio.outdr().write(|w| w.bits(1 << 1));
                 };
             }
         }

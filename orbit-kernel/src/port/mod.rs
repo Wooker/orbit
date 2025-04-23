@@ -36,6 +36,7 @@ pub trait ConfigureGPIO {
 
 #[derive(Clone, Copy)]
 pub(crate) struct Port<'p> {
+    pub msg: usize,
     role: Role,
     peripheral: Uart<'p>,
     pub rbuf: RingBuf<RINGBUF_SIZE, RingbufType>,
@@ -45,6 +46,7 @@ impl<'p> Port<'p> {
     #[inline(never)]
     pub(crate) fn new(p: &'p PortPeripheral, kind: PortKinds) -> Self {
         Self {
+            msg: 0,
             peripheral: Uart::new(p, kind, Config::default()),
             role: Role::Candidate,
             rbuf: RingBuf::new(0x0),
