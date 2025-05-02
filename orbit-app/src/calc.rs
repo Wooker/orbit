@@ -25,16 +25,25 @@ impl Calc {
     #[app_interrupt("calc")]
     pub fn interrupt(&mut self) {}
 
+    #[link_section = ".calc.text"]
+    fn calc_expr(expr: [u8; 3]) -> u8 {
+        match expr[1] {
+            b'+' => expr[0] + expr[2],
+            b'-' => expr[0] - expr[2],
+            b'*' => expr[0] * expr[2],
+            b'/' => expr[0] / expr[2],
+            _ => 0,
+        }
+    }
+
     #[app_main("calc")]
     pub fn main(&mut self) -> Output {
         // Currently expressions in the following forms are supported:
-        // hex+hex
-        // hex-hex
-        // hex*hex
-        // hex/hex
+        // "expr operand expr"
+        // where expr is "number_operand_number"
 
-        let mut expr = [0u8; 3];
         // Parse the input from the application buffer
+        let mut argument = [0u8; 9];
         {
             let arg = if let Some(msg) = self._buf.read() {
                 unsafe { msg.split_last().unwrap_unchecked().1 }
@@ -42,26 +51,84 @@ impl Calc {
                 &[0u8]
             };
             for (i, b) in arg.iter().enumerate() {
-                expr[i] = *b;
+                argument[i] = *b;
             }
         }
 
-        let msg = b"\x01blinky \x25";
-        for ch in msg {
-            self._buf.push(*ch);
-        }
-        self._buf.push(self._buf.termination);
+        self._buf.flush();
+        syscall!(SysCall::NumPorts);
+        let num_ports = usize::from_le_bytes(unsafe {
+            self._buf
+                .read()
+                .unwrap_unchecked()
+                .split_last()
+                .unwrap_unchecked()
+                .1
+                .try_into()
+                .unwrap_unchecked()
+        });
 
-        syscall!(SysCall::SendAll);
+        if num_ports == 1 {
+            if let Some((3, _)) = argument.iter().enumerate().find(|(_, b)| **b == 0) {
+                let expr1 = [argument[0], argument[1], argument[2]];
+                Output([Self::calc_expr(expr1)])
+            } else {
+                let expr1 = [argument[0], argument[1], argument[2]];
+                let expr2 = [argument[6], argument[7], argument[8]];
 
-        // Calculate the output
-        match expr[1] {
-            b'+' => Output([expr[0] + expr[2]]),
-            b'-' => Output([expr[0] - expr[2]]),
-            b'*' => Output([expr[0] * expr[2]]),
-            b'/' => Output([expr[0] / expr[2]]),
-            // _ => Output([u8::MAX]),
-            _ => Output([0 as u8]),
+                let val1 = Self::calc_expr(expr1);
+                let val2 = Self::calc_expr(expr2);
+
+                let expr3 = [val1, argument[4], val2];
+                Output([Self::calc_expr(expr3)])
+            }
+        } else {
+            if let Some((3, _)) = argument.iter().enumerate().find(|(_, b)| **b == 0) {
+                let expr1 = [argument[0], argument[1], argument[2]];
+                Output([Self::calc_expr(expr1)])
+            } else {
+                let mut expr1 = [0u8; 3];
+                let mut operator = [0u8; 1];
+                let mut expr2 = [0u8; 3];
+
+                for (i, b) in argument[..3].iter().enumerate() {
+                    expr1[i] = *b;
+                }
+                for (i, b) in argument[6..].iter().enumerate() {
+                    expr2[i] = *b;
+                }
+                operator[0] = argument[4];
+
+                let mut call = [0u8; 10];
+                for (i, b) in b"\x01calc ".iter().enumerate() {
+                    call[i] = *b;
+                }
+                call[6] = expr2[0];
+                call[7] = expr2[1];
+                call[8] = expr2[2];
+
+                call.iter().for_each(|ch| self._buf.push(*ch));
+                syscall!(SysCall::SendAll);
+
+                // Calculate the expr1
+                let val1 = Self::calc_expr(expr1);
+
+                syscall!(SysCall::Await);
+                let val2 = unsafe {
+                    self._buf
+                        .read()
+                        .unwrap_unchecked()
+                        .split_last()
+                        .unwrap_unchecked()
+                        .1[0]
+                };
+
+                expr1[0] = val1;
+                expr1[1] = operator[0];
+                expr1[2] = val2;
+
+                Output([Self::calc_expr(expr1)])
+            }
         }
     }
 }

@@ -20,6 +20,7 @@ impl<'a> Write for UsizeBuf<'a> {
 
 /// Convert a usize into a &str using a user-provided buffer.
 /// Returns `None` if the buffer is too small.
+#[allow(unused)]
 fn usize_to_str<'a>(n: usize, buf: &'a mut [u8]) -> Option<&'a str> {
     let mut writer = UsizeBuf { buf, len: 0 };
     write!(writer, "{}", n).ok()?;

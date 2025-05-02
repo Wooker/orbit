@@ -48,12 +48,22 @@ impl Blinky {
             }
         }
 
-        let msg = b"\x01blinky \x25";
-        for ch in msg {
-            self._buf.push(*ch);
-        }
-        self._buf.push(self._buf.termination);
+        syscall!(SysCall::NumPorts);
+        let _num_ports = if let Some(msg) = self._buf.read() {
+            usize::from_le_bytes(unsafe {
+                msg.split_last()
+                    .unwrap_unchecked()
+                    .1
+                    .try_into()
+                    .unwrap_unchecked()
+            })
+        } else {
+            0
+        };
 
+        "\x01blinky ".bytes().for_each(|ch| self._buf.push(ch));
+        self._buf.push(expr[0] + 5);
+        self._buf.push(0);
         syscall!(SysCall::SendAll);
 
         gpiob.modify(|p| {
@@ -62,6 +72,6 @@ impl Blinky {
             p.bshr.write(|w| unsafe { w.bits(1 << 8) });
         });
 
-        Output([0 as u8])
+        Output([0])
     }
 }

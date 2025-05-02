@@ -141,7 +141,7 @@ pub fn orbit_app(attr: TokenStream, item: TokenStream) -> TokenStream {
         use orbit_kernel::{
             application::Context,
             claim::{Claim, Claimed, KernelPeripherals},
-            port::{RINGBUF_SIZE, RingbufType, ringbuf::RingBuf},
+            port::{RINGBUF_SIZE, RingbufType, ringbuf::RingBuf, message::Message},
         };
 
         #[used]
@@ -152,7 +152,7 @@ pub fn orbit_app(attr: TokenStream, item: TokenStream) -> TokenStream {
         #[repr(C,align(4))]
         #(#attributes)*
         pub struct #struct_name #ty_generics {
-            context: Context,
+            pub context: Context,
             pub _buf: RingBuf<RINGBUF_SIZE, RingbufType>,
             #existing_fields
             #(#peripherals)*
@@ -167,9 +167,10 @@ pub fn orbit_app(attr: TokenStream, item: TokenStream) -> TokenStream {
             #[unsafe(link_section = concat!(".", #app_name, ".text.main"))]
             fn main(&mut self) {
                 let output = self._main();
-                for byte in output.as_bytes().iter() {
-                    self._buf.push(*byte);
-                }
+                self._buf.push(Message::Reply as u8);
+                output.as_bytes()
+                    .iter()
+                    .for_each(|byte| self._buf.push(*byte));
                 self._buf.push(self._buf.termination);
                 unsafe { asm!("li a0, 0;li a1, 0;") };
             }
@@ -294,7 +295,7 @@ pub fn orbit_main_attribute(attr: TokenStream, _item: TokenStream) -> TokenStrea
                     unsafe { &#struct_upper as *const #s as usize },
                     #s::main as usize,
                     #s::interrupt as usize,
-                    #struct_upper.context(),
+                    unsafe { &mut (&mut #struct_upper).context as *mut _ },
                     // #struct_upper.buf(),
                     unsafe { &mut (&mut #struct_upper)._buf as *mut _ },
                 );

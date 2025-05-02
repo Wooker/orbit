@@ -8,7 +8,7 @@ use orbit_common::{feature_mod_use, feature_mod_use_mutual};
 pub(crate) mod action;
 use action::Action;
 
-pub(crate) mod message;
+pub mod message;
 use message::Message;
 
 pub mod port_kind;
@@ -36,6 +36,7 @@ pub trait ConfigureGPIO {
 
 #[derive(Clone, Copy)]
 pub(crate) struct Port<'p> {
+    pub awaiting: bool,
     pub msg: usize,
     role: Role,
     peripheral: Uart<'p>,
@@ -46,6 +47,7 @@ impl<'p> Port<'p> {
     #[inline(never)]
     pub(crate) fn new(p: &'p PortPeripheral, kind: PortKinds) -> Self {
         Self {
+            awaiting: false,
             msg: 0,
             peripheral: Uart::new(p, kind, Config::default()),
             role: Role::Candidate,
@@ -69,7 +71,7 @@ impl<'p> Port<'p> {
         for i in 5..=9 {
             self.peripheral.clear_int(i);
         }
-        unsafe { KERNEL.assume_init_read().core.timer.delay(400) };
+        unsafe { KERNEL.assume_init_read().core.timer.delay(250) };
     }
 
     #[inline(never)]

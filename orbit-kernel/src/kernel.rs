@@ -7,7 +7,7 @@ use chip::pac::Peripherals;
 use orbit_arch::{interface::pmp::Pmp, riscv::register::mtvec, Core, PMP};
 
 use crate::{
-    application::{AppContainer, Context, PmpEntry},
+    application::{AppContainer, Context, PmpEntry, RunApplication},
     clock::Clocks,
     port::{
         message::Message,
@@ -39,7 +39,7 @@ pub static mut KERNEL: MaybeUninit<Kernel> = MaybeUninit::uninit();
 pub struct Kernel<'k> {
     context: Context,
     apps: [MaybeUninit<AppContainer<'k, PMP>>; APPS],
-    running: usize,
+    running: Option<usize>,
     ports: [MaybeUninit<Port<'k>>; PORT_NUM],
     pub(crate) peripherals: MaybeUninit<Peripherals>,
     pub core: Core<PMP>,
@@ -56,7 +56,7 @@ impl<'k> Kernel<'k> {
             ports: [MaybeUninit::<Port>::uninit(); PORT_NUM],
             apps: [MaybeUninit::uninit(); APPS],
             clock: Clocks::default(),
-            running: 0,
+            running: None,
         }
     }
 
@@ -75,7 +75,7 @@ impl<'k> Kernel<'k> {
         app_struct: usize,
         app_main_addr: usize,
         app_interrupt_addr: usize,
-        context: Context,
+        context: *mut Context,
         buf: *mut RingBuf<RINGBUF_SIZE, RingbufType>,
     ) {
         let app = unsafe { self.apps.get_unchecked_mut(index) };
@@ -112,17 +112,30 @@ impl<'k> Kernel<'k> {
     #[inline(never)]
     #[no_mangle]
     #[link_section = ".kernel.text.port_handler"]
-    pub fn port_handler(&mut self, i: usize) {
+    pub fn port_handler(&mut self, i: usize) -> RunApplication {
+        let awaiting = self
+            .ports
+            .iter()
+            .filter_map(|p| {
+                let port = unsafe { p.assume_init_read() };
+                port.awaiting.then(|| port)
+            })
+            .count();
         let port = unsafe { self.ports[i].assume_init_mut() };
-        port.msg += 1;
         if let Some(mut action) = port.handle() {
-            match action.message {
-                Message::Invoke => {
-                    if let Some(info) = action.rbuf.read() {
+            if port.msg > 0 {
+                port.write_str(&[Message::Busy.into(), 0]);
+            } else {
+                port.msg += 1;
+                match action.message {
+                    Message::Invoke => {
+                        if port.awaiting {}
+
+                        let info = unsafe { action.rbuf.read().unwrap_unchecked() };
                         let delimiter = info.iter().take_while(|e| **e != b' ').count();
                         let (name, arg) = info.split_at(delimiter);
 
-                        // Get application container
+                        // Find app by name
                         if let Some((app_index, _)) =
                             self.apps.iter().enumerate().find(|(_, app)| unsafe {
                                 app.assume_init_read().name().as_bytes().eq(name)
@@ -142,63 +155,148 @@ impl<'k> Kernel<'k> {
                             }
 
                             // Run the application
-                            unsafe {
-                                Self::save_context();
-                                self.running = app_index;
-                                Self::port_handler_call_app();
-                            }
-
-                            // Goes here after application call
-
-                            // Write application output
-                            if let Some(output) = app.buf().read() {
-                                port.write_str(output);
-                            }
-
-                            // Exit the handler
-                            // unsafe { asm!("la ra, port_handler_exit") };
+                            self.running = Some(app_index);
+                            return RunApplication::Main;
                         } else {
-                            port.write_str(b"No such app");
+                            port.write_str(&[Message::Unknown.into(), 0]);
                         }
                     }
+                    Message::Reply => {
+                        if let Some(app_index) = self.running {
+                            port.awaiting = false;
+                            port.msg = 0;
+
+                            let info = unsafe { action.rbuf.read().unwrap_unchecked() };
+
+                            let app =
+                                unsafe { self.apps.get_unchecked_mut(app_index).assume_init_mut() };
+                            // Flush the application buffer
+                            app.buf().flush();
+
+                            // Write command arguments after the space to
+                            // the application buffer
+                            for ch in info.iter() {
+                                app.buf().push(*ch);
+                            }
+
+                            if awaiting - 1 == 0 {
+                                return RunApplication::Jumped;
+                            }
+                        } else {
+                            port.write_str(&[Message::Unknown.into(), 0]);
+                        }
+                    }
+                    Message::Busy => {
+                        if let Some(_) = self.running {
+                            return RunApplication::Abort;
+                        }
+                    }
+                    Message::Unknown => {
+                        port.msg = 0;
+                    }
                 }
-                _ => {}
             }
         }
-        port.msg = 0;
+        RunApplication::None
     }
 
     #[inline(never)]
     #[no_mangle]
     #[link_section = ".kernel.text.interrupt_handler"]
-    pub fn interrupt_handler(&mut self) {
+    pub fn interrupt_handler(&mut self) -> RunApplication {
         let code = orbit_arch::riscv::register::mcause::read().code();
+
         if let Some((index, _)) = PORT_INTERRUPTS
             .0
             .iter()
             .enumerate()
             .find(|(_, (_, interrupt, _))| *interrupt == code)
         {
-            self.port_handler(index);
+            // Returns bool to indicate if an application
+            // is invoked
+            self.port_handler(index)
+        } else {
+            RunApplication::None
         }
+    }
 
-        unsafe { Self::port_handler_exit() }
+    // TODO: Handle RunApplication enum values
+    // and call app differently
+    #[naked]
+    #[no_mangle]
+    #[link_section = ".kernel.text"]
+    unsafe extern "C" fn interrupt_handler_exit() {
+        naked_asm!(
+            // a0 is 0 or 1
+            // 1 - call app
+            // 0 - don't
+            "
+            bnez a0, call_app;
+            la t0, wait;
+            csrw mepc, t0;
+            mret;
+            ",
+        );
+    }
+
+    #[naked]
+    #[no_mangle]
+    #[link_section = ".kernel.text"]
+    unsafe extern "C" fn call_app() {
+        // a0 = RunApplication variant
+        naked_asm!(
+            "
+            mv a1, a0;
+            la t0, setup_event_loop;
+            sw ra, 0x0(gp);
+            mv a0, gp;
+            j setup_event_loop;
+            ",
+        );
     }
 
     #[inline(never)]
     #[no_mangle]
     #[link_section = ".kernel.text.syscall_handler"]
-    pub fn syscall_handler(&mut self, a1: usize) {
+    pub fn syscall_handler(&mut self, syscall: SysCall) {
         {
-            let app_cont = unsafe { self.apps.get_unchecked_mut(self.running).assume_init_mut() };
+            let app_cont = unsafe {
+                self.apps
+                    .get_unchecked_mut(self.running.unwrap_unchecked())
+                    .assume_init_mut()
+            };
 
-            let syscall = From::from(a1);
-            match syscall {
+            match syscall.clone() {
+                SysCall::Return => {
+                    orbit_arch::riscv::register::mepc::write(Self::wait as *const fn() as usize);
+                    self.context.a1 = 0;
+                    // Write application output
+                    // let port = unsafe { self.ports.iter_mut().filter_map(0).assume_init_mut() };
+
+                    if let Some(port) = self
+                        .ports
+                        .iter_mut()
+                        .filter_map(|p| {
+                            let port = unsafe { p.assume_init_mut() };
+                            port.msg.ne(&0usize).then(|| port)
+                        })
+                        .nth(0)
+                    {
+                        if let Some(output) = app_cont.buf().read() {
+                            port.write_str(output);
+                        }
+                    }
+                    self.ports.iter_mut().for_each(|p| {
+                        let port = unsafe { p.assume_init_mut() };
+                        port.msg = 0;
+                    });
+                }
                 SysCall::NumPorts => {
                     app_cont.buf().flush();
-                    for b in usize::to_le_bytes(PORT_NUM) {
-                        app_cont.buf().push(b);
-                    }
+                    usize::to_le_bytes(PORT_NUM)
+                        .iter()
+                        .for_each(|b| app_cont.buf().push(*b));
+                    app_cont.buf().push(b'\0');
                 }
                 SysCall::SendAll => {
                     if let Some(info) = app_cont.buf().read() {
@@ -207,8 +305,31 @@ impl<'k> Kernel<'k> {
                             port.msg.eq(&0usize).then(|| port)
                         }) {
                             port.write_str(info);
+                            port.awaiting = true;
                         }
                     }
+                }
+                SysCall::Await => {
+                    // app_cont.buf().flush();
+                    // let awaiting_num = self
+                    //     .ports
+                    //     .iter()
+                    //     .filter(|p| unsafe { p.assume_init_read() }.awaiting)
+                    //     .count();
+                    // app_cont.buf().push(awaiting_num as u8);
+                    // app_cont.buf().push(b'\0');
+                }
+                SysCall::ReceiveAll => {
+                    // app_cont.buf().flush();
+                    // for port in self.ports.iter_mut().filter_map(|p| {
+                    //     let port = unsafe { p.assume_init_mut() };
+                    //     port.msg.eq(&0usize).then(|| port)
+                    // }) {
+                    //     port.write_str(info);
+                    //     port.awaiting = true;
+                    // }
+                    // app_cont.buf().push(awaiting_num as u8);
+                    // app_cont.buf().push(b'\0');
                 }
                 _ => {
                     for port in self.ports.iter_mut().filter_map(|p| {
@@ -217,13 +338,17 @@ impl<'k> Kernel<'k> {
                     }) {
                         let start = app_cont.buf().start;
                         let end = app_cont.buf().end;
-                        port.write_str(&[start as u8, end as u8, a1 as u8]);
+                        port.write_str(&[start as u8, end as u8, syscall.discriminant() as u8]);
                     }
                 }
             }
         }
 
-        let app_cont = unsafe { self.apps.get_unchecked(self.running).assume_init_read() };
+        let app_cont = unsafe {
+            self.apps
+                .get_unchecked(self.running.unwrap_unchecked())
+                .assume_init_read()
+        };
         // self.set_pmp(&app_cont);
         unsafe {
             asm!(
@@ -234,7 +359,6 @@ impl<'k> Kernel<'k> {
                 in("a3") app_cont.interrupt_addr(),
             )
         }
-        unsafe { Self::syscall_handler_exit() }
     }
 
     #[naked]
@@ -243,40 +367,58 @@ impl<'k> Kernel<'k> {
     unsafe extern "C" fn syscall_handler_exit() {
         naked_asm!(
             "
-            // la t0, wait; // should go to port_handler
-            // sw t0, 0x0(a0)
-            li t0, 0;
-            sw t0, 0x28(a0);
-            call load_context
-            ",
+            lw t0, 0x28(a1);
+            li t1, 5;
+            beq t0, t1, syscall_handler_await;
+            bnez t0, syscall_handler_return_to_app;
+            beqz t0, syscall_handler_return;
+            "
         );
     }
 
     #[naked]
     #[no_mangle]
     #[link_section = ".kernel.text"]
-    unsafe extern "C" fn port_handler_call_app() {
+    unsafe extern "C" fn syscall_handler_await() {
         naked_asm!(
             "
-            la t0, setup_event_loop;
-            csrw mepc, t0;
-            sw ra, 0x0(gp);
-            mv a0, gp;
-            mret;
+            csrr t0, mepc;
+            addi t0, t0, 4;
+            sw t0, 0x7c(a1);
             ",
+            "
+            la t0, wait;
+            csrw mepc, t0;
+            mret;
+            "
         );
     }
 
     #[naked]
     #[no_mangle]
-    #[link_section = ".kernel.text.port_handler_exit"]
-    unsafe extern "C" fn port_handler_exit() {
+    #[link_section = ".kernel.text"]
+    unsafe extern "C" fn syscall_handler_return_to_app() {
+        naked_asm!(
+            "
+            lw t0, 0x28(a1);
+            csrr t1, mepc;
+            addi t1, t1, 4;
+            csrw mepc, t1;
+            j load_context;
+            "
+        );
+    }
+
+    #[naked]
+    #[no_mangle]
+    #[link_section = ".kernel.text"]
+    unsafe extern "C" fn syscall_handler_return() {
         naked_asm!(
             "
             la t0, wait;
             csrw mepc, t0;
             mret;
-            ",
+            "
         );
     }
 
@@ -297,9 +439,9 @@ impl<'k> Kernel<'k> {
         }
 
         self.core.pmp.default();
-        self.running = 0;
+        self.running = None;
         self.context = Context::new();
-        self.context.ra = Self::port_handler_exit as *const fn() as usize;
+        self.context.ra = Self::wait as *const fn() as usize;
 
         // Save kernel context to mscratch
         orbit_arch::riscv::register::mscratch::write(&self.context as *const Context as usize);
@@ -317,9 +459,20 @@ impl<'k> Kernel<'k> {
             // Enable UART4 interrupt
             #[cfg(feature = "ch32x035")]
             orbit_arch::pfic::enable_interrupt(32);
-
-            asm!("la ra, port_handler_exit");
         }
+    }
+
+    #[naked]
+    #[no_mangle]
+    #[link_section = ".kernel.text.port_handler_exit"]
+    unsafe extern "C" fn initialize_finish() {
+        naked_asm!(
+            "
+            la t0, wait;
+            csrw mepc, t0;
+            mret;
+            ",
+        );
     }
 
     #[no_mangle]
@@ -344,26 +497,31 @@ impl<'k> Kernel<'k> {
     #[no_mangle]
     #[inline(never)]
     #[link_section = ".kernel.text.setup_event_loop"]
-    fn setup_event_loop(&mut self) {
-        let app_cont = unsafe { self.apps.get_unchecked(self.running).assume_init_read() };
+    fn setup_event_loop(&mut self, variant: RunApplication) {
+        let app_cont = unsafe {
+            self.apps
+                .get_unchecked(self.running.unwrap_unchecked())
+                .assume_init_read()
+        };
         self.set_pmp(&app_cont);
+        let addr = match variant {
+            RunApplication::Main => app_cont.main_addr(),
+            RunApplication::Interrupt => app_cont.interrupt_addr(),
+            RunApplication::Jumped => app_cont.context().mepc,
+            _ => 0,
+        };
         unsafe {
             asm!(
                 "",
                 in("a0") self as *const Kernel as usize,
                 in("a1") app_cont.struct_addr(),
-                in("a2") app_cont.main_addr(),
-                in("a3") app_cont.interrupt_addr(),
+                in("a2") addr,
             )
         }
-        self.context_switch(
-            app_cont.struct_addr(),
-            app_cont.main_addr(),
-            app_cont.interrupt_addr(),
-        );
+        self.context_switch(app_cont.struct_addr(), addr);
     }
 
-    // Save registers if not _e_ extension
+    // Save registers if _e_ extension
     #[naked]
     #[no_mangle]
     #[cfg(target_feature = "e")]
@@ -387,6 +545,12 @@ impl<'k> Kernel<'k> {
                     sw a3, 0x30(gp);
                     sw a4, 0x34(gp);
                     sw a5, 0x38(gp);
+                    ",
+            // Save mepc for the current context
+            // regardless it's kernel or application
+            "
+                    csrr t0, mepc;
+                    sw t0, 0x7c(gp);
                     ",
             "ret"
         );
@@ -433,6 +597,12 @@ impl<'k> Kernel<'k> {
                     sw t5, 0x74(gp);
                     sw t6, 0x78(gp);
                     ",
+            // Save mepc for the current context
+            // regardless it's kernel or application
+            "
+                    csrr t0, mepc;
+                    sw t0, 0x7c(gp);
+                    ",
             "ret"
         );
     }
@@ -440,67 +610,27 @@ impl<'k> Kernel<'k> {
     #[inline(never)]
     #[no_mangle]
     #[link_section = ".kernel.text.context_switch"]
-    fn context_switch(&mut self, _struct_addr: usize, _main_addr: usize, _interrupt_addr: usize) {
+    fn context_switch(&mut self, _struct_addr: usize, _addr: usize) {
         unsafe {
             asm!(
                 "
-                j {0}
+                li t0, 0x80;
+                csrw mstatus, t0;
                 ",
-                sym switch_to_app_main,
+                "csrw mepc, a2;",
+                "
+                j load_context;
+                ",
             );
-
-            #[naked]
-            #[link_section = ".kernel.text"]
-            unsafe extern "C" fn switch_to_app_main() {
-                naked_asm!(
-                    // Set mepc to application main
-                    "
-                    csrw mepc, a2;
-                    ",
-                    // Set mstatus 0x80
-                    "
-                    li t0, 0x80;
-                    csrw mstatus, t0;
-                    ",
-                    // call save_context;
-                    "
-                    call load_context;
-                    ",
-                );
-            }
-
-            #[naked]
-            #[link_section = ".kernel.text"]
-            unsafe extern "C" fn switch_to_app_from_interrupt() {
-                naked_asm!(
-                    // Set mstatus 0x80
-                    "
-                    li t0, 0x80;
-                    csrw mstatus, t0;
-                    ",
-                    "
-                    call save_context;
-                    call load_context;
-                    "
-                );
-            }
 
             #[naked]
             #[no_mangle]
             #[link_section = ".kernel.text"]
             unsafe extern "C" fn load_check() {
                 naked_asm!(
-                    // Save t0 on stack
-                    "
-                    addi sp, sp, -0x4;
-                    sw t0, 0x0(sp);
-                    ",
-                    // Use t0 for mscratch
                     "
                     csrr t0, mscratch;
                     ",
-                    // Jump to a loading function
-                    // t0 = address of returned context
                     "
                     beq t0, gp, load_for_app;
                     bne t0, gp, load_for_kernel;
@@ -514,18 +644,9 @@ impl<'k> Kernel<'k> {
             unsafe extern "C" fn load_for_app() {
                 naked_asm!(
                     // Save app context to gp
-                    "
-                    mv gp, a1;
-                    ",
-                    // Restore t0
-                    "
-                    lw t0, 0x0(sp);
-                    addi sp, sp, 0x4;
-                    ",
+                    "mv gp, a1;",
                     // Return to load_context
-                    "
-                    ret;
-                    "
+                    "ret;"
                 )
             }
 
@@ -535,18 +656,9 @@ impl<'k> Kernel<'k> {
             unsafe extern "C" fn load_for_kernel() {
                 naked_asm!(
                     // Save kernel context to gp
-                    "
-                    csrr gp, mscratch;
-                    ",
-                    // Restore t0
-                    "
-                    lw t0, 0x0(sp);
-                    addi sp, sp, 0x4;
-                    ",
+                    "csrr gp, mscratch;",
                     // Return to load_context
-                    "
-                    ret;
-                    "
+                    "ret;"
                 )
             }
 
@@ -559,6 +671,11 @@ impl<'k> Kernel<'k> {
                 naked_asm!(
                     "
                     call load_check;
+                    ",
+                    // Load mepc
+                    "
+                    lw t0, 0x7c(gp);
+                    csrw mepc, t0;
                     ",
                     // Load registers
                     "
@@ -656,7 +773,6 @@ impl<'k> Kernel<'k> {
             unsafe extern "C" fn load_finish_for_app() {
                 naked_asm!(
                     "
-                    csrr t0, mepc;
                     j load_finish_for_app_to_main;
                     "
                 )
@@ -679,7 +795,6 @@ impl<'k> Kernel<'k> {
                     "
                     mv a0, gp;
                     ",
-                    // Return to mepc location
                     "mret;"
                 )
             }
@@ -698,7 +813,6 @@ impl<'k> Kernel<'k> {
                     "
                     lw sp, 0x4(gp);
                     ",
-                    // Return to mepc location
                     "mret;"
                 )
             }
@@ -717,17 +831,7 @@ impl<'k> Kernel<'k> {
                     "
                     lw sp, 0x4(gp);
                     ",
-                    // Set a0 to gp (&self)
-                    "mv a0, gp;
-                    bgtz a1, syscall_handler;
-                    ",
-                    "
-                    li t0, 0x1880;
-                    csrw mstatus, t0;
-                    ",
-                    "csrw mepc, ra",
-                    // Return to ra location
-                    "mret; ",
+                    "j handle_mcause;"
                 )
             }
         }
@@ -738,14 +842,32 @@ impl<'k> Kernel<'k> {
     #[link_section = ".kernel.text.handler"]
     unsafe extern "C" fn handler() {
         naked_asm!(
+            // Save current context
+            "sw ra, 0x0(gp);
+            call save_context;
+            ",
+            // Load kernel context if the trap appeared
+            // in an application's context
+            "
+            csrr t0, mscratch;
+            sw a1, 0x28(t0);
+            bne t0, gp, load_context;
+            ",
+            // Handle the trap
+            "
+            j handle_mcause;
+            ",
+        )
+    }
+
+    #[naked]
+    #[no_mangle]
+    #[link_section = ".kernel.text"]
+    unsafe extern "C" fn handle_mcause() {
+        naked_asm!(
             // Read mcause
             "
             csrr t0, mcause;
-            ",
-            // Check if it is startup exception number
-            "
-            li t1, 0x100;
-            beq a1, t1, return_handler;
             ",
             // Check if mcause is interrupt
             "
@@ -779,23 +901,13 @@ impl<'k> Kernel<'k> {
         #[link_section = ".kernel.text"]
         unsafe extern "C" fn handle_int() {
             naked_asm!(
-                "
-                csrr t0, mscratch;
-                mv a0, t0;
-                j interrupt_handler;
-                ",
-            );
-        }
-
-        #[naked]
-        #[no_mangle]
-        #[link_section = ".kernel.text"]
-        unsafe extern "C" fn handle_port() {
-            naked_asm!(
+                // t0 = mcause
+                // t1 = interrupt bit = 1
+                //
                 "
                 csrr a0, mscratch;
-                la ra, port_handler_exit;
-                j port_handler
+                la ra, interrupt_handler_exit;
+                j interrupt_handler;
                 ",
             );
         }
@@ -805,16 +917,12 @@ impl<'k> Kernel<'k> {
         #[link_section = ".kernel.text"]
         unsafe extern "C" fn user_ecall() {
             naked_asm!(
+                // t0 = exception code
+                // t1 = 8 (ecall)
+                // t2 = app context address
                 "
-                csrr t0, mscratch;
-                sw a1, 0x28(t0);
-
-                li t0, -1;
-                beq a1, t0, user_ecall_int;
-                bgtz a1, handle_syscall;
-
-                call save_context;
-                call load_context;
+                csrr a0, mscratch;
+                j handle_syscall;
                 "
             );
         }
@@ -825,12 +933,8 @@ impl<'k> Kernel<'k> {
         unsafe extern "C" fn handle_syscall() {
             naked_asm!(
                 "
-                csrr t0, mepc;
-                addi t0, t0, 4;
-                csrw mepc, t0;
-
-                call save_context;
-                call load_context;
+                la ra, syscall_handler_exit;
+                j syscall_handler;
                 "
             );
         }

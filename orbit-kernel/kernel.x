@@ -47,6 +47,7 @@ SECTIONS
 
     .kernel.bss : ALIGN(4)
     {
+        PROVIDE( _kernel_struct = .);
         *(.kernel.bss);
         *(.bss .bss.*);
         *(.sbss .sbss.*);

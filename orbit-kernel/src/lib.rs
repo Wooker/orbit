@@ -52,9 +52,17 @@ _start:
     // ",
     "li t0, 0x1880",
     "csrw mstatus, t0",
-    // "la t0, wait",
-    // "csrw mepc, t0",
-    "la ra, port_handler_exit;",
+    "la ra, initialize_finish",
+    // Set mscratch
+    "
+    la gp, _kernel_struct;
+    csrw mscratch, gp;
+    ",
+    // Set mtvec
+    "
+    la t0, handler;
+    csrw mtvec, t0;
+    ",
     // Set dcsr 9 and 11 bits
     "
     csrr t0, dcsr;
@@ -62,5 +70,10 @@ _start:
     or t0, t0, t1;
     csrw dcsr, t0;
     ",
-    "j main"
+    "
+    // la t0, main;
+    // csrw mepc, t0;
+    // mret;
+    j main;
+    "
 );

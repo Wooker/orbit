@@ -30,10 +30,12 @@ impl From<&[u8]> for Action {
                     rbuf,
                 }
             }
-            message => Self {
-                message,
-                rbuf: RingBuf::new(0),
-            },
+            message => {
+                for ch in value[1..].iter() {
+                    rbuf.push(*ch);
+                }
+                Self { message, rbuf }
+            }
         }
     }
 }

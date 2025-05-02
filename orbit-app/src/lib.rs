@@ -15,6 +15,7 @@ unsafe extern "Rust" {
 }
 
 pub mod calc;
+pub mod system_num_ports;
 pub mod wfi;
 
 feature_mod!("ch592", pub, blinky);
@@ -36,7 +37,6 @@ macro_rules! app_stack {
 #[macro_export]
 macro_rules! syscall {
     ($syscall:path) => {
-        let syscall: usize = $syscall.into();
         unsafe {
             asm!(
                 "
@@ -56,7 +56,7 @@ macro_rules! syscall {
                 lw a3, 0xc(sp);
                 addi sp, sp, 0x10;
                 ",
-                syscall = const ($syscall as usize),
+                syscall = const ($syscall.discriminant()),
             );
         }
     };

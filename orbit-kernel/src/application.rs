@@ -40,10 +40,20 @@ impl Default for PmpEntry {
     }
 }
 
+#[repr(usize)]
+#[derive(Clone, PartialEq, Eq)]
+pub enum RunApplication {
+    None,
+    Main,
+    Interrupt,
+    Jumped,
+    Abort,
+}
+
 #[derive(Clone, Copy)]
 pub struct AppContainer<'a, const PMP_REGS: usize> {
     name: &'a str,
-    context: Context,
+    context: *mut Context,
     buf: *mut RingBuf<RINGBUF_SIZE, RingbufType>,
     pmp: [PmpEntry; PMP_REGS],
     app_struct: usize,
@@ -102,6 +112,8 @@ pub struct Context {
     pub t5: usize,
     #[cfg(not(target_feature = "e"))]
     pub t6: usize,
+    #[cfg(not(target_feature = "e"))]
+    pub mepc: usize,
 }
 
 impl Context {
@@ -154,6 +166,8 @@ impl Context {
             t5: 0,
             #[cfg(not(target_feature = "e"))]
             t6: 0,
+            #[cfg(not(target_feature = "e"))]
+            mepc: 0,
         }
     }
 }
@@ -161,7 +175,7 @@ impl Context {
 impl<'a, const PMP_REGS: usize> AppContainer<'a, PMP_REGS> {
     pub fn new(
         name: &'a str,
-        context: Context,
+        context: *mut Context,
         buf: *mut RingBuf<RINGBUF_SIZE, RingbufType>,
         pmp: [PmpEntry; PMP_REGS],
         app_struct: usize,
@@ -201,8 +215,8 @@ impl<'a, const PMP_REGS: usize> AppContainer<'a, PMP_REGS> {
         self.app_interrupt_addr
     }
 
-    pub fn context(&self) -> Context {
-        self.context
+    pub fn context(&self) -> &mut Context {
+        unsafe { &mut *self.context }
     }
 
     pub fn buf(&mut self) -> &mut RingBuf<RINGBUF_SIZE, RingbufType> {
