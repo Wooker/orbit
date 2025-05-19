@@ -181,7 +181,7 @@ pub fn orbit_app(attr: TokenStream, item: TokenStream) -> TokenStream {
                 self.context
             }
 
-            #[naked]
+            #[unsafe(naked)]
             #[unsafe(link_section = concat!(".", #app_name, ".text.ecall"))]
             extern "C" fn ecall() {
                 unsafe {naked_asm!("ecall")};

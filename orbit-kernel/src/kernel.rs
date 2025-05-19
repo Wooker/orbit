@@ -222,7 +222,7 @@ impl<'k> Kernel<'k> {
 
     // TODO: Handle RunApplication enum values
     // and call app differently
-    #[naked]
+    #[unsafe(naked)]
     #[no_mangle]
     #[link_section = ".kernel.text"]
     unsafe extern "C" fn interrupt_handler_exit() {
@@ -239,7 +239,7 @@ impl<'k> Kernel<'k> {
         );
     }
 
-    #[naked]
+    #[unsafe(naked)]
     #[no_mangle]
     #[link_section = ".kernel.text"]
     unsafe extern "C" fn call_app() {
@@ -361,7 +361,7 @@ impl<'k> Kernel<'k> {
         }
     }
 
-    #[naked]
+    #[unsafe(naked)]
     #[no_mangle]
     #[link_section = ".kernel.text"]
     unsafe extern "C" fn syscall_handler_exit() {
@@ -376,7 +376,7 @@ impl<'k> Kernel<'k> {
         );
     }
 
-    #[naked]
+    #[unsafe(naked)]
     #[no_mangle]
     #[link_section = ".kernel.text"]
     unsafe extern "C" fn syscall_handler_await() {
@@ -394,7 +394,7 @@ impl<'k> Kernel<'k> {
         );
     }
 
-    #[naked]
+    #[unsafe(naked)]
     #[no_mangle]
     #[link_section = ".kernel.text"]
     unsafe extern "C" fn syscall_handler_return_to_app() {
@@ -409,7 +409,7 @@ impl<'k> Kernel<'k> {
         );
     }
 
-    #[naked]
+    #[unsafe(naked)]
     #[no_mangle]
     #[link_section = ".kernel.text"]
     unsafe extern "C" fn syscall_handler_return() {
@@ -462,7 +462,7 @@ impl<'k> Kernel<'k> {
         }
     }
 
-    #[naked]
+    #[unsafe(naked)]
     #[no_mangle]
     #[link_section = ".kernel.text.port_handler_exit"]
     unsafe extern "C" fn initialize_finish() {
@@ -482,8 +482,7 @@ impl<'k> Kernel<'k> {
         loop {}
     }
 
-    #[allow(undefined_naked_function_abi)]
-    #[naked]
+    #[unsafe(naked)]
     #[no_mangle]
     #[link_section = ".kernel.text.main"]
     unsafe fn kernel_main() {
@@ -522,7 +521,7 @@ impl<'k> Kernel<'k> {
     }
 
     // Save registers if _e_ extension
-    #[naked]
+    #[unsafe(naked)]
     #[no_mangle]
     #[cfg(target_feature = "e")]
     #[link_section = ".kernel.text"]
@@ -558,7 +557,7 @@ impl<'k> Kernel<'k> {
 
     // Save registers if not _e_ extension
     #[cfg(not(target_feature = "e"))]
-    #[naked]
+    #[unsafe(naked)]
     #[no_mangle]
     #[link_section = ".kernel.text"]
     unsafe extern "C" fn save_context() {
@@ -623,7 +622,7 @@ impl<'k> Kernel<'k> {
                 ",
             );
 
-            #[naked]
+            #[unsafe(naked)]
             #[no_mangle]
             #[link_section = ".kernel.text"]
             unsafe extern "C" fn load_check() {
@@ -638,7 +637,7 @@ impl<'k> Kernel<'k> {
                 )
             }
 
-            #[naked]
+            #[unsafe(naked)]
             #[no_mangle]
             #[link_section = ".kernel.text"]
             unsafe extern "C" fn load_for_app() {
@@ -650,7 +649,7 @@ impl<'k> Kernel<'k> {
                 )
             }
 
-            #[naked]
+            #[unsafe(naked)]
             #[no_mangle]
             #[link_section = ".kernel.text"]
             unsafe extern "C" fn load_for_kernel() {
@@ -664,7 +663,7 @@ impl<'k> Kernel<'k> {
 
             // Load registers if not _e_ extension
             #[cfg(target_feature = "e")]
-            #[naked]
+            #[unsafe(naked)]
             #[no_mangle]
             #[link_section = ".kernel.text"]
             unsafe extern "C" fn load_context() {
@@ -700,7 +699,7 @@ impl<'k> Kernel<'k> {
 
             // Load registers if not _e_ extension
             #[cfg(not(target_feature = "e"))]
-            #[naked]
+            #[unsafe(naked)]
             #[no_mangle]
             #[link_section = ".kernel.text"]
             unsafe extern "C" fn load_context() {
@@ -745,7 +744,7 @@ impl<'k> Kernel<'k> {
                 );
             }
 
-            #[naked]
+            #[unsafe(naked)]
             #[no_mangle]
             #[link_section = ".kernel.text"]
             unsafe extern "C" fn load_finish() {
@@ -767,7 +766,7 @@ impl<'k> Kernel<'k> {
                 )
             }
 
-            #[naked]
+            #[unsafe(naked)]
             #[no_mangle]
             #[link_section = ".kernel.text"]
             unsafe extern "C" fn load_finish_for_app() {
@@ -778,7 +777,7 @@ impl<'k> Kernel<'k> {
                 )
             }
 
-            #[naked]
+            #[unsafe(naked)]
             #[no_mangle]
             #[link_section = ".kernel.text"]
             unsafe extern "C" fn load_finish_for_app_to_main() {
@@ -799,7 +798,7 @@ impl<'k> Kernel<'k> {
                 )
             }
 
-            #[naked]
+            #[unsafe(naked)]
             #[no_mangle]
             #[link_section = ".kernel.text"]
             unsafe extern "C" fn load_finish_for_app_from_interrupt() {
@@ -817,7 +816,7 @@ impl<'k> Kernel<'k> {
                 )
             }
 
-            #[naked]
+            #[unsafe(naked)]
             #[no_mangle]
             #[link_section = ".kernel.text"]
             unsafe extern "C" fn load_finish_for_kernel() {
@@ -837,7 +836,7 @@ impl<'k> Kernel<'k> {
         }
     }
 
-    #[naked]
+    #[unsafe(naked)]
     #[no_mangle]
     #[link_section = ".kernel.text.handler"]
     unsafe extern "C" fn handler() {
@@ -860,7 +859,7 @@ impl<'k> Kernel<'k> {
         )
     }
 
-    #[naked]
+    #[unsafe(naked)]
     #[no_mangle]
     #[link_section = ".kernel.text"]
     unsafe extern "C" fn handle_mcause() {
@@ -889,14 +888,14 @@ impl<'k> Kernel<'k> {
             "
         );
 
-        #[naked]
+        #[unsafe(naked)]
         #[no_mangle]
         #[link_section = ".kernel.text"]
         unsafe extern "C" fn handle_loop() {
             naked_asm!("j handle_loop;");
         }
 
-        #[naked]
+        #[unsafe(naked)]
         #[no_mangle]
         #[link_section = ".kernel.text"]
         unsafe extern "C" fn handle_int() {
@@ -912,7 +911,7 @@ impl<'k> Kernel<'k> {
             );
         }
 
-        #[naked]
+        #[unsafe(naked)]
         #[no_mangle]
         #[link_section = ".kernel.text"]
         unsafe extern "C" fn user_ecall() {
@@ -927,7 +926,7 @@ impl<'k> Kernel<'k> {
             );
         }
 
-        #[naked]
+        #[unsafe(naked)]
         #[no_mangle]
         #[link_section = ".kernel.text"]
         unsafe extern "C" fn handle_syscall() {
@@ -939,14 +938,14 @@ impl<'k> Kernel<'k> {
             );
         }
 
-        #[naked]
+        #[unsafe(naked)]
         #[no_mangle]
         #[link_section = ".kernel.text"]
         unsafe extern "C" fn user_ecall_int() {
             naked_asm!("call load_context;");
         }
 
-        #[naked]
+        #[unsafe(naked)]
         #[no_mangle]
         #[link_section = ".kernel.text"]
         unsafe extern "C" fn return_handler() {

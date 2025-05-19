@@ -2,11 +2,11 @@
 #![no_main]
 #![allow(elided_named_lifetimes)]
 #![allow(static_mut_refs)]
-#![feature(naked_functions)]
 #![feature(stmt_expr_attributes)]
 #![feature(ascii_char)]
 #![feature(concat_bytes)]
 #![feature(fn_align)]
+#![feature(naked_functions_rustic_abi)]
 
 use core::arch::{asm, global_asm};
 

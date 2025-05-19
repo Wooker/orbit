@@ -5,6 +5,13 @@
 Exokernel-based distributed operating system for microcontrollers
 </div>
 
+# Rust version
+Use `rustc` version `1.89.0-nightly`.
+```
+  $ rustc -V
+  rustc 1.89.0-nightly (4d051fb30 2025-05-18)
+```
+
 # How to build
 
 Orbit uses `bin` alias as main build command. It takes chip name as argument.
