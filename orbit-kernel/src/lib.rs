@@ -1,6 +1,6 @@
 #![no_std]
 #![no_main]
-#![allow(elided_named_lifetimes)]
+#![allow(mismatched_lifetime_syntaxes)]
 #![allow(static_mut_refs)]
 #![feature(stmt_expr_attributes)]
 #![feature(ascii_char)]
