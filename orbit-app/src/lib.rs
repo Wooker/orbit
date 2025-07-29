@@ -1,7 +1,6 @@
 #![no_std]
 #![no_main]
 #![allow(static_mut_refs)]
-#![feature(naked_functions)]
 
 pub mod application;
 pub mod service;
