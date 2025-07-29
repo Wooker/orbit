@@ -35,7 +35,7 @@ pub struct Config {
     pub parity: Parity,
 }
 impl Default for Config {
-    #[repr(align(4))]
+    #[rustc_align(4)]
     #[inline(never)]
     #[link_section = ".kernel.text"]
     fn default() -> Self {
@@ -54,7 +54,7 @@ pub struct Uart<'a> {
 }
 
 impl<'a> Uart<'a> {
-    #[repr(align(4))]
+    #[rustc_align(4)]
     #[inline(never)]
     #[link_section = ".kernel.text"]
     pub fn new(uart: &'a PortPeripheral, kind: impl ConfigureGPIO, config: Config) -> Self {
@@ -100,7 +100,7 @@ impl<'a> Uart<'a> {
         Self { uart }
     }
 
-    #[repr(align(4))]
+    #[rustc_align(4)]
     #[inline(never)]
     #[link_section = ".kernel.text"]
     pub fn blocking_write(&mut self, buf: &[u8]) {
@@ -116,7 +116,7 @@ impl<'a> Uart<'a> {
         // });
     }
 
-    #[repr(align(4))]
+    #[rustc_align(4)]
     #[inline(never)]
     #[link_section = ".kernel.text"]
     pub fn blocking_write_char(&mut self, c: u8) {
@@ -128,7 +128,7 @@ impl<'a> Uart<'a> {
         }
     }
 
-    #[repr(align(4))]
+    #[rustc_align(4)]
     #[inline(never)]
     #[link_section = ".kernel.text"]
     pub fn read(&mut self) -> u8 {
@@ -139,14 +139,14 @@ impl<'a> Uart<'a> {
         val
     }
 
-    #[repr(align(4))]
+    #[rustc_align(4)]
     #[inline(never)]
     #[link_section = ".kernel.text"]
     pub fn status(&mut self) -> u32 {
         self.uart.statr.read().bits()
     }
 
-    #[repr(align(4))]
+    #[rustc_align(4)]
     #[inline(never)]
     #[link_section = ".kernel.text"]
     pub fn clear_int(&mut self, bit: u8) {

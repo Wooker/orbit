@@ -16,7 +16,7 @@ pub struct RingBuf<const SIZE: usize, T: TraitBound> {
 }
 
 impl<const SIZE: usize, T: TraitBound> RingBuf<SIZE, T> {
-    #[repr(align(4))]
+    #[rustc_align(4)]
     #[inline(never)]
     #[link_section = ".kernel.text"]
     pub fn new(termination: T) -> Self {
@@ -29,7 +29,7 @@ impl<const SIZE: usize, T: TraitBound> RingBuf<SIZE, T> {
         }
     }
 
-    #[repr(align(4))]
+    #[rustc_align(4)]
     #[inline(never)]
     #[link_section = ".kernel.text"]
     pub fn push(&mut self, value: T) {
@@ -40,7 +40,7 @@ impl<const SIZE: usize, T: TraitBound> RingBuf<SIZE, T> {
         }
     }
 
-    #[repr(align(4))]
+    #[rustc_align(4)]
     #[inline(never)]
     #[link_section = ".kernel.text"]
     pub fn read(&mut self) -> Option<&[T]> {
@@ -54,7 +54,7 @@ impl<const SIZE: usize, T: TraitBound> RingBuf<SIZE, T> {
         }
     }
 
-    #[repr(align(4))]
+    #[rustc_align(4)]
     #[inline(never)]
     #[link_section = ".kernel.text"]
     pub fn flush(&mut self) {
@@ -62,7 +62,7 @@ impl<const SIZE: usize, T: TraitBound> RingBuf<SIZE, T> {
         self.end = 0;
     }
 
-    #[repr(align(4))]
+    #[rustc_align(4)]
     #[inline(never)]
     #[link_section = ".kernel.text"]
     pub(super) fn at(&self, index: usize) -> T {
