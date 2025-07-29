@@ -144,7 +144,6 @@ pub fn orbit_app(attr: TokenStream, item: TokenStream) -> TokenStream {
             port::{RINGBUF_SIZE, RingbufType, ringbuf::RingBuf, message::Message},
         };
 
-        #[used]
         #[unsafe(no_mangle)]
         #[unsafe(link_section=concat!(".", #app_name, ".bss.struct"))]
         static mut #static_name: MaybeUninit<#struct_name #ty_static_generics> = MaybeUninit::uninit();

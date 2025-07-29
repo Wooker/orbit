@@ -27,7 +27,7 @@ feature_mod!("ch32x035", pub, blinky_x035);
 #[macro_export]
 macro_rules! app_stack {
     ($size:expr, $app_name:expr) => {
-        #[used]
+        #[allow(unused)]
         #[link_section = concat!(".", $app_name, ".bss")]
         pub static mut STACK: [usize; $size] = [0; $size];
     };
