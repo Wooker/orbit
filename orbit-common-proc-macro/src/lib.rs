@@ -46,8 +46,26 @@ pub fn orbit_app(attr: TokenStream, item: TokenStream) -> TokenStream {
 
     let static_name = format_ident!("{}", struct_name.to_string().to_uppercase());
 
+    let existing_fields_default = match struct_item.fields {
+        Fields::Named(ref fields_named) => fields_named.named.iter().map(|f| {
+            let name = f.ident.as_ref().expect("Expected named field");
+            let ty = &f.ty;
+            quote! {
+                #name: <#ty>::default()
+            }
+        }),
+        _ => {
+            return syn::Error::new_spanned(
+                struct_item.fields.clone(),
+                "Only structs with named fields are supported",
+            )
+            .to_compile_error()
+            .into();
+        }
+    };
+
     let existing_fields = match struct_item.fields {
-        Fields::Named(fields_named) => fields_named.named,
+        Fields::Named(ref fields_named) => &fields_named.named,
         _ => {
             return syn::Error::new_spanned(
                 struct_item.fields.clone(),
@@ -65,61 +83,20 @@ pub fn orbit_app(attr: TokenStream, item: TokenStream) -> TokenStream {
             #lower: MaybeUninit<Claimed<'static, #i>>,
         }
     });
-
-    let app_text_start = Ident::new(
-        &format!("_app_{}_text_start", app_name.value()),
-        struct_name.span(),
-    );
-    let app_text_end = Ident::new(
-        &format!("_app_{}_text_end", app_name.value()),
-        struct_name.span(),
-    );
-    let app_bss_start = Ident::new(
-        &format!("_app_{}_bss_start", app_name.value()),
-        struct_name.span(),
-    );
-    let app_bss_end = Ident::new(
-        &format!("_app_{}_bss_end", app_name.value()),
-        struct_name.span(),
-    );
-    let app_text_main = Ident::new(
-        &format!("_app_{}_text_main", app_name.value()),
-        struct_name.span(),
-    );
-    let app_bss_struct = Ident::new(
-        &format!("_app_{}_bss_struct", app_name.value()),
-        struct_name.span(),
-    );
+    let peripherals_default = args.iter().map(|i| {
+        let lower = format_ident!("{}", i.to_string().to_lowercase());
+        quote! {
+            #lower: MaybeUninit::uninit()
+        }
+    });
 
     let _init = quote! {
         #[inline(never)]
         #[unsafe(link_section = concat!(".", #app_name, ".text"))]
         pub fn _init(&mut self) {
-            unsafe extern "C" {
-                static #app_text_start: usize;
-                static #app_text_end: usize;
-                static #app_bss_start: usize;
-                static #app_bss_end: usize;
-                static #app_text_main: usize;
-                static #app_bss_struct: usize;
-            }
-
-            let provides = unsafe {
-                &#app_text_end as *const usize as usize
-                    | &#app_text_start as *const usize as usize
-                    | &#app_text_end as *const usize as usize
-                    | &#app_bss_start as *const usize as usize
-                    | &#app_bss_end as *const usize as usize
-                    | &#app_text_main as *const usize as usize
-                    | &#app_bss_struct as *const usize as usize
-            };
-
             self.context = Context::new();
-            self.context.t0 = provides;
-            compiler_fence(core::sync::atomic::Ordering::SeqCst);
-
             self.context.t0 = 0;
-            self.context.sp = unsafe { STACK.last().unwrap_unchecked() as *const usize as usize + 0x4 };
+            self.context.sp = self as *const Self as usize + core::mem::size_of::<Self>() + Self::stack_size();
             self.context.gp = &self.context as *const Context as usize;
             self.context.ra = Self::ecall as *const fn() as usize;
 
@@ -151,13 +128,21 @@ pub fn orbit_app(attr: TokenStream, item: TokenStream) -> TokenStream {
         #[repr(C,align(4))]
         #(#attributes)*
         pub struct #struct_name #ty_generics {
-            pub context: Context,
+            context: Context,
             pub _buf: RingBuf<RINGBUF_SIZE, RingbufType>,
             #existing_fields
             #(#peripherals)*
         }
 
         impl #impl_generics #struct_name #ty_generics {
+            pub fn new() -> Self {
+                Self {
+                    context: Context::new(),
+                    _buf: RingBuf::new(0),
+                    #(#existing_fields_default),*
+                    #(#peripherals_default),*
+                }
+            }
             #_init
         }
 
@@ -178,6 +163,12 @@ pub fn orbit_app(attr: TokenStream, item: TokenStream) -> TokenStream {
             #[unsafe(link_section = concat!(".", #app_name, ".text"))]
             fn context(&self) -> Context {
                 self.context
+            }
+
+            #[inline(always)]
+            #[unsafe(link_section = concat!(".", #app_name, ".text"))]
+            fn stack_size() -> usize{
+                stack_size
             }
 
             #[unsafe(naked)]
@@ -270,52 +261,60 @@ pub fn orbit_main_attribute(attr: TokenStream, _item: TokenStream) -> TokenStrea
     let attr_args = parse_macro_input!(attr as OrbitMainArgs);
     let args: Vec<Ident> = attr_args.structs.into_iter().collect();
 
-    let statics = args
-        .iter()
-        .map(|s| {
-            let struct_upper = format_ident!("{}", s.to_string().to_uppercase());
-            quote! {
-                static mut #struct_upper: #s;
-            }
-        })
-        .collect::<Vec<proc_macro2::TokenStream>>();
-
     let inits = args
         .iter()
         .enumerate()
         .map(|(i, s)| {
-            let struct_upper = format_ident!("{}", s.to_string().to_uppercase());
             let struct_lower = format_ident!("{}", s.to_string().to_lowercase());
+            let struct_lower_ptr = format_ident!("{}_ptr", struct_lower);
             quote! {
-                #struct_upper.init();
-                KERNEL.add_application(
+                let #struct_lower_ptr = next_addr as *mut MaybeUninit<#s>;
+                unsafe {
+                    (*#struct_lower_ptr).as_mut_ptr().write(
+                        #s::new()
+                    )
+                };
+                let #struct_lower = unsafe { &mut *(*(#struct_lower_ptr)).assume_init_mut() };
+                #struct_lower.init();
+                kernel.add_application(
                     #i,
                     stringify!(#struct_lower),
-                    unsafe { &#struct_upper as *const #s as usize },
+                    next_addr, //unsafe { &#s as *const #s as usize },
                     #s::main as usize,
                     #s::interrupt as usize,
-                    unsafe { &mut (&mut #struct_upper).context as *mut _ },
+                    unsafe { &mut (#struct_lower).context() as *mut _ },
                     // #struct_upper.buf(),
-                    unsafe { &mut (&mut #struct_upper)._buf as *mut _ },
+                    unsafe { &mut (#struct_lower)._buf as *mut _ },
                 );
+                next_addr += core::mem::size_of::<#s>() + #s::stack_size();
             }
         })
         .collect::<Vec<proc_macro2::TokenStream>>();
 
     let expanded = quote! {
-        unsafe extern "Rust" {
-            static mut KERNEL: Kernel<'static>;
-            #(#statics)*
+        use core::mem::MaybeUninit;
+        use orbit_kernel::application::Context;
+        use orbit_kernel::port::ringbuf::RingBuf;
+
+        unsafe extern "C" {
+            static _kernel_start: usize;
         }
 
         #[unsafe(no_mangle)]
         #[unsafe(link_section = ".text.bin")]
         unsafe fn main() {
-            KERNEL.clock.freeze();
+            let kernel_ptr = unsafe { &_kernel_start as *const usize as *mut MaybeUninit<Kernel> };
+            unsafe { (*kernel_ptr).as_mut_ptr().write(Kernel::new()) };
+            let kernel = unsafe { &mut *(*kernel_ptr).assume_init_mut() };
+
+            // Use `kernel` as a `&mut Kernel` here
+            kernel.clock.freeze();
+
+            let mut next_addr = kernel_ptr as usize + core::mem::size_of::<Kernel>();
 
             #(#inits)*
 
-            KERNEL.initialize();
+            kernel.initialize();
         }
     };
 
@@ -382,10 +381,7 @@ pub fn define_ports(input: TokenStream) -> TokenStream {
         pub struct PortInterruptTable(pub [(*const PortPeripheral, usize, PortKinds); PORT_NUM]);
         unsafe impl Sync for PortInterruptTable {}
 
-        #[used]
-        #[unsafe(no_mangle)]
-        #[unsafe(link_section = ".kernel.bss")]
-        pub static PORT_INTERRUPTS: PortInterruptTable =
+        pub const PORT_INTERRUPTS: PortInterruptTable =
             PortInterruptTable([#(#ptrs),*]);
     };
 

@@ -30,11 +30,6 @@ pub static KERNEL_MAJOR: u8 = 0;
 #[link_section = ".kernel.rodata"]
 pub static KERNEL_MINOR: u8 = 1;
 
-#[used]
-#[no_mangle]
-#[link_section = ".kernel.bss"]
-pub static mut KERNEL: MaybeUninit<Kernel> = MaybeUninit::uninit();
-
 #[repr(C, align(4))]
 pub struct Kernel<'k> {
     context: Context,
@@ -206,6 +201,7 @@ impl<'k> Kernel<'k> {
     pub fn interrupt_handler(&mut self) -> RunApplication {
         let code = orbit_arch::riscv::register::mcause::read().code();
 
+        // Check if it's a port interrupt
         if let Some((index, _)) = PORT_INTERRUPTS
             .0
             .iter()
@@ -216,6 +212,7 @@ impl<'k> Kernel<'k> {
             // is invoked
             self.port_handler(index)
         } else {
+            // TODO: invoke app interrupt
             RunApplication::None
         }
     }

@@ -22,7 +22,6 @@ SECTIONS
 
     .kernel.stack ORIGIN(RAM) + LENGTH(RAM) : ALIGN(4)
     {
-        *(.kernel.stack);
         PROVIDE( _stack_top = .);
     } >RAM
 }

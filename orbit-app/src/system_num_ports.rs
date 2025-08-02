@@ -3,7 +3,7 @@ use orbit_kernel::syscall::SysCall;
 
 use crate::{app_stack, syscall};
 
-app_stack!(32, "systemnumports");
+app_stack!(64, "systemnumports");
 
 #[orbit_app()]
 pub struct SystemNumPorts {}

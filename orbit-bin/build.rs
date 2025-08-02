@@ -36,14 +36,13 @@ fn link_script_from_feature(feature: &String, script_name: &str) -> Vec<u8> {
     buf
 }
 
-fn write_linker_script(out: &PathBuf, name: String, flash: bool) {
-    let (content, dest_path) = if flash == true {
-        (
-            format!(
-                "
+fn write_linker_script(out: &PathBuf, name: String) {
+    let (content, dest_path) = (
+        format!(
+            "
 SECTIONS
 {{
-    .text.apps.{0} : ALIGN(4)
+    .apps.{0}.text : ALIGN(4)
     {{
         PROVIDE( _app_{0}_text_start = .);
         *(.{0}.text)
@@ -64,39 +63,10 @@ SECTIONS
     }} >FLASH
 }}
 ",
-                name
-            ),
-            Path::new(&out).join(format!("app-{}-flash-link.x", name)),
-        )
-    } else {
-        (
-            format!(
-                "
-SECTIONS
-{{
-    .bss.apps.{0} : ALIGN(4)
-    {{
-        PROVIDE( _app_{0}_bss_start = .);
-        . = ALIGN(4);
-        PROVIDE( _app_{0}_bss_struct = .);
-        *(.{0}.bss.struct);
-
-        *(.{0}.bss);
-        PROVIDE( _app_{0}_bss_end = .);
-    }} >RAM AT>FLASH
-
-    .stack.apps.{0} : ALIGN(4)
-    {{
-        *(.{0}.stack);
-        PROVIDE( _{0}_stack_top = .);
-    }} >RAM AT>FLASH
-}}
-",
-                name
-            ),
-            Path::new(&out).join(format!("app-{}-ram-link.x", name)),
-        )
-    };
+            name
+        ),
+        Path::new(&out).join(format!("app-{}-flash-link.x", name)),
+    );
     write(dest_path, content).expect("Failed to write to applicatoin linker script");
 }
 
@@ -166,8 +136,7 @@ fn main() {
                 .collect::<Vec<String>>();
             p!("Apps: {:?}", names);
             for name in names {
-                write_linker_script(app_out, name.clone(), true);
-                write_linker_script(app_out, name, false);
+                write_linker_script(app_out, name.clone());
             }
         } else {
             p!("Apps empty: []");

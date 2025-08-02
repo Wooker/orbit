@@ -8,6 +8,7 @@ where
 impl TraitBound for u8 {}
 
 #[derive(Clone, Copy)]
+#[repr(C)]
 pub struct RingBuf<const SIZE: usize, T: TraitBound> {
     pub start: usize,
     pub end: usize,

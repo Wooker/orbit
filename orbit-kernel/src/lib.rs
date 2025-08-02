@@ -55,7 +55,7 @@ _start:
     "la ra, initialize_finish",
     // Set mscratch
     "
-    la gp, _kernel_struct;
+    la gp, _kernel_start;
     csrw mscratch, gp;
     ",
     // Set mtvec
