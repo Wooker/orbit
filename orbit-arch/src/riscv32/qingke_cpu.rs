@@ -11,6 +11,8 @@ use qingke::riscv::{
     result::{Error as RiscvError, Result},
 };
 
+pub use qingke::riscv::asm::delay;
+
 #[cfg(feature = "qingke_v4")]
 pub const PMP: usize = 4;
 

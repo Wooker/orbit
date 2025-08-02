@@ -5,7 +5,7 @@
 pub mod application;
 pub mod service;
 
-use orbit_common::feature_mod;
+use orbit_common::{app_stack, feature_mod};
 use orbit_kernel::kernel::Kernel;
 
 #[allow(unsafe_code)]
@@ -23,15 +23,6 @@ feature_mod!("ch32v003", pub, blinky_v003);
 feature_mod!("ch32x035", pub, blinky_x035);
 
 /// Macros
-
-#[macro_export]
-macro_rules! app_stack {
-    ($size:expr, $app_name:expr) => {
-        #[allow(unused)]
-        #[link_section = concat!(".", $app_name, ".bss")]
-        pub static mut STACK: [usize; $size] = [0; $size];
-    };
-}
 
 #[macro_export]
 macro_rules! syscall {

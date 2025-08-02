@@ -64,3 +64,10 @@ macro_rules! feature_mod_use_mutual {
         }
     };
 }
+
+#[macro_export]
+macro_rules! app_stack {
+    ($size:expr, $app_name:expr) => {
+        const stack_size: usize = $size;
+    };
+}

@@ -6,7 +6,7 @@ pub use qingke::*;
 #[cfg(any(feature = "qingke_v4", feature = "qingke_v2"))]
 mod qingke_cpu;
 #[cfg(any(feature = "qingke_v4", feature = "qingke_v2"))]
-pub use qingke_cpu::{Core, PMP};
+pub use qingke_cpu::{delay, Core, PMP};
 // #[cfg(any(feature = "qingke_v4", feature = "qingke_v2"))]
 // pub use qingke_rt::entry;
 

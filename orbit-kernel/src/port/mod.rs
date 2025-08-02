@@ -1,6 +1,5 @@
 #![allow(unused)]
 
-use crate::kernel::KERNEL;
 use chip::PortPeripheral;
 use orbit_arch::interface::timer::Timer;
 use orbit_common::{feature_mod_use, feature_mod_use_mutual};
@@ -71,7 +70,7 @@ impl<'p> Port<'p> {
         for i in 5..=9 {
             self.peripheral.clear_int(i);
         }
-        unsafe { KERNEL.assume_init_read().core.timer.delay(250) };
+        orbit_arch::delay(250);
     }
 
     #[inline(never)]

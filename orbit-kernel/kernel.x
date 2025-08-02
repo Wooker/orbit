@@ -2,7 +2,7 @@ ENTRY(_start)
 
 SECTIONS
 {
-    .text.kernel : ALIGN(4)
+    .kernel.text : ALIGN(4)
     {
         /* *(.vector_table.interrupts); */
         /* . = 0x3fc; */
@@ -47,10 +47,9 @@ SECTIONS
 
     .kernel.bss : ALIGN(4)
     {
-        PROVIDE( _kernel_struct = .);
-        *(.kernel.bss);
-        *(.bss .bss.*);
-        *(.sbss .sbss.*);
+        *(.bss.* .sbss.*);
+        *(.kernel.ports.bss);
+        . = ALIGN(4);
+        PROVIDE( _kernel_start = .);
     } >RAM AT>FLASH
-
 }
