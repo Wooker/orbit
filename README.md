@@ -6,10 +6,10 @@ Exokernel-based distributed operating system for microcontrollers
 </div>
 
 # Rust version
-Use `rustc` version `1.89.0-nightly`.
+Use `rustc` version `1.91.0-nightly`.
 ```
   $ rustc -V
-  rustc 1.89.0-nightly (4d051fb30 2025-05-18)
+  rustc 1.91.0-nightly (0060d5a2a 2025-08-04)
 ```
 
 # How to build
