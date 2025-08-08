@@ -16,6 +16,7 @@ SECTIONS
         *(.kernel.text.setup_event_loop);
 
         . = ALIGN(4);
+        PROVIDE( _handler = .);
         *(.kernel.text.handler);
 
         . = ALIGN(4);

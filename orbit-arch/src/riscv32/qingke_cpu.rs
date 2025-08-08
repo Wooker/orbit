@@ -24,9 +24,11 @@ pub struct Core<const PMP: usize> {
     pub timer: CoreClock,
 }
 impl<const PMP: usize> Core<PMP> {
-    pub const fn new() -> Self {
+    pub fn new() -> Self {
+        let mut pmp = RiscvPmp {};
+        pmp.default();
         Self {
-            pmp: RiscvPmp {},
+            pmp,
             timer: CoreClock::new(10),
         }
     }

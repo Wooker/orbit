@@ -292,9 +292,11 @@ pub fn orbit_main_attribute(attr: TokenStream, _item: TokenStream) -> TokenStrea
         .collect::<Vec<proc_macro2::TokenStream>>();
 
     let expanded = quote! {
-        use core::mem::MaybeUninit;
+        use core::{arch::asm,mem::MaybeUninit};
+
         use orbit_kernel::application::Context;
         use orbit_kernel::port::ringbuf::RingBuf;
+        use orbit_kernel::arch;
 
         unsafe extern "C" {
             static _kernel_start: usize;
@@ -307,14 +309,12 @@ pub fn orbit_main_attribute(attr: TokenStream, _item: TokenStream) -> TokenStrea
             unsafe { (*kernel_ptr).as_mut_ptr().write(Kernel::new()) };
             let kernel = unsafe { &mut *(*kernel_ptr).assume_init_mut() };
 
-            // Use `kernel` as a `&mut Kernel` here
-            kernel.clock.freeze();
-
             let mut next_addr = kernel_ptr as usize + core::mem::size_of::<Kernel>();
 
             #(#inits)*
 
-            kernel.initialize();
+            arch::riscv::register::mscratch::write(kernel as *mut Kernel as usize);
+            unsafe { asm!("csrr gp, mscratch") };
         }
     };
 

@@ -8,6 +8,7 @@ pub enum ClaimError {
 pub trait Claimable {}
 
 pub trait Claim<'p, P: Claimable> {
+    #[inline(never)]
     fn claim(&'p mut self) -> Result<Claimed<P>, ClaimError>;
 }
 
@@ -59,10 +60,11 @@ macro_rules! impl_claim {
             impl Claimable for $field {}
             #[cfg(feature = $chip)]
             impl<'k, 'p> Claim<'p, $field> for Kernel<'k> {
+                #[inline(never)]
                 fn claim(&'p mut self) -> Result<Claimed<$field>, ClaimError> {
-                    let peripherals = unsafe { self.peripherals.assume_init_mut() };
+                    // let peripherals = unsafe { self.peripherals.assume_init_mut() };
                     if 1 == 1 { // Replace with actual condition for checking claim status
-                        Ok(Claimed::new(&mut peripherals.$field))
+                        Ok(Claimed::new(&mut self.peripherals.$field))
                     } else {
                         Err(ClaimError::AlreadyClaimed)
                     }

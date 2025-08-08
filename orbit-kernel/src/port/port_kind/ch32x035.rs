@@ -6,10 +6,10 @@ use orbit_common_proc_macro::define_ports;
 
 use crate::port::ConfigureGPIO;
 
-// USART1 = 32
-// USART2 = 39
-// USART3 = 42
-// USART4 = 43
+/// USART1 = 32
+/// USART2 = 39
+/// USART3 = 42
+/// USART4 = 43
 define_ports!(USART2 = 39);
 
 #[derive(Clone, Copy)]

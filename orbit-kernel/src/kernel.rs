@@ -4,7 +4,7 @@ use core::{
 };
 
 use chip::pac::Peripherals;
-use orbit_arch::{interface::pmp::Pmp, riscv::register::mtvec, Core, PMP};
+use orbit_arch::{interface::pmp::Pmp, Core, PMP};
 
 use crate::{
     application::{AppContainer, Context, PmpEntry, RunApplication},
@@ -35,24 +35,56 @@ pub struct Kernel<'k> {
     context: Context,
     apps: [MaybeUninit<AppContainer<'k, PMP>>; APPS],
     running: Option<usize>,
-    ports: [MaybeUninit<Port<'k>>; PORT_NUM],
-    pub(crate) peripherals: MaybeUninit<Peripherals>,
+    ports: [Port<'k>; PORT_NUM],
+    pub(crate) peripherals: Peripherals,
     pub core: Core<PMP>,
     pub clock: Clocks,
 }
 
 impl<'k> Kernel<'k> {
     #[link_section = ".kernel.text"]
-    pub const fn new() -> Self {
+    pub fn new() -> Self {
+        // Enable clocks
+        let mut clock = Clocks::default();
+        clock.freeze();
+
+        // Initialize ports
+        let ports: [Port; PORT_NUM] = core::array::from_fn(|i| {
+            let (ptr, interrupt, kind) = PORT_INTERRUPTS.0[i];
+            unsafe {
+                orbit_arch::pfic::enable_interrupt(interrupt as u8);
+            }
+            Port::new(unsafe { &*ptr }, kind)
+        });
+
+        // Initialize context
+        let context = Context::new();
+        // context.ra = Self::wait as *const fn() as usize;
+
+        // Save trap handler
+        unsafe {
+            crate::arch::riscv::register::mtvec::write(
+                Self::handler as *const fn() as usize,
+                crate::arch::riscv::register::mtvec::TrapMode::Direct,
+            )
+        };
+
         Self {
-            context: Context::new(),
-            peripherals: { MaybeUninit::<Peripherals>::uninit() },
+            context,
+            peripherals: unsafe { Peripherals::steal() },
             core: Core::new(),
-            ports: [MaybeUninit::<Port>::uninit(); PORT_NUM],
+            ports,
             apps: [MaybeUninit::uninit(); APPS],
-            clock: Clocks::default(),
+            clock,
             running: None,
         }
+    }
+
+    #[inline(always)]
+    #[link_section = ".kernel.text"]
+    pub fn instance<'f>() -> *mut Kernel<'f> {
+        let addr = crate::arch::riscv::register::mscratch::read();
+        addr as *mut Kernel
     }
 
     #[inline(never)]
@@ -111,12 +143,9 @@ impl<'k> Kernel<'k> {
         let awaiting = self
             .ports
             .iter()
-            .filter_map(|p| {
-                let port = unsafe { p.assume_init_read() };
-                port.awaiting.then(|| port)
-            })
+            .filter_map(|port| port.awaiting.then(|| port))
             .count();
-        let port = unsafe { self.ports[i].assume_init_mut() };
+        let port = &mut self.ports[i];
         if let Some(mut action) = port.handle() {
             if port.msg > 0 {
                 port.write_str(&[Message::Busy.into(), 0]);
@@ -267,24 +296,18 @@ impl<'k> Kernel<'k> {
                 SysCall::Return => {
                     orbit_arch::riscv::register::mepc::write(Self::wait as *const fn() as usize);
                     self.context.a1 = 0;
-                    // Write application output
-                    // let port = unsafe { self.ports.iter_mut().filter_map(0).assume_init_mut() };
 
                     if let Some(port) = self
                         .ports
                         .iter_mut()
-                        .filter_map(|p| {
-                            let port = unsafe { p.assume_init_mut() };
-                            port.msg.ne(&0usize).then(|| port)
-                        })
+                        .filter_map(|port| port.msg.ne(&0usize).then(|| port))
                         .nth(0)
                     {
                         if let Some(output) = app_cont.buf().read() {
                             port.write_str(output);
                         }
                     }
-                    self.ports.iter_mut().for_each(|p| {
-                        let port = unsafe { p.assume_init_mut() };
+                    self.ports.iter_mut().for_each(|port| {
                         port.msg = 0;
                     });
                 }
@@ -297,10 +320,11 @@ impl<'k> Kernel<'k> {
                 }
                 SysCall::SendAll => {
                     if let Some(info) = app_cont.buf().read() {
-                        for port in self.ports.iter_mut().filter_map(|p| {
-                            let port = unsafe { p.assume_init_mut() };
-                            port.msg.eq(&0usize).then(|| port)
-                        }) {
+                        for port in self
+                            .ports
+                            .iter_mut()
+                            .filter_map(|port| port.msg.eq(&0usize).then(|| port))
+                        {
                             port.write_str(info);
                             port.awaiting = true;
                         }
@@ -329,10 +353,11 @@ impl<'k> Kernel<'k> {
                     // app_cont.buf().push(b'\0');
                 }
                 _ => {
-                    for port in self.ports.iter_mut().filter_map(|p| {
-                        let port = unsafe { p.assume_init_mut() };
-                        port.msg.eq(&0usize).then(|| port)
-                    }) {
+                    for port in self
+                        .ports
+                        .iter_mut()
+                        .filter_map(|port| port.msg.eq(&0usize).then(|| port))
+                    {
                         let start = app_cont.buf().start;
                         let end = app_cont.buf().end;
                         port.write_str(&[start as u8, end as u8, syscall.discriminant() as u8]);
@@ -417,46 +442,6 @@ impl<'k> Kernel<'k> {
             mret;
             "
         );
-    }
-
-    #[inline(never)]
-    #[link_section = ".kernel.text"]
-    pub fn initialize(&mut self) {
-        // self.clock.freeze();
-        self.peripherals.write(unsafe { Peripherals::steal() });
-
-        for p in 0..PORT_NUM {
-            let ptr = PORT_INTERRUPTS.0[p].0;
-            let interrupt = PORT_INTERRUPTS.0[p].1;
-            let kind = PORT_INTERRUPTS.0[p].2;
-            unsafe {
-                orbit_arch::pfic::enable_interrupt(interrupt as u8);
-            }
-            self.ports[p].write(Port::new(unsafe { &*(ptr) }, kind));
-        }
-
-        self.core.pmp.default();
-        self.running = None;
-        self.context = Context::new();
-        self.context.ra = Self::wait as *const fn() as usize;
-
-        // Save kernel context to mscratch
-        orbit_arch::riscv::register::mscratch::write(&self.context as *const Context as usize);
-
-        unsafe {
-            // Set gp
-            asm!("csrr gp, mscratch");
-            // Save trap handler
-            mtvec::write(
-                Self::handler as *const fn() as usize,
-                mtvec::TrapMode::Direct,
-            );
-
-            // TODO: Move to port init
-            // Enable UART4 interrupt
-            #[cfg(feature = "ch32x035")]
-            orbit_arch::pfic::enable_interrupt(32);
-        }
     }
 
     #[unsafe(naked)]
