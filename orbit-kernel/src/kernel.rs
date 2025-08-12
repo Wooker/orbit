@@ -7,7 +7,7 @@ use chip::pac::Peripherals;
 use orbit_arch::{interface::pmp::Pmp, Core, PMP};
 
 use crate::{
-    application::{AppContainer, Context, PmpEntry, RunApplication},
+    application::{AppContainer, Application, Context, PmpEntry, RunApplication},
     clock::Clocks,
     port::{
         message::Message,
@@ -82,9 +82,9 @@ impl<'k> Kernel<'k> {
 
     #[inline(always)]
     #[link_section = ".kernel.text"]
-    pub fn instance<'f>() -> *mut Kernel<'f> {
-        let addr = crate::arch::riscv::register::mscratch::read();
-        addr as *mut Kernel
+    pub unsafe fn instance<'f>() -> &'f mut Kernel<'f> {
+        let kernel_ptr = crate::arch::riscv::register::mscratch::read() as *mut Kernel;
+        kernel_ptr.as_mut().unwrap_unchecked()
     }
 
     #[inline(never)]
@@ -99,21 +99,20 @@ impl<'k> Kernel<'k> {
         &mut self,
         index: usize,
         name: &'k str,
-        app_struct: usize,
-        app_main_addr: usize,
-        app_interrupt_addr: usize,
-        context: *mut Context,
-        buf: *mut RingBuf<RINGBUF_SIZE, RingbufType>,
+        mut app: &mut impl Application,
+        addr: usize,
+        main: usize,
+        interrupt: usize,
     ) {
-        let app = unsafe { self.apps.get_unchecked_mut(index) };
-        app.write(AppContainer::new(
+        let app_i = unsafe { self.apps.get_unchecked_mut(index) };
+        app_i.write(AppContainer::new(
             name,
-            context,
-            buf,
+            &mut app.context() as *mut Context,
+            &mut *app.buf(),
+            addr,
+            main,
+            interrupt,
             [PmpEntry::default(); PMP],
-            app_struct,
-            app_main_addr,
-            app_interrupt_addr,
             [None; PMP], // peripherals,
         ));
     }
@@ -139,7 +138,7 @@ impl<'k> Kernel<'k> {
     #[inline(never)]
     #[no_mangle]
     #[link_section = ".kernel.text.port_handler"]
-    pub fn port_handler(&mut self, i: usize) -> RunApplication {
+    fn port_handler(&mut self, i: usize) -> RunApplication {
         let awaiting = self
             .ports
             .iter()
@@ -182,7 +181,7 @@ impl<'k> Kernel<'k> {
                             self.running = Some(app_index);
                             return RunApplication::Main;
                         } else {
-                            port.write_str(&[Message::Unknown.into(), 0]);
+                            port.write_str(&[Message::Unknown.into(), Message::Invoke as u8, 0]);
                         }
                     }
                     Message::Reply => {
@@ -207,7 +206,7 @@ impl<'k> Kernel<'k> {
                                 return RunApplication::Jumped;
                             }
                         } else {
-                            port.write_str(&[Message::Unknown.into(), 0]);
+                            port.write_str(&[Message::Unknown.into(), Message::Reply as u8, 0]);
                         }
                     }
                     Message::Busy => {
@@ -227,7 +226,7 @@ impl<'k> Kernel<'k> {
     #[inline(never)]
     #[no_mangle]
     #[link_section = ".kernel.text.interrupt_handler"]
-    pub fn interrupt_handler(&mut self) -> RunApplication {
+    fn interrupt_handler(&mut self) -> RunApplication {
         let code = orbit_arch::riscv::register::mcause::read().code();
 
         // Check if it's a port interrupt
@@ -284,7 +283,7 @@ impl<'k> Kernel<'k> {
     #[inline(never)]
     #[no_mangle]
     #[link_section = ".kernel.text.syscall_handler"]
-    pub fn syscall_handler(&mut self, syscall: SysCall) {
+    fn syscall_handler(&mut self, syscall: SysCall) {
         {
             let app_cont = unsafe {
                 self.apps

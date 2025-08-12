@@ -50,15 +50,23 @@ pub enum RunApplication {
     Abort,
 }
 
+pub trait Application {
+    fn main(&mut self);
+    fn stack_size() -> usize;
+    fn context(&mut self) -> Context;
+    fn buf(&mut self) -> &mut RingBuf<RINGBUF_SIZE, RingbufType>;
+    extern "C" fn ecall();
+}
+
 #[derive(Clone, Copy)]
 pub struct AppContainer<'a, const PMP_REGS: usize> {
     name: &'a str,
     context: *mut Context,
     buf: *mut RingBuf<RINGBUF_SIZE, RingbufType>,
-    pmp: [PmpEntry; PMP_REGS],
     app_struct: usize,
     app_main_addr: usize,
     app_interrupt_addr: usize,
+    pmp: [PmpEntry; PMP_REGS],
     peripherals: [Option<KernelPeripherals>; PMP_REGS],
 }
 
@@ -177,10 +185,10 @@ impl<'a, const PMP_REGS: usize> AppContainer<'a, PMP_REGS> {
         name: &'a str,
         context: *mut Context,
         buf: *mut RingBuf<RINGBUF_SIZE, RingbufType>,
-        pmp: [PmpEntry; PMP_REGS],
         app_struct: usize,
         app_main_addr: usize,
         app_interrupt_addr: usize,
+        pmp: [PmpEntry; PMP_REGS],
         peripherals: [Option<KernelPeripherals>; PMP_REGS],
     ) -> Self {
         // if PMP_REGS > 0 {
@@ -191,10 +199,10 @@ impl<'a, const PMP_REGS: usize> AppContainer<'a, PMP_REGS> {
             name,
             context,
             buf,
-            pmp,
             app_struct,
             app_main_addr,
             app_interrupt_addr,
+            pmp,
             peripherals,
         }
     }

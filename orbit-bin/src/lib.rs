@@ -8,7 +8,6 @@ macro_rules! orbit_main {
     ($($ident:ident),*) => {
         use orbit_common_proc_macro::orbit_main_attribute;
         use orbit_kernel::kernel::Kernel;
-        use orbit_app::application::Application;
 
         #[orbit_main_attribute($($ident,)*)]
         fn main() {

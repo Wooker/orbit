@@ -1,17 +1,10 @@
 #![no_std]
 #![no_main]
-#![allow(static_mut_refs)]
 
 pub mod application;
 pub mod service;
 
 use orbit_common::{app_stack, feature_mod};
-use orbit_kernel::kernel::Kernel;
-
-#[allow(unsafe_code)]
-unsafe extern "Rust" {
-    pub static mut KERNEL: Kernel<'static>;
-}
 
 pub mod calc;
 pub mod system_num_ports;

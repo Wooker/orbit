@@ -1,6 +1,6 @@
 use fugit::HertzU32 as Hertz;
 
-#[derive(Copy, Clone, Eq, PartialEq, Debug)]
+#[derive(Copy, Clone, Eq, PartialEq)]
 pub struct Clocks {
     pub hclk: Hertz,
 }

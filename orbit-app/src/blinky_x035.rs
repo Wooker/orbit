@@ -1,7 +1,9 @@
 use orbit_common_proc_macro::{app_init, app_interrupt, app_main, orbit_app};
-use orbit_kernel::{arch::interface::timer::Timer, chip::pac::GPIOB};
+use orbit_kernel::chip::pac::GPIOB;
 
-use crate::{app_stack, KERNEL};
+use crate::app_stack;
+
+use orbit_kernel::arch;
 
 app_stack!(64, "blinky");
 
@@ -21,8 +23,7 @@ impl AsBytes for Output {
 impl Blinky {
     #[app_init("blinky")]
     pub fn init(&mut self) {
-        let gpiob = unsafe { self.gpiob.assume_init_mut() };
-        gpiob.modify(|p| {
+        self.gpiob.modify(|p| {
             p.cfghr().write(|w| unsafe { w.bits(0b0001 << 16) });
         });
     }
@@ -32,17 +33,15 @@ impl Blinky {
 
     #[app_main("blinky")]
     pub fn main(&mut self) -> Output {
-        let gpiob = unsafe { self.gpiob.assume_init_mut() };
-
         let arg = if let Some(msg) = self._buf.read() {
             unsafe { msg.split_last().unwrap_unchecked().1 }
         } else {
             &[0u8]
         };
 
-        gpiob.modify(|p| {
+        self.gpiob.modify(|p| {
             p.bshr().write(|w| unsafe { w.bits(1 << 12) });
-            unsafe { KERNEL.core.timer.delay(100000 * (arg[0] as u32)) };
+            arch::delay(100000 * (arg[0] as u32));
             p.bshr().write(|w| unsafe { w.bits(1 << 28) });
         });
 

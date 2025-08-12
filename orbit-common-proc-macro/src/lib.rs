@@ -80,13 +80,13 @@ pub fn orbit_app(attr: TokenStream, item: TokenStream) -> TokenStream {
     let peripherals = args.iter().map(|i| {
         let lower = format_ident!("{}", i.to_string().to_lowercase());
         quote! {
-            #lower: MaybeUninit<Claimed<'static, #i>>,
+            #lower: Claimed<'static, #i>,
         }
     });
     let peripherals_default = args.iter().map(|i| {
         let lower = format_ident!("{}", i.to_string().to_lowercase());
         quote! {
-            #lower: MaybeUninit::uninit()
+            #lower: unsafe {Kernel::instance().claim().unwrap_unchecked()}
         }
     });
 
@@ -109,21 +109,18 @@ pub fn orbit_app(attr: TokenStream, item: TokenStream) -> TokenStream {
     };
 
     let expanded = quote! {
-        use crate::application::{Application, AsBytes};
+        use crate::application::AsBytes;
         use core::{
             arch::{asm, naked_asm},
             mem::MaybeUninit,
             sync::atomic::{compiler_fence,Ordering},
         };
         use orbit_kernel::{
-            application::Context,
+            kernel::Kernel,
+            application::{Context, Application},
             claim::{Claim, Claimed, KernelPeripherals},
             port::{RINGBUF_SIZE, RingbufType, ringbuf::RingBuf, message::Message},
         };
-
-        #[unsafe(no_mangle)]
-        #[unsafe(link_section=concat!(".", #app_name, ".bss.struct"))]
-        static mut #static_name: MaybeUninit<#struct_name #ty_static_generics> = MaybeUninit::uninit();
 
         #[repr(C,align(4))]
         #(#attributes)*
@@ -161,8 +158,14 @@ pub fn orbit_app(attr: TokenStream, item: TokenStream) -> TokenStream {
 
             #[inline(never)]
             #[unsafe(link_section = concat!(".", #app_name, ".text"))]
-            fn context(&self) -> Context {
+            fn context(&mut self) -> Context {
                 self.context
+            }
+
+            #[inline(never)]
+            #[unsafe(link_section = concat!(".", #app_name, ".text"))]
+            fn buf(&mut self) -> &mut RingBuf<RINGBUF_SIZE, RingbufType> {
+                &mut self._buf
             }
 
             #[inline(always)]
@@ -279,12 +282,13 @@ pub fn orbit_main_attribute(attr: TokenStream, _item: TokenStream) -> TokenStrea
                 kernel.add_application(
                     #i,
                     stringify!(#struct_lower),
+                    #struct_lower,
                     next_addr, //unsafe { &#s as *const #s as usize },
                     #s::main as usize,
                     #s::interrupt as usize,
-                    unsafe { &mut (#struct_lower).context() as *mut _ },
+                    // unsafe { &mut (#struct_lower).context() as *mut _ },
                     // #struct_upper.buf(),
-                    unsafe { &mut (#struct_lower)._buf as *mut _ },
+                    // unsafe { &mut (#struct_lower)._buf as *mut _ },
                 );
                 next_addr += core::mem::size_of::<#s>() + #s::stack_size();
             }
@@ -294,7 +298,7 @@ pub fn orbit_main_attribute(attr: TokenStream, _item: TokenStream) -> TokenStrea
     let expanded = quote! {
         use core::{arch::asm,mem::MaybeUninit};
 
-        use orbit_kernel::application::Context;
+        use orbit_kernel::application::{Application, Context};
         use orbit_kernel::port::ringbuf::RingBuf;
         use orbit_kernel::arch;
 

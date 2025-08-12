@@ -8,7 +8,6 @@ pub enum ClaimError {
 pub trait Claimable {}
 
 pub trait Claim<'p, P: Claimable> {
-    #[inline(never)]
     fn claim(&'p mut self) -> Result<Claimed<P>, ClaimError>;
 }
 
