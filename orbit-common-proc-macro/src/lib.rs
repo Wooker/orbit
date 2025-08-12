@@ -132,10 +132,10 @@ pub fn orbit_app(attr: TokenStream, item: TokenStream) -> TokenStream {
         impl #impl_generics Application<'app> for #struct_name #ty_generics #where_clause {
             #[inline(never)]
             #[unsafe(link_section = concat!(".", #app_name, ".text.main"))]
-            fn init(mut self) -> Self {
+            fn init(&mut self) {
                 self.context = Context::new();
                 self.context.t0 = 0;
-                self.context.sp = &self as *const Self as usize + core::mem::size_of::<Self>() + Self::stack_size();
+                self.context.sp = self as *mut Self as usize + core::mem::size_of::<Self>() + Self::stack_size();
                 self.context.gp = &self.context as *const Context as usize;
                 self.context.ra = Self::ecall as *const fn() as usize;
 
@@ -145,7 +145,6 @@ pub fn orbit_app(attr: TokenStream, item: TokenStream) -> TokenStream {
                     .iter_mut()
                     .for_each(|i| *i = RingbufType::default());
                 self._init();
-                self
             }
 
             #[inline(never)]
@@ -314,13 +313,14 @@ pub fn orbit_main_attribute(attr: TokenStream, _item: TokenStream) -> TokenStrea
             quote! {
                 {
                 let app_cont = {
-                    let mut #struct_lower =
-                    unsafe {
-                        let #struct_lower_ptr = next_addr as *mut MaybeUninit<#s>;
-                        (*#struct_lower_ptr).as_mut_ptr().write(#s::new());
-                        (*#struct_lower_ptr).assume_init_read()
+                    let #struct_lower_ptr = next_addr as *mut MaybeUninit<#s>;
+                    let mut #struct_lower = unsafe {
+                        let ptr = (*#struct_lower_ptr).as_mut_ptr();
+                        ptr.write(#s::new());
+                        &mut *ptr
                     };
-                    #struct_lower.init().to_container(stringify!(#struct_lower), next_addr)
+                    #struct_lower.init();
+                    #struct_lower.to_container(stringify!(#struct_lower), next_addr)
                 };
                 kernel.add_application( #i, app_cont );
                 next_addr += core::mem::size_of::<#s>() + #s::stack_size();
@@ -344,14 +344,15 @@ pub fn orbit_main_attribute(attr: TokenStream, _item: TokenStream) -> TokenStrea
         #[unsafe(link_section = ".text.bin")]
         unsafe fn main() {
             let kernel_ptr = &_kernel_start as *const usize as *mut MaybeUninit<Kernel>;
-            let mut kernel: Kernel = unsafe {
-                (*kernel_ptr).as_mut_ptr().write(Kernel::new());
-                (*kernel_ptr).assume_init_read()
+            let mut kernel: &mut Kernel = unsafe {
+                let ptr = (*kernel_ptr).as_mut_ptr();
+                ptr.write(Kernel::new());
+                &mut *ptr
             };
-            arch::riscv::register::mscratch::write(&mut kernel as *mut Kernel as usize);
+            arch::riscv::register::mscratch::write(kernel as *mut Kernel as usize);
             unsafe { asm!("csrr gp, mscratch") };
 
-            let mut next_addr: usize = &_kernel_start + core::mem::size_of::<Kernel>();
+            let mut next_addr: usize = kernel_ptr as usize + core::mem::size_of::<Kernel>();
 
             #(#inits)*
         }

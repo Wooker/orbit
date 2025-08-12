@@ -51,19 +51,20 @@ pub enum RunApplication {
 }
 
 pub trait Application<'a> {
-    fn init(self) -> Self;
+    fn init(&mut self);
     fn main(&mut self);
     fn interrupt(&mut self);
     fn stack_size() -> usize;
     fn context(&mut self) -> usize;
     fn buf(&mut self) -> usize;
-    fn to_container(self, name: &'a str, struct_addr: usize) -> AppContainer<'a, PMP>
+    #[inline(never)]
+    fn to_container(&mut self, name: &'a str, struct_addr: usize) -> AppContainer<'a, PMP>
     where
         Self: Sized,
     {
         let main_addr = Self::main as *const fn() as usize;
         let interrupt_addr = Self::interrupt as *const fn() as usize;
-        ManuallyDrop::new(self);
+        // ManuallyDrop::new(self);
         AppContainer {
             name,
             struct_addr,
