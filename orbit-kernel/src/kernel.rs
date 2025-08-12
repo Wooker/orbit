@@ -7,13 +7,12 @@ use chip::pac::Peripherals;
 use orbit_arch::{interface::pmp::Pmp, Core, PMP};
 
 use crate::{
-    application::{AppContainer, Application, Context, PmpEntry, RunApplication},
+    application::{AppContainer, Context, RunApplication},
     clock::Clocks,
     port::{
         message::Message,
         port_kind::{PORT_INTERRUPTS, PORT_NUM},
-        ringbuf::RingBuf,
-        Port, RingbufType, RINGBUF_SIZE,
+        Port,
     },
     syscall::SysCall,
 };
@@ -95,26 +94,9 @@ impl<'k> Kernel<'k> {
 
     #[inline(never)]
     #[link_section = ".kernel.text"]
-    pub fn add_application(
-        &mut self,
-        index: usize,
-        name: &'k str,
-        mut app: &mut impl Application,
-        addr: usize,
-        main: usize,
-        interrupt: usize,
-    ) {
+    pub fn add_application(&mut self, index: usize, app_cont: AppContainer<'k, PMP>) {
         let app_i = unsafe { self.apps.get_unchecked_mut(index) };
-        app_i.write(AppContainer::new(
-            name,
-            &mut app.context() as *mut Context,
-            &mut *app.buf(),
-            addr,
-            main,
-            interrupt,
-            [PmpEntry::default(); PMP],
-            [None; PMP], // peripherals,
-        ));
+        app_i.write(app_cont);
     }
 
     #[inline(never)]

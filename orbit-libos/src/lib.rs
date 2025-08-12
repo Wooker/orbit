@@ -1,6 +1,5 @@
 #![no_std]
 #![no_main]
-#![feature(strict_overflow_ops)]
 
 use orbit_common::feature_mod;
 use orbit_kernel::kernel::Kernel;

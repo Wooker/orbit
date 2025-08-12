@@ -1,4 +1,4 @@
-use orbit_common_proc_macro::{app_init, app_interrupt, app_main, orbit_app};
+use orbit_common_proc_macro::{app_init, app_interrupt, app_main, orbit_app, orbit_impl};
 use orbit_kernel::chip::pac::GPIOB;
 
 use crate::app_stack;
@@ -20,6 +20,7 @@ impl AsBytes for Output {
     }
 }
 
+#[orbit_impl]
 impl Blinky {
     #[app_init("blinky")]
     pub fn init(&mut self) {

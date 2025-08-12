@@ -1,12 +1,12 @@
 #![allow(unused)]
 
-use core::borrow::BorrowMut;
+use core::{mem::ManuallyDrop, ops::Add};
 
 use crate::{
     claim::KernelPeripherals,
     port::{ringbuf::RingBuf, RingbufType, RINGBUF_SIZE},
 };
-use orbit_arch::{riscv::register::Permission, riscv::register::Range};
+use orbit_arch::{riscv::register::Permission, riscv::register::Range, PMP};
 
 #[derive(Clone, Copy)]
 pub struct PmpEntry {
@@ -50,22 +50,38 @@ pub enum RunApplication {
     Abort,
 }
 
-pub trait Application {
+pub trait Application<'a> {
+    fn init(self) -> Self;
     fn main(&mut self);
+    fn interrupt(&mut self);
     fn stack_size() -> usize;
-    fn context(&mut self) -> Context;
-    fn buf(&mut self) -> &mut RingBuf<RINGBUF_SIZE, RingbufType>;
+    fn context(&mut self) -> usize;
+    fn buf(&mut self) -> usize;
+    fn to_container(self, name: &'a str, struct_addr: usize) -> AppContainer<'a, PMP>
+    where
+        Self: Sized,
+    {
+        let main_addr = Self::main as *const fn() as usize;
+        let interrupt_addr = Self::interrupt as *const fn() as usize;
+        ManuallyDrop::new(self);
+        AppContainer {
+            name,
+            struct_addr,
+            main_addr,
+            interrupt_addr,
+            pmp: [PmpEntry::default(); PMP],
+            peripherals: [None; PMP],
+        }
+    }
     extern "C" fn ecall();
 }
 
 #[derive(Clone, Copy)]
 pub struct AppContainer<'a, const PMP_REGS: usize> {
     name: &'a str,
-    context: *mut Context,
-    buf: *mut RingBuf<RINGBUF_SIZE, RingbufType>,
-    app_struct: usize,
-    app_main_addr: usize,
-    app_interrupt_addr: usize,
+    struct_addr: usize,
+    main_addr: usize,
+    interrupt_addr: usize,
     pmp: [PmpEntry; PMP_REGS],
     peripherals: [Option<KernelPeripherals>; PMP_REGS],
 }
@@ -183,8 +199,6 @@ impl Context {
 impl<'a, const PMP_REGS: usize> AppContainer<'a, PMP_REGS> {
     pub fn new(
         name: &'a str,
-        context: *mut Context,
-        buf: *mut RingBuf<RINGBUF_SIZE, RingbufType>,
         app_struct: usize,
         app_main_addr: usize,
         app_interrupt_addr: usize,
@@ -197,11 +211,9 @@ impl<'a, const PMP_REGS: usize> AppContainer<'a, PMP_REGS> {
         // }
         Self {
             name,
-            context,
-            buf,
-            app_struct,
-            app_main_addr,
-            app_interrupt_addr,
+            struct_addr: app_struct,
+            main_addr: app_main_addr,
+            interrupt_addr: app_interrupt_addr,
             pmp,
             peripherals,
         }
@@ -212,23 +224,26 @@ impl<'a, const PMP_REGS: usize> AppContainer<'a, PMP_REGS> {
     }
 
     pub fn struct_addr(&self) -> usize {
-        self.app_struct
+        self.struct_addr
     }
 
     pub fn main_addr(&self) -> usize {
-        self.app_main_addr
+        self.main_addr
     }
 
     pub fn interrupt_addr(&self) -> usize {
-        self.app_interrupt_addr
+        self.interrupt_addr
     }
 
     pub fn context(&self) -> &mut Context {
-        unsafe { &mut *self.context }
+        unsafe { &mut *(self.struct_addr as *mut Context) }
     }
 
     pub fn buf(&mut self) -> &mut RingBuf<RINGBUF_SIZE, RingbufType> {
-        unsafe { &mut *self.buf }
+        unsafe {
+            &mut *(self.struct_addr.add(core::mem::size_of::<Context>())
+                as *mut RingBuf<RINGBUF_SIZE, RingbufType>)
+        }
     }
 
     pub fn get_pmp(&self) -> [PmpEntry; PMP_REGS] {
