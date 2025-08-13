@@ -58,13 +58,14 @@ pub trait Application<'a> {
     fn context(&mut self) -> usize;
     fn buf(&mut self) -> usize;
     #[inline(never)]
-    fn to_container(&mut self, name: &'a str, struct_addr: usize) -> AppContainer<'a, PMP>
+    fn to_container<'b>(&self, name: &'b str) -> AppContainer<'b, PMP>
     where
         Self: Sized,
+        'b: 'a,
     {
+        let struct_addr = self as *const Self as usize;
         let main_addr = Self::main as *const fn() as usize;
         let interrupt_addr = Self::interrupt as *const fn() as usize;
-        // ManuallyDrop::new(self);
         AppContainer {
             name,
             struct_addr,

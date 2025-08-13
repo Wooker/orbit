@@ -49,8 +49,7 @@ SECTIONS
     .kernel.bss : ALIGN(4)
     {
         *(.bss.* .sbss.*);
-        *(.kernel.ports.bss);
         . = ALIGN(4);
-        PROVIDE( _kernel_start = .);
+        *(.kernel.ports.bss);
     } >RAM AT>FLASH
 }

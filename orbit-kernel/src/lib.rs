@@ -53,11 +53,6 @@ _start:
     "li t0, 0x1880",
     "csrw mstatus, t0",
     "la ra, initialize_finish",
-    // Set mscratch
-    "
-    la gp, _kernel_start;
-    csrw mscratch, gp;
-    ",
     // Set mtvec
     "
     la t0, handler;

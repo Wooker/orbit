@@ -87,7 +87,7 @@ pub fn orbit_app(attr: TokenStream, item: TokenStream) -> TokenStream {
     let peripherals_default = args.iter().map(|i| {
         let lower = format_ident!("{}", i.to_string().to_lowercase());
         quote! {
-            #lower: unsafe { Kernel::instance().claim().unwrap_unchecked() }
+            #lower: unsafe { kernel.claim().unwrap_unchecked() }
         }
     });
 
@@ -111,18 +111,20 @@ pub fn orbit_app(attr: TokenStream, item: TokenStream) -> TokenStream {
         #(#attributes)*
         pub struct #struct_name #ty_generics {
             context: Context,
-            pub _buf: RingBuf<RINGBUF_SIZE, RingbufType>,
+            _buf: RingBuf<RINGBUF_SIZE, RingbufType>,
             #existing_fields
             #(#peripherals)*
-            _phantom: PhantomData<&'app bool>
+            _phantom: PhantomData<&'app ()>,
+            stack: [usize; stack_size]
         }
 
         impl #impl_generics #struct_name #ty_generics {
-            pub fn new() -> Self {
+            pub fn new(kernel: &'app mut Kernel) -> Self {
                 Self {
                     context: Context::new(),
                     _buf: RingBuf::new(0),
                     _phantom: PhantomData,
+                    stack: [0; stack_size],
                     #(#existing_fields_default),*
                     #(#peripherals_default),*
                 }
@@ -135,7 +137,7 @@ pub fn orbit_app(attr: TokenStream, item: TokenStream) -> TokenStream {
             fn init(&mut self) {
                 self.context = Context::new();
                 self.context.t0 = 0;
-                self.context.sp = self as *mut Self as usize + core::mem::size_of::<Self>() + Self::stack_size();
+                self.context.sp = self as *mut Self as usize + core::mem::size_of::<Self>();
                 self.context.gp = &self.context as *const Context as usize;
                 self.context.ra = Self::ecall as *const fn() as usize;
 
@@ -309,22 +311,12 @@ pub fn orbit_main_attribute(attr: TokenStream, _item: TokenStream) -> TokenStrea
         .enumerate()
         .map(|(i, s)| {
             let struct_lower = format_ident!("{}", s.to_string().to_lowercase());
-            let struct_lower_ptr = format_ident!("{}_ptr", struct_lower);
+            let struct_lower_container = format_ident!("{}_container", struct_lower);
             quote! {
-                {
-                let app_cont = {
-                    let #struct_lower_ptr = next_addr as *mut MaybeUninit<#s>;
-                    let mut #struct_lower = unsafe {
-                        let ptr = (*#struct_lower_ptr).as_mut_ptr();
-                        ptr.write(#s::new());
-                        &mut *ptr
-                    };
-                    #struct_lower.init();
-                    #struct_lower.to_container(stringify!(#struct_lower), next_addr)
-                };
-                kernel.add_application( #i, app_cont );
-                next_addr += core::mem::size_of::<#s>() + #s::stack_size();
-                }
+                let mut #struct_lower = #s::new(&mut kernel);
+                #struct_lower.init();
+                let #struct_lower_container = #struct_lower.to_container(stringify!(#struct_lower) );
+                kernel.add_application( #i, #struct_lower_container );
             }
         })
         .collect::<Vec<proc_macro2::TokenStream>>();
@@ -336,25 +328,16 @@ pub fn orbit_main_attribute(attr: TokenStream, _item: TokenStream) -> TokenStrea
         use orbit_kernel::port::ringbuf::RingBuf;
         use orbit_kernel::arch;
 
-        unsafe extern "C" {
-            static _kernel_start: usize;
-        }
-
         #[unsafe(no_mangle)]
         #[unsafe(link_section = ".text.bin")]
-        unsafe fn main() {
-            let kernel_ptr = &_kernel_start as *const usize as *mut MaybeUninit<Kernel>;
-            let mut kernel: &mut Kernel = unsafe {
-                let ptr = (*kernel_ptr).as_mut_ptr();
-                ptr.write(Kernel::new());
-                &mut *ptr
-            };
-            arch::riscv::register::mscratch::write(kernel as *mut Kernel as usize);
+        fn main() -> ! {
+            let mut kernel = Kernel::new();
+            arch::riscv::register::mscratch::write(&mut kernel as *mut Kernel as usize);
             unsafe { asm!("csrr gp, mscratch") };
 
-            let mut next_addr: usize = kernel_ptr as usize + core::mem::size_of::<Kernel>();
-
             #(#inits)*
+
+            unsafe { Kernel::initialize_finish() }
         }
     };
 

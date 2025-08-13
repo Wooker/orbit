@@ -79,13 +79,6 @@ impl<'k> Kernel<'k> {
         }
     }
 
-    #[inline(always)]
-    #[link_section = ".kernel.text"]
-    pub unsafe fn instance<'f>() -> &'f mut Kernel<'f> {
-        let kernel_ptr = crate::arch::riscv::register::mscratch::read() as *mut Kernel;
-        kernel_ptr.as_mut().unwrap_unchecked()
-    }
-
     #[inline(never)]
     #[link_section = ".text"]
     pub fn version(&self) -> (u8, u8) {
@@ -428,7 +421,7 @@ impl<'k> Kernel<'k> {
     #[unsafe(naked)]
     #[no_mangle]
     #[link_section = ".kernel.text.port_handler_exit"]
-    unsafe extern "C" fn initialize_finish() {
+    pub unsafe extern "C" fn initialize_finish() -> ! {
         naked_asm!(
             "
             la t0, wait;
