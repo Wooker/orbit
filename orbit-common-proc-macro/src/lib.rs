@@ -84,10 +84,11 @@ pub fn orbit_app(attr: TokenStream, item: TokenStream) -> TokenStream {
             #lower: Claimed<'app, #i>,
         }
     });
-    let peripherals_default = args.iter().map(|i| {
+    let peripherals_in_self = args.iter().map(|i| {
         let lower = format_ident!("{}", i.to_string().to_lowercase());
+        let upper = format_ident!("{}", i.to_string().to_uppercase());
         quote! {
-            #lower: unsafe { kernel.claim().unwrap_unchecked() }
+            #lower: peripherals.#upper.claim()
         }
     });
 
@@ -101,6 +102,7 @@ pub fn orbit_app(attr: TokenStream, item: TokenStream) -> TokenStream {
         };
         use orbit_kernel::{
             arch::PMP,
+            chip::pac::Peripherals,
             kernel::Kernel,
             application::{Context, Application, AppContainer},
             claim::{Claim, Claimed, KernelPeripherals},
@@ -119,14 +121,14 @@ pub fn orbit_app(attr: TokenStream, item: TokenStream) -> TokenStream {
         }
 
         impl #impl_generics #struct_name #ty_generics {
-            pub fn new(kernel: &'app mut Kernel) -> Self {
+            pub fn new(peripherals: &'app mut Peripherals) -> Self{
                 Self {
                     context: Context::new(),
-                    _buf: RingBuf::new(0),
+                    _buf: RingBuf::new(RingbufType::default()),
                     _phantom: PhantomData,
                     stack: [0; stack_size],
                     #(#existing_fields_default),*
-                    #(#peripherals_default),*
+                    #(#peripherals_in_self),*
                 }
             }
         }
@@ -135,13 +137,11 @@ pub fn orbit_app(attr: TokenStream, item: TokenStream) -> TokenStream {
             #[inline(never)]
             #[unsafe(link_section = concat!(".", #app_name, ".text.main"))]
             fn init(&mut self) {
-                self.context = Context::new();
                 self.context.t0 = 0;
                 self.context.sp = self as *mut Self as usize + core::mem::size_of::<Self>();
                 self.context.gp = &self.context as *const Context as usize;
                 self.context.ra = Self::ecall as *const fn() as usize;
 
-                self._buf = RingBuf::new(RingbufType::default());
                 self._buf
                     .buf
                     .iter_mut()
@@ -311,12 +311,10 @@ pub fn orbit_main_attribute(attr: TokenStream, _item: TokenStream) -> TokenStrea
         .enumerate()
         .map(|(i, s)| {
             let struct_lower = format_ident!("{}", s.to_string().to_lowercase());
-            let struct_lower_container = format_ident!("{}_container", struct_lower);
             quote! {
-                let mut #struct_lower = #s::new(&mut kernel);
+                let mut #struct_lower = #s::new(&mut peripherals);
                 #struct_lower.init();
-                let #struct_lower_container = #struct_lower.to_container(stringify!(#struct_lower) );
-                kernel.add_application( #i, #struct_lower_container );
+                kernel.add_application( #i, #struct_lower.to_container(stringify!(#struct_lower) ) );
             }
         })
         .collect::<Vec<proc_macro2::TokenStream>>();
@@ -326,12 +324,13 @@ pub fn orbit_main_attribute(attr: TokenStream, _item: TokenStream) -> TokenStrea
 
         use orbit_kernel::application::{Application, Context, PmpEntry, AppContainer};
         use orbit_kernel::port::ringbuf::RingBuf;
-        use orbit_kernel::arch;
+        use orbit_kernel::{arch,chip};
 
         #[unsafe(no_mangle)]
         #[unsafe(link_section = ".text.bin")]
         fn main() -> ! {
             let mut kernel = Kernel::new();
+            let mut peripherals = unsafe {chip::pac::Peripherals::steal()};
             arch::riscv::register::mscratch::write(&mut kernel as *mut Kernel as usize);
             unsafe { asm!("csrr gp, mscratch") };
 

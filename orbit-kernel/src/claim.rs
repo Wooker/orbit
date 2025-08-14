@@ -1,4 +1,4 @@
-use crate::kernel::Kernel;
+// use crate::kernel::Kernel;
 
 pub enum ClaimError {
     AlreadyClaimed,
@@ -8,7 +8,7 @@ pub enum ClaimError {
 pub trait Claimable {}
 
 pub trait Claim<'p, P: Claimable> {
-    fn claim(&'p mut self) -> Result<Claimed<P>, ClaimError>;
+    fn claim(&'p mut self) -> Claimed<P>;
 }
 
 pub struct Claimed<'p, P: Claimable>(&'p mut P);
@@ -58,15 +58,10 @@ macro_rules! impl_claim {
             #[cfg(feature = $chip)]
             impl Claimable for $field {}
             #[cfg(feature = $chip)]
-            impl<'k, 'p> Claim<'p, $field> for Kernel<'k> {
+            impl<'p> Claim<'p, $field> for chip::pac::$field {
                 #[inline(never)]
-                fn claim(&'p mut self) -> Result<Claimed<$field>, ClaimError> {
-                    // let peripherals = unsafe { self.peripherals.assume_init_mut() };
-                    if 1 == 1 { // Replace with actual condition for checking claim status
-                        Ok(Claimed::new(&mut self.peripherals.$field))
-                    } else {
-                        Err(ClaimError::AlreadyClaimed)
-                    }
+                fn claim(&'p mut self) -> Claimed<$field>{
+                    Claimed::new(self)
                 }
             }
         )*

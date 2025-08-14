@@ -3,7 +3,7 @@ use core::{
     mem::MaybeUninit,
 };
 
-use chip::pac::Peripherals;
+// use chip::pac::Peripherals;
 use orbit_arch::{interface::pmp::Pmp, Core, PMP};
 
 use crate::{
@@ -35,7 +35,7 @@ pub struct Kernel<'k> {
     apps: [MaybeUninit<AppContainer<'k, PMP>>; APPS],
     running: Option<usize>,
     ports: [Port<'k>; PORT_NUM],
-    pub(crate) peripherals: Peripherals,
+    // pub peripherals: Peripherals,
     pub core: Core<PMP>,
     pub clock: Clocks,
 }
@@ -70,7 +70,7 @@ impl<'k> Kernel<'k> {
 
         Self {
             context,
-            peripherals: unsafe { Peripherals::steal() },
+            // peripherals: unsafe { Peripherals::steal() },
             core: Core::new(),
             ports,
             apps: [MaybeUninit::uninit(); APPS],
