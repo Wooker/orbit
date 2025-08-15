@@ -37,8 +37,9 @@ impl ConfigureGPIO for PortKinds {
                 // PA2 TX as push-pull alternate output
                 let gpio = unsafe { &*chip::pac::GPIOA::PTR };
                 unsafe {
-                    gpio.cfglr().write(|w| w.bits(0b1011 << 8 | 0b1000 << 12));
-                    gpio.outdr().write(|w| w.bits(1 << 3));
+                    gpio.cfglr()
+                        .modify(|r, w| w.bits(r.bits() | 0b1011 << 8 | 0b1000 << 12));
+                    gpio.outdr().modify(|r, w| w.bits(r.bits() | 1 << 3));
                 };
             }
             PortKinds::USART3 => {

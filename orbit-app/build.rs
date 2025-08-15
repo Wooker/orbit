@@ -1,4 +1,4 @@
-use std::{env, fs::File, io::Write, path::PathBuf};
+use std::{env, path::PathBuf};
 
 #[allow(unused)]
 macro_rules! p {
@@ -13,10 +13,10 @@ fn main() {
 
     // Get OUT_DIR and save the main linker script there
     let out = &PathBuf::from(env::var_os("OUT_DIR").unwrap());
-    File::create(out.join("app.x"))
-        .unwrap()
-        .write_all(include_bytes!("app.x"))
-        .expect("Could not find app.x");
+    // File::create(out.join("app.x"))
+    //     .unwrap()
+    //     .write_all(include_bytes!("app.x"))
+    //     .expect("Could not find app.x");
 
     // Add OUT_DIR to link search
     println!("cargo:rustc-link-search={}", out.display());

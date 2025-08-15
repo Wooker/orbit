@@ -90,4 +90,5 @@ impl_claim!(
     GPIOC = 0x40011000,
     // GPIOC = 0x40011000,
     USART1 = 0x40013800,
+    SPI1 = 0x40013000,
 );
