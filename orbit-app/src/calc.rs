@@ -25,7 +25,8 @@ impl Calc {
     #[app_interrupt("calc")]
     pub fn interrupt(&mut self) {}
 
-    #[link_section = ".calc.text"]
+    #[link_section = ".apps.calc.text"]
+    #[inline(never)]
     fn calc_expr(expr: [u8; 3]) -> u8 {
         match expr[1] {
             b'+' => expr[0] + expr[2],

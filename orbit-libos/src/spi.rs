@@ -73,7 +73,7 @@ impl Default for Config {
             cpol: false,
             cpha: false,
             nss: true,
-            baud: BaudRatePre::_256,
+            baud: BaudRatePre::_2,
             first: FirstBit::MSB,
         }
     }
@@ -98,8 +98,9 @@ where
             };
             bits = bits
                 | (config.data_size as u16) << 11
-                | 0b11 << 8  // Software control CE
-                // | 1 << 8
+                // | 0b11 << 8  // Software control CE
+                // | 0b1 << 9  // Software control CE
+                | 1 << 8
                 | (config.first as u16) << 7 | (config.baud as u16) << 3
                 | (config.mode as u16) << 2 | (config.cpol as u16) << 1 | config.cpha as u16;
             p.ctlr1().modify(|r, w| unsafe { w.bits(bits) });
@@ -126,34 +127,33 @@ where
             let _ = self.read_8();
         }
 
-        while self.spi.read(|p| (p.statr().read().bits() & 0x2).into()) == 0 {
-            if self
-                .spi
-                .read(|p| (p.statr().read().bits() & (1 << 5)).into())
-                != 0
-            {
-                // self.spi.modify(|p| {
-                //     p.ctlr1().modify(|r, w| unsafe { w.bits(self.ctlr1) });
-                // });
+        while !self.spi.read(|p| (p.statr().read().txe().bit_is_set())) {
+            if self.spi.read(|p| (p.statr().read().modf().bit_is_set())) {
+                self.spi.modify(|p| {
+                    p.ctlr1().modify(|r, w| unsafe { w.bits(self.ctlr1) });
+                });
             }
-            delay(500);
         }
 
         self.spi
             .modify(|p| p.datar().write(|w| unsafe { w.bits(data as u16) }));
-        self.spi.read(|p| p.crcr().read().bits().into());
+        // self.spi.read(|p| p.crcr().read().bits().into());
     }
     pub fn read_8(&mut self) -> u8 {
         self.spi.read(|p| p.datar().read().bits() as u32) as u8
     }
 
+    pub fn busy(&self) -> bool {
+        self.spi.read(|p| p.statr().read().bsy().bit_is_set())
+    }
+
     pub fn reset(&mut self) {
-        unsafe { KERNEL.core.timer.delay(2000) };
+        unsafe { KERNEL.core.timer.delay(1000) };
         self.spi.modify(|p| {
             p.ctlr1()
                 .modify(|r, w| unsafe { w.bits(r.bits() ^ (1 << 6)) })
         });
-        unsafe { KERNEL.core.timer.delay(2000) };
+        unsafe { KERNEL.core.timer.delay(1000) };
         self.spi.modify(|p| {
             p.ctlr1()
                 .modify(|r, w| unsafe { w.bits(r.bits() ^ (1 << 6)) })

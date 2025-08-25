@@ -10,9 +10,10 @@ embedded-hal = "1.0.0"
 orbit-arch = { path = "../orbit-arch"}
 orbit-common = { path = "../orbit-common" }
 orbit-common-proc-macro = { path = "../orbit-common-proc-macro" }
-chip = { path = "../chip" }
+chip = { path = "../chip", optional = true}
 
 [features]
+lib  = []
 pfic = []
 ch32v208wbu6 = [ "orbit-arch/qingke_v4", "chip/ch32v208wbu6" ]
 ch32x035 = [ "orbit-arch/qingke_v4", "chip/ch32x035" ]

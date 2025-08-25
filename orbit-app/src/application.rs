@@ -1,12 +1,3 @@
-// use orbit_kernel::application::Context;
-
-// pub trait Application {
-//     fn main(&mut self);
-//     fn context(&self) -> Context;
-//     fn stack_size() -> usize;
-//     extern "C" fn ecall();
-// }
-
 pub trait AsBytes {
     type Output;
     fn as_bytes(&self) -> &[u8];

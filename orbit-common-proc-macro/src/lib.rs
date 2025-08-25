@@ -1,9 +1,9 @@
 use proc_macro::TokenStream;
 use proc_macro2::Span;
-use quote::{format_ident, quote};
+use quote::{ToTokens, format_ident, quote};
 use syn::{
     Expr, Fields, Ident, ItemFn, ItemImpl, ItemStruct, Lifetime, LifetimeDef, LitStr, ReturnType,
-    Token,
+    Token, Type,
     parse::{Parse, ParseStream},
     parse_macro_input,
     punctuated::Punctuated,
@@ -51,8 +51,17 @@ pub fn orbit_app(attr: TokenStream, item: TokenStream) -> TokenStream {
         Fields::Named(ref fields_named) => fields_named.named.iter().map(|f| {
             let name = f.ident.as_ref().expect("Expected named field");
             let ty = &f.ty;
-            quote! {
-                #name: <#ty>::default()
+
+            match ty {
+                Type::Array(arr) => {
+                    let arr_type = format_ident!("{}", &arr.elem.to_token_stream().to_string());
+                    let arr_len = &arr.len;
+
+                    quote! { #name: [0; #arr_len], }
+                }
+                _ => quote! {
+                    #name: <#ty>::default(),
+                },
             }
         }),
         _ => {
@@ -127,7 +136,7 @@ pub fn orbit_app(attr: TokenStream, item: TokenStream) -> TokenStream {
                     _buf: RingBuf::new(RingbufType::default()),
                     _phantom: PhantomData,
                     stack: [0; stack_size],
-                    #(#existing_fields_default),*
+                    #(#existing_fields_default)*
                     #(#peripherals_in_self),*
                 }
             }

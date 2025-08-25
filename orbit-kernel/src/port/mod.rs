@@ -69,7 +69,7 @@ impl<'p> Port<'p> {
         for i in 5..=9 {
             self.peripheral.clear_int(i);
         }
-        orbit_arch::delay(250);
+        orbit_arch::delay(300);
     }
 
     #[inline(never)]
@@ -80,8 +80,16 @@ impl<'p> Port<'p> {
     }
 
     #[inline(never)]
+    pub(crate) fn write_self<'a>(&'a mut self) {
+        for ch in self.rbuf.buf.into_iter() {
+            self.write(ch);
+        }
+    }
+
+    #[inline(never)]
     pub(crate) fn handle(&mut self) -> Option<Action> {
-        self.push();
+        let b = self.peripheral.read();
+        self.rbuf.push(b);
         if let Some(slice) = self.rbuf.read() {
             Some(slice.into())
         } else {

@@ -5,6 +5,7 @@ pub enum Message {
     Invoke = 1,
     Reply,
     Busy,
+    Append,
     Unknown,
 }
 
@@ -14,6 +15,7 @@ impl From<u8> for Message {
             1 => Message::Invoke,
             2 => Message::Reply,
             3 => Message::Busy,
+            4 => Message::Append,
             _ => Message::Unknown,
         }
     }
@@ -25,6 +27,7 @@ impl Into<u8> for Message {
             Message::Invoke => 1,
             Message::Reply => 2,
             Message::Busy => 3,
+            Message::Append => 4,
             Message::Unknown => u8::MAX,
         }
     }

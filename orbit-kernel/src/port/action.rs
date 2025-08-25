@@ -25,6 +25,7 @@ impl From<&[u8]> for Action {
                 for ch in value[1..].iter() {
                     rbuf.push(*ch);
                 }
+                rbuf.push(0);
                 Self {
                     message: Message::Invoke,
                     rbuf,

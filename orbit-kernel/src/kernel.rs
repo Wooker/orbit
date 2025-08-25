@@ -41,7 +41,7 @@ pub struct Kernel<'k> {
 }
 
 impl<'k> Kernel<'k> {
-    #[link_section = ".kernel.text"]
+    #[unsafe(link_section = ".kernel.text")]
     pub fn new() -> Self {
         // Enable clocks
         let mut clock = Clocks::default();
@@ -80,20 +80,20 @@ impl<'k> Kernel<'k> {
     }
 
     #[inline(never)]
-    #[link_section = ".text"]
+    #[unsafe(link_section = ".text")]
     pub fn version(&self) -> (u8, u8) {
         (KERNEL_MAJOR, KERNEL_MINOR)
     }
 
     #[inline(never)]
-    #[link_section = ".kernel.text"]
+    #[unsafe(link_section = ".kernel.text")]
     pub fn add_application(&mut self, index: usize, app_cont: AppContainer<'k, PMP>) {
         let app_i = unsafe { self.apps.get_unchecked_mut(index) };
         app_i.write(app_cont);
     }
 
     #[inline(never)]
-    #[link_section = ".kernel.text"]
+    #[unsafe(link_section = ".kernel.text")]
     fn set_pmp(&mut self, app: &AppContainer<PMP>) {
         for (i, pe) in app.get_pmp().iter().enumerate() {
             let _ = self
@@ -105,14 +105,14 @@ impl<'k> Kernel<'k> {
     }
 
     #[inline(never)]
-    #[link_section = ".kernel.text"]
+    #[unsafe(link_section = ".kernel.text")]
     pub fn clock(&self) -> u32 {
         self.clock.hclk.raw()
     }
 
     #[inline(never)]
     #[no_mangle]
-    #[link_section = ".kernel.text.port_handler"]
+    #[unsafe(link_section = ".kernel.text.port_handler")]
     fn port_handler(&mut self, i: usize) -> RunApplication {
         let awaiting = self
             .ports
@@ -131,7 +131,11 @@ impl<'k> Kernel<'k> {
 
                         let info = unsafe { action.rbuf.read().unwrap_unchecked() };
                         let delimiter = info.iter().take_while(|e| **e != b' ').count();
-                        let (name, arg) = info.split_at(delimiter);
+                        let (name, arg) = if delimiter == info.len() {
+                            info.split_at(delimiter - 1)
+                        } else {
+                            info.split_at(delimiter)
+                        };
 
                         // Find app by name
                         if let Some((app_index, _)) =
@@ -143,20 +147,23 @@ impl<'k> Kernel<'k> {
                             let app =
                                 unsafe { self.apps.get_unchecked_mut(app_index).assume_init_mut() };
 
-                            // Flush the application buffer
-                            app.buf().flush();
+                            if arg.ne(&[0]) {
+                                // Flush the application buffer
+                                app.buf().flush();
 
-                            // Write command arguments after the space to
-                            // the application buffer
-                            for ch in arg.iter().skip(1) {
-                                app.buf().push(*ch);
+                                // Write command arguments after the space to
+                                // the application buffer
+                                for ch in arg.iter().skip(1) {
+                                    app.buf().push(*ch);
+                                }
                             }
 
                             // Run the application
                             self.running = Some(app_index);
                             return RunApplication::Main;
                         } else {
-                            port.write_str(&[Message::Unknown.into(), Message::Invoke as u8, 0]);
+                            port.write_str(&[Message::Unknown.into(), Message::Invoke.into(), 0]);
+                            port.msg -= 1;
                         }
                     }
                     Message::Reply => {
@@ -181,12 +188,40 @@ impl<'k> Kernel<'k> {
                                 return RunApplication::Jumped;
                             }
                         } else {
-                            port.write_str(&[Message::Unknown.into(), Message::Reply as u8, 0]);
+                            port.write_str(&[Message::Unknown.into(), Message::Reply.into(), 0]);
+                            port.msg -= 1;
                         }
                     }
                     Message::Busy => {
                         if let Some(_) = self.running {
-                            return RunApplication::Abort;
+                            // return RunApplication::Abort;
+                        }
+                        port.msg -= 1;
+                    }
+                    Message::Append => {
+                        let info = unsafe { action.rbuf.read().unwrap_unchecked() };
+                        let delimiter = info.iter().take_while(|e| **e != b' ').count();
+                        let (name, arg) = info.split_at(delimiter);
+
+                        // Find app by name
+                        if let Some((app_index, _)) =
+                            self.apps.iter().enumerate().find(|(_, app)| unsafe {
+                                app.assume_init_read().name().as_bytes().eq(name)
+                            })
+                        {
+                            // Get the app container
+                            let app =
+                                unsafe { self.apps.get_unchecked_mut(app_index).assume_init_mut() };
+
+                            // Write command arguments after the space to
+                            // the application buffer
+                            for ch in arg.iter().skip(1) {
+                                app.buf().push(*ch);
+                            }
+                            port.msg -= 1;
+                        } else {
+                            port.write_str(&[Message::Unknown.into(), Message::Append.into(), 0]);
+                            port.msg -= 1;
                         }
                     }
                     Message::Unknown => {
@@ -195,12 +230,14 @@ impl<'k> Kernel<'k> {
                 }
             }
         }
+        // let end = port.rbuf.end;
+        // port.write(end as u8);
         RunApplication::None
     }
 
     #[inline(never)]
     #[no_mangle]
-    #[link_section = ".kernel.text.interrupt_handler"]
+    #[unsafe(link_section = ".kernel.text.interrupt_handler")]
     fn interrupt_handler(&mut self) -> RunApplication {
         let code = orbit_arch::riscv::register::mcause::read().code();
 
@@ -224,7 +261,7 @@ impl<'k> Kernel<'k> {
     // and call app differently
     #[unsafe(naked)]
     #[no_mangle]
-    #[link_section = ".kernel.text"]
+    #[unsafe(link_section = ".kernel.text")]
     unsafe extern "C" fn interrupt_handler_exit() {
         naked_asm!(
             // a0 is 0 or 1
@@ -241,7 +278,7 @@ impl<'k> Kernel<'k> {
 
     #[unsafe(naked)]
     #[no_mangle]
-    #[link_section = ".kernel.text"]
+    #[unsafe(link_section = ".kernel.text")]
     unsafe extern "C" fn call_app() {
         // a0 = RunApplication variant
         naked_asm!(
@@ -257,7 +294,7 @@ impl<'k> Kernel<'k> {
 
     #[inline(never)]
     #[no_mangle]
-    #[link_section = ".kernel.text.syscall_handler"]
+    #[unsafe(link_section = ".kernel.text.syscall_handler")]
     fn syscall_handler(&mut self, syscall: SysCall) {
         {
             let app_cont = unsafe {
@@ -271,12 +308,14 @@ impl<'k> Kernel<'k> {
                     orbit_arch::riscv::register::mepc::write(Self::wait as *const fn() as usize);
                     self.context.a1 = 0;
 
+                    self.running = None;
                     if let Some(port) = self
                         .ports
                         .iter_mut()
                         .filter_map(|port| port.msg.ne(&0usize).then(|| port))
                         .nth(0)
                     {
+                        app_cont.buf().fill();
                         if let Some(output) = app_cont.buf().read() {
                             port.write_str(output);
                         }
@@ -359,7 +398,7 @@ impl<'k> Kernel<'k> {
 
     #[unsafe(naked)]
     #[no_mangle]
-    #[link_section = ".kernel.text"]
+    #[unsafe(link_section = ".kernel.text")]
     unsafe extern "C" fn syscall_handler_exit() {
         naked_asm!(
             "
@@ -374,7 +413,7 @@ impl<'k> Kernel<'k> {
 
     #[unsafe(naked)]
     #[no_mangle]
-    #[link_section = ".kernel.text"]
+    #[unsafe(link_section = ".kernel.text")]
     unsafe extern "C" fn syscall_handler_await() {
         naked_asm!(
             "
@@ -392,7 +431,7 @@ impl<'k> Kernel<'k> {
 
     #[unsafe(naked)]
     #[no_mangle]
-    #[link_section = ".kernel.text"]
+    #[unsafe(link_section = ".kernel.text")]
     unsafe extern "C" fn syscall_handler_return_to_app() {
         naked_asm!(
             "
@@ -407,7 +446,7 @@ impl<'k> Kernel<'k> {
 
     #[unsafe(naked)]
     #[no_mangle]
-    #[link_section = ".kernel.text"]
+    #[unsafe(link_section = ".kernel.text")]
     unsafe extern "C" fn syscall_handler_return() {
         naked_asm!(
             "
@@ -420,7 +459,7 @@ impl<'k> Kernel<'k> {
 
     #[unsafe(naked)]
     #[no_mangle]
-    #[link_section = ".kernel.text.port_handler_exit"]
+    #[unsafe(link_section = ".kernel.text.port_handler_exit")]
     pub unsafe extern "C" fn initialize_finish() -> ! {
         naked_asm!(
             "
@@ -433,14 +472,14 @@ impl<'k> Kernel<'k> {
 
     #[no_mangle]
     #[inline(never)]
-    #[link_section = ".kernel.text"]
+    #[unsafe(link_section = ".kernel.text")]
     fn wait(&self) {
         loop {}
     }
 
     #[unsafe(naked)]
     #[no_mangle]
-    #[link_section = ".kernel.text.main"]
+    #[unsafe(link_section = ".kernel.text.main")]
     unsafe fn kernel_main() {
         naked_asm!(
             "
@@ -451,7 +490,7 @@ impl<'k> Kernel<'k> {
 
     #[no_mangle]
     #[inline(never)]
-    #[link_section = ".kernel.text.setup_event_loop"]
+    #[unsafe(link_section = ".kernel.text.setup_event_loop")]
     fn setup_event_loop(&mut self, variant: RunApplication) {
         let app_cont = unsafe {
             self.apps
@@ -480,7 +519,7 @@ impl<'k> Kernel<'k> {
     #[unsafe(naked)]
     #[no_mangle]
     #[cfg(target_feature = "e")]
-    #[link_section = ".kernel.text"]
+    #[unsafe(link_section = ".kernel.text")]
     unsafe extern "C" fn save_context() {
         naked_asm!(
             // "sw ra, 0x0(gp);",
@@ -515,7 +554,7 @@ impl<'k> Kernel<'k> {
     #[cfg(not(target_feature = "e"))]
     #[unsafe(naked)]
     #[no_mangle]
-    #[link_section = ".kernel.text"]
+    #[unsafe(link_section = ".kernel.text")]
     unsafe extern "C" fn save_context() {
         naked_asm!(
             // "sw ra, 0x0(gp);",
@@ -564,7 +603,7 @@ impl<'k> Kernel<'k> {
 
     #[inline(never)]
     #[no_mangle]
-    #[link_section = ".kernel.text.context_switch"]
+    #[unsafe(link_section = ".kernel.text.context_switch")]
     fn context_switch(&mut self, _struct_addr: usize, _addr: usize) {
         unsafe {
             asm!(
@@ -580,7 +619,7 @@ impl<'k> Kernel<'k> {
 
             #[unsafe(naked)]
             #[no_mangle]
-            #[link_section = ".kernel.text"]
+            #[unsafe(link_section = ".kernel.text")]
             unsafe extern "C" fn load_check() {
                 naked_asm!(
                     "
@@ -595,7 +634,7 @@ impl<'k> Kernel<'k> {
 
             #[unsafe(naked)]
             #[no_mangle]
-            #[link_section = ".kernel.text"]
+            #[unsafe(link_section = ".kernel.text")]
             unsafe extern "C" fn load_for_app() {
                 naked_asm!(
                     // Save app context to gp
@@ -607,7 +646,7 @@ impl<'k> Kernel<'k> {
 
             #[unsafe(naked)]
             #[no_mangle]
-            #[link_section = ".kernel.text"]
+            #[unsafe(link_section = ".kernel.text")]
             unsafe extern "C" fn load_for_kernel() {
                 naked_asm!(
                     // Save kernel context to gp
@@ -621,7 +660,7 @@ impl<'k> Kernel<'k> {
             #[cfg(target_feature = "e")]
             #[unsafe(naked)]
             #[no_mangle]
-            #[link_section = ".kernel.text"]
+            #[unsafe(link_section = ".kernel.text")]
             unsafe extern "C" fn load_context() {
                 naked_asm!(
                     "
@@ -657,7 +696,7 @@ impl<'k> Kernel<'k> {
             #[cfg(not(target_feature = "e"))]
             #[unsafe(naked)]
             #[no_mangle]
-            #[link_section = ".kernel.text"]
+            #[unsafe(link_section = ".kernel.text")]
             unsafe extern "C" fn load_context() {
                 naked_asm!(
                     "
@@ -702,7 +741,7 @@ impl<'k> Kernel<'k> {
 
             #[unsafe(naked)]
             #[no_mangle]
-            #[link_section = ".kernel.text"]
+            #[unsafe(link_section = ".kernel.text")]
             unsafe extern "C" fn load_finish() {
                 naked_asm!(
                     // Save t0 on stack
@@ -724,7 +763,7 @@ impl<'k> Kernel<'k> {
 
             #[unsafe(naked)]
             #[no_mangle]
-            #[link_section = ".kernel.text"]
+            #[unsafe(link_section = ".kernel.text")]
             unsafe extern "C" fn load_finish_for_app() {
                 naked_asm!(
                     "
@@ -735,7 +774,7 @@ impl<'k> Kernel<'k> {
 
             #[unsafe(naked)]
             #[no_mangle]
-            #[link_section = ".kernel.text"]
+            #[unsafe(link_section = ".kernel.text")]
             unsafe extern "C" fn load_finish_for_app_to_main() {
                 naked_asm!(
                     // Restore t0
@@ -756,7 +795,7 @@ impl<'k> Kernel<'k> {
 
             #[unsafe(naked)]
             #[no_mangle]
-            #[link_section = ".kernel.text"]
+            #[unsafe(link_section = ".kernel.text")]
             unsafe extern "C" fn load_finish_for_app_from_interrupt() {
                 naked_asm!(
                     // Restore t0
@@ -774,7 +813,7 @@ impl<'k> Kernel<'k> {
 
             #[unsafe(naked)]
             #[no_mangle]
-            #[link_section = ".kernel.text"]
+            #[unsafe(link_section = ".kernel.text")]
             unsafe extern "C" fn load_finish_for_kernel() {
                 naked_asm!(
                     // Restore t0
@@ -794,7 +833,7 @@ impl<'k> Kernel<'k> {
 
     #[unsafe(naked)]
     #[no_mangle]
-    #[link_section = ".kernel.text.handler"]
+    #[unsafe(link_section = ".kernel.text.handler")]
     unsafe extern "C" fn handler() {
         naked_asm!(
             // Save current context
@@ -817,7 +856,7 @@ impl<'k> Kernel<'k> {
 
     #[unsafe(naked)]
     #[no_mangle]
-    #[link_section = ".kernel.text"]
+    #[unsafe(link_section = ".kernel.text")]
     unsafe extern "C" fn handle_mcause() {
         naked_asm!(
             // Read mcause
@@ -846,14 +885,14 @@ impl<'k> Kernel<'k> {
 
         #[unsafe(naked)]
         #[no_mangle]
-        #[link_section = ".kernel.text"]
+        #[unsafe(link_section = ".kernel.text")]
         unsafe extern "C" fn handle_loop() {
             naked_asm!("j handle_loop;");
         }
 
         #[unsafe(naked)]
         #[no_mangle]
-        #[link_section = ".kernel.text"]
+        #[unsafe(link_section = ".kernel.text")]
         unsafe extern "C" fn handle_int() {
             naked_asm!(
                 // t0 = mcause
@@ -869,7 +908,7 @@ impl<'k> Kernel<'k> {
 
         #[unsafe(naked)]
         #[no_mangle]
-        #[link_section = ".kernel.text"]
+        #[unsafe(link_section = ".kernel.text")]
         unsafe extern "C" fn user_ecall() {
             naked_asm!(
                 // t0 = exception code
@@ -884,7 +923,7 @@ impl<'k> Kernel<'k> {
 
         #[unsafe(naked)]
         #[no_mangle]
-        #[link_section = ".kernel.text"]
+        #[unsafe(link_section = ".kernel.text")]
         unsafe extern "C" fn handle_syscall() {
             naked_asm!(
                 "
@@ -896,14 +935,14 @@ impl<'k> Kernel<'k> {
 
         #[unsafe(naked)]
         #[no_mangle]
-        #[link_section = ".kernel.text"]
+        #[unsafe(link_section = ".kernel.text")]
         unsafe extern "C" fn user_ecall_int() {
             naked_asm!("call load_context;");
         }
 
         #[unsafe(naked)]
         #[no_mangle]
-        #[link_section = ".kernel.text"]
+        #[unsafe(link_section = ".kernel.text")]
         unsafe extern "C" fn return_handler() {
             naked_asm!("ret");
         }

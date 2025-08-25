@@ -50,6 +50,5 @@ SECTIONS
     {
         *(.bss.* .sbss.*);
         . = ALIGN(4);
-        *(.kernel.ports.bss);
     } >RAM AT>FLASH
 }

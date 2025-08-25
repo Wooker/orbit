@@ -29,9 +29,9 @@ impl<'p, P: Claimable> Claimed<'p, P> {
         f(peripheral)
     }
 
-    pub fn read<F>(&self, f: F) -> u32
+    pub fn read<F, O>(&self, f: F) -> O
     where
-        F: Fn(&P) -> u32,
+        F: Fn(&P) -> O,
     {
         let peripheral = &self.0;
         f(peripheral)
