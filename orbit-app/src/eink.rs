@@ -43,13 +43,12 @@ impl Eink {
         let mut eink: LibEink<DC_PIN, BUSY_PIN> = LibEink::new(bus, &mut self.gpioa);
 
         if self._buf.buf[..4].cmp(b"show") != core::cmp::Ordering::Equal {
-            self._buf.buf[..=25]
-                .iter()
-                .for_each(|b| self.frame.push(*b));
+            self._buf.buf[..26].iter().for_each(|b| self.frame.push(*b));
             self._buf.flush();
             Output { 0: [2] }
         } else {
             eink.display(&self.frame.buf, false);
+            self.frame.flush();
             self._buf.flush();
             Output { 0: [1] }
         }

@@ -1,3 +1,12 @@
+// While compiling with  rustc 1.91.0-nightly (54c581243 2025-08-25)
+// cargo produces:
+// ```
+// warning: `#[link_section]` attribute cannot be used on inherent methods
+// ```
+// If such behavior is no longer observable on newer versions of rustc,
+// remove this attribute
+#![allow(unused_attributes)]
+
 use core::{
     arch::{asm, naked_asm},
     mem::MaybeUninit,
@@ -17,7 +26,7 @@ use crate::{
     syscall::SysCall,
 };
 
-const APPS: usize = 4;
+const APPS: usize = 5;
 
 #[used]
 #[no_mangle]
@@ -41,7 +50,9 @@ pub struct Kernel<'k> {
 }
 
 impl<'k> Kernel<'k> {
-    #[unsafe(link_section = ".kernel.text")]
+    #[rustc_align(4)]
+    #[inline(never)]
+    #[link_section = ".kernel.text"]
     pub fn new() -> Self {
         // Enable clocks
         let mut clock = Clocks::default();

@@ -8,7 +8,7 @@ pub enum ClaimError {
 pub trait Claimable {}
 
 pub trait Claim<'p, P: Claimable> {
-    fn claim(&'p mut self) -> Claimed<P>;
+    fn claim(&'p mut self) -> Claimed<'p, P>;
 }
 
 pub struct Claimed<'p, P: Claimable>(&'p mut P);
@@ -60,7 +60,7 @@ macro_rules! impl_claim {
             #[cfg(feature = $chip)]
             impl<'p> Claim<'p, $field> for chip::pac::$field {
                 #[inline(never)]
-                fn claim(&'p mut self) -> Claimed<$field>{
+                fn claim(&'p mut self) -> Claimed<'p,$field>{
                     Claimed::new(self)
                 }
             }

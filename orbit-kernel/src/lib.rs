@@ -1,7 +1,5 @@
 #![no_std]
 #![no_main]
-#![allow(mismatched_lifetime_syntaxes)]
-#![allow(static_mut_refs)]
 #![feature(stmt_expr_attributes)]
 #![feature(ascii_char)]
 #![feature(concat_bytes)]

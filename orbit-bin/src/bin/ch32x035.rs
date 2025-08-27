@@ -6,4 +6,4 @@ use orbit_app::{
 };
 use orbit_bin::orbit_main;
 
-orbit_main!(Reade);
+orbit_main!(Blinky, Calc, SystemNumPorts, Reade, Eink);

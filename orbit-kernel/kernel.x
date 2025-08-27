@@ -10,9 +10,6 @@ SECTIONS
         *(.init);
 
         . = ALIGN(4);
-        *(.kernel.text.main);
-
-        . = ALIGN(4);
         *(.kernel.text.setup_event_loop);
 
         . = ALIGN(4);
