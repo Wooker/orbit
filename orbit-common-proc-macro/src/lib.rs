@@ -1,6 +1,6 @@
 use proc_macro::TokenStream;
 use proc_macro2::Span;
-use quote::{format_ident, quote};
+use quote::{ToTokens, format_ident, quote};
 use syn::{
     Expr, Fields, Ident, ItemFn, ItemImpl, ItemStruct, Lifetime, LifetimeDef, LitStr, ReturnType,
     Token, Type,
@@ -92,6 +92,14 @@ pub fn orbit_app(attr: TokenStream, item: TokenStream) -> TokenStream {
             #lower: Claimed<'app, #i>,
         }
     });
+    println!(
+        "{:?}",
+        args.iter()
+            .map(|p| quote! { KernelPeripheral::#p as usize}
+                .to_token_stream()
+                .to_string())
+            .collect::<Vec<String>>()
+    );
     let peripherals_in_self = args.iter().map(|i| {
         let lower = format_ident!("{}", i.to_string().to_lowercase());
         let upper = format_ident!("{}", i.to_string().to_uppercase());
@@ -146,13 +154,13 @@ pub fn orbit_app(attr: TokenStream, item: TokenStream) -> TokenStream {
 
             #[inline(always)]
             #[unsafe(link_section = concat!(".", #app_name, ".text"))]
-            const fn heap_size() -> usize{
+            pub const fn heap_size() -> usize{
                 heap_size
             }
 
             #[inline(always)]
             #[unsafe(link_section = concat!(".", #app_name, ".text"))]
-            const fn stack_size() -> usize{
+            pub const fn stack_size() -> usize{
                 stack_size
             }
         }
@@ -361,12 +369,27 @@ pub fn orbit_main_attribute(attr: TokenStream, _item: TokenStream) -> TokenStrea
         })
         .collect::<Vec<proc_macro2::TokenStream>>();
 
+    let app_sizes = args
+        .iter()
+        .map(|s| {
+            quote! {
+                (core::mem::size_of::<#s>() + #s::stack_size() + #s::heap_size())
+            }
+        })
+        .collect::<Vec<proc_macro2::TokenStream>>();
+
+    let app_size = args.iter().count();
+
     let expanded = quote! {
         use core::{arch::asm,mem::MaybeUninit};
 
         use orbit_kernel::application::{Application, Context, PmpEntry, AppContainer};
         use orbit_kernel::port::ringbuf::RingBuf;
-        use orbit_kernel::{arch,chip};
+        use orbit_kernel::{arch,chip, kernel::APPS};
+        use orbit_common::const_assert;
+
+        const_assert!(#app_size <= APPS);
+        const_assert!(#(#app_sizes)+* < chip::RAM_SIZE);
 
         #[unsafe(no_mangle)]
         #[unsafe(link_section = ".text.bin")]

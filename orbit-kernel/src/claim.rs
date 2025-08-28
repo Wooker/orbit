@@ -7,6 +7,8 @@
 // remove this attribute
 #![allow(unused_attributes)]
 
+use orbit_common::count_idents;
+
 pub enum ClaimError {
     AlreadyClaimed,
     WrongType,
@@ -59,6 +61,10 @@ macro_rules! impl_claim {
         pub enum KernelPeripherals {
             $( $field, )*
         }
+        #[cfg(feature = $chip)]
+        pub const PERIPHERALS_NUM: usize = count_idents!($($field),*);
+        #[cfg(feature = $chip)]
+        pub const PERIPHERALS_TABLE: [usize; PERIPHERALS_NUM] = [0;PERIPHERALS_NUM];
         $(
             #[cfg(feature = $chip)]
             use chip::pac::$field;

@@ -14,7 +14,6 @@ use core::{
 
 // use chip::pac::Peripherals;
 use orbit_arch::{interface::pmp::Pmp, Core, PMP};
-use orbit_common::const_assert;
 
 use crate::{
     application::{AppContainer, Context, RunApplication},
@@ -27,7 +26,7 @@ use crate::{
     syscall::SysCall,
 };
 
-const APPS: usize = 5;
+pub const APPS: usize = 5;
 
 #[used]
 #[no_mangle]
@@ -100,8 +99,6 @@ impl<'k> Kernel<'k> {
     #[inline(never)]
     #[unsafe(link_section = ".kernel.text")]
     pub const fn add_application(&mut self, index: usize, app_cont: AppContainer<'k, PMP>) {
-        const INDEX: usize = 4;
-        const_assert!(INDEX < 5);
         let app_i = unsafe { self.apps.get_unchecked_mut(index) };
         app_i.write(app_cont);
     }

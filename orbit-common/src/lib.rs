@@ -72,10 +72,11 @@ macro_rules! const_assert {
         //     const ASSERT: bool = $x;
         //     ASSERT
         // } as usize] = [];
-        const _: usize = 0 - !{
-            const ASSERT: bool = $x;
-            ASSERT
-        } as usize;
+        const _: usize = 0
+            - (!{
+                const ASSERT: bool = $x;
+                ASSERT
+            } as usize);
     };
 }
 
@@ -92,4 +93,14 @@ macro_rules! app_heap {
         const heap_size: usize = $size;
         const_assert!(stack_size >= 0);
     };
+}
+
+#[macro_export]
+macro_rules! count_idents {
+    () => {0usize};
+    ($head:ident $(, $tail:ident)*) => {1usize + count_idents!($($tail),*)};
+}
+
+pub const fn check_overlap<const N: usize>(perpherals: [usize; N]) -> bool {
+    false
 }

@@ -6,4 +6,6 @@ use orbit_app::{
 };
 use orbit_bin::orbit_main;
 
+const A: usize = orbit_kernel::claim::KernelPeripherals::GPIOA as usize;
+const_assert!(A == 0);
 orbit_main!(Blinky, Calc, SystemNumPorts, Reade, Eink);

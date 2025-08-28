@@ -13,10 +13,6 @@ use orbit_kernel::{
     kernel::Kernel,
 };
 
-unsafe extern "Rust" {
-    static mut KERNEL: Kernel<'static>;
-}
-
 #[derive(Copy, Clone)]
 enum DataSize {
     _16 = 0b1,
@@ -148,12 +144,12 @@ where
     }
 
     pub fn reset(&mut self) {
-        unsafe { KERNEL.core.timer.delay(1000) };
+        delay(1000);
         self.spi.modify(|p| {
             p.ctlr1()
                 .modify(|r, w| unsafe { w.bits(r.bits() ^ (1 << 6)) })
         });
-        unsafe { KERNEL.core.timer.delay(1000) };
+        delay(1000);
         self.spi.modify(|p| {
             p.ctlr1()
                 .modify(|r, w| unsafe { w.bits(r.bits() ^ (1 << 6)) })
