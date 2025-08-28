@@ -98,9 +98,9 @@ where
             };
             bits = bits
                 | (config.data_size as u16) << 11
-                // | 0b11 << 8  // Software control CE
+                | 0b11 << 8  // Software control CE
                 // | 0b1 << 9  // Software control CE
-                | 1 << 8
+                // | 1 << 8
                 | (config.first as u16) << 7 | (config.baud as u16) << 3
                 | (config.mode as u16) << 2 | (config.cpol as u16) << 1 | config.cpha as u16;
             p.ctlr1().modify(|r, w| unsafe { w.bits(bits) });

@@ -3,6 +3,33 @@ use orbit_kernel::arch::delay;
 use orbit_kernel::chip::pac::GPIOA;
 use orbit_kernel::claim::Claimed;
 
+pub enum Direction {
+    XuYdXd = 0b000,
+    XuYdXi = 0b001,
+    XuYiXd = 0b010,
+    XuYiXi = 0b011,
+    YuYdXd = 0b100,
+    YuYdXi = 0b101,
+    YuYiXd = 0b110,
+    YuYiXi = 0b111,
+}
+
+pub struct Position {
+    pub x: usize,
+    pub y: usize,
+}
+
+pub struct Size {
+    pub width: usize,
+    pub height: usize,
+}
+
+pub struct Config {
+    pub pos: Position,
+    pub dir: Direction,
+    pub size: Size,
+}
+
 pub struct Eink<'a, 'b, const DC_PIN: u8, const BUSY_PIN: u8> {
     bus: Spi<'a, 'b>,
     gpioa: &'a mut Claimed<'b, GPIOA>,
@@ -28,7 +55,7 @@ impl<'a, 'b, const DC_PIN: u8, const BUSY_PIN: u8> Eink<'a, 'b, DC_PIN, BUSY_PIN
         Self { bus, gpioa }
     }
 
-    pub fn display(&mut self, frame: &[u8; 5000], partial: bool) {
+    pub fn display(&mut self, config: Config, frame: &[u8; 5000], partial: bool) {
         self.gpioa.modify(|p| {
             p.bshr().write(|w| unsafe { w.bits(1 << 16) });
             delay(10000);
@@ -49,24 +76,18 @@ impl<'a, 'b, const DC_PIN: u8, const BUSY_PIN: u8> Eink<'a, 'b, DC_PIN, BUSY_PIN
         self.data(0x00);
 
         self.cmd(0x11);
-        self.data(0b011);
-
-        // For orbit bitmap
-        let cursor_x = 0;
-        let cursor_y = 0;
-        let width = 200;
-        let height = 200;
+        self.data(config.dir as u8);
 
         // RAM X address start end
         self.cmd(0x44);
-        self.data(cursor_x >> 3);
-        self.data((cursor_x >> 3) + (width >> 3) - 1);
+        self.data((config.pos.x >> 3) as u8);
+        self.data(((config.pos.x >> 3) + (config.size.width >> 3) - 1) as u8);
 
         // RAM Y address start end
         self.cmd(0x45);
-        self.data(cursor_y);
+        self.data(config.pos.y as u8);
         self.data(0x00);
-        self.data(cursor_y + (height));
+        self.data((config.pos.y + (config.size.height)) as u8);
         self.data(0x00);
 
         self.cmd(0x22);
@@ -79,17 +100,17 @@ impl<'a, 'b, const DC_PIN: u8, const BUSY_PIN: u8> Eink<'a, 'b, DC_PIN, BUSY_PIN
 
         // RAM X address counter
         self.cmd(0x4e);
-        self.data(cursor_x >> 3);
+        self.data((config.pos.x >> 3) as u8);
 
         // RAM Y address counter
         self.cmd(0x4f);
-        self.data(cursor_y);
+        self.data(config.pos.y as u8);
         self.data(0x00);
 
         self.cmd(0x24);
 
         // For orbit bitmap
-        for p in 0..(((width as usize) >> 3) * (height as usize)) {
+        for p in 0..((config.size.width >> 3) * config.size.height) {
             self.data(0xff - frame[p]);
         }
 

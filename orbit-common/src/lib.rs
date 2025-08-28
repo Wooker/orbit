@@ -66,8 +66,30 @@ macro_rules! feature_mod_use_mutual {
 }
 
 #[macro_export]
+macro_rules! const_assert {
+    ($x:expr $(,)?) => {
+        // const _: [(); 0 - !{
+        //     const ASSERT: bool = $x;
+        //     ASSERT
+        // } as usize] = [];
+        const _: usize = 0 - !{
+            const ASSERT: bool = $x;
+            ASSERT
+        } as usize;
+    };
+}
+
+#[macro_export]
 macro_rules! app_stack {
-    ($size:expr, $app_name:expr) => {
+    ($size:expr) => {
         const stack_size: usize = $size;
+        const_assert!(stack_size >= 1);
+    };
+}
+#[macro_export]
+macro_rules! app_heap {
+    ($size:expr) => {
+        const heap_size: usize = $size;
+        const_assert!(stack_size >= 0);
     };
 }

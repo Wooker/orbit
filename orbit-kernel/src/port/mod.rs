@@ -43,6 +43,7 @@ pub(crate) struct Port<'p> {
 
 impl<'p> Port<'p> {
     #[inline(never)]
+    #[link_section = ".kernel.text"]
     pub(crate) fn new(peripheral: &'p PortPeripheral, kind: PortKinds) -> Self {
         Self {
             awaiting: false,
@@ -54,16 +55,19 @@ impl<'p> Port<'p> {
     }
 
     #[inline(never)]
+    #[link_section = ".kernel.text"]
     pub(crate) fn push(&mut self) {
         self.rbuf.push(self.peripheral.read());
     }
 
     #[inline(never)]
+    #[link_section = ".kernel.text"]
     pub(crate) fn read_buf(&mut self, index: usize) -> RingbufType {
         self.rbuf.at(index)
     }
 
     #[inline(never)]
+    #[link_section = ".kernel.text"]
     pub(crate) fn write(&mut self, ch: RingbufType) {
         self.peripheral.blocking_write_char(ch);
         for i in 5..=9 {
@@ -73,6 +77,7 @@ impl<'p> Port<'p> {
     }
 
     #[inline(never)]
+    #[link_section = ".kernel.text"]
     pub(crate) fn write_str<'a>(&'a mut self, buf: &[RingbufType]) {
         for ch in buf.iter() {
             self.write(*ch);
@@ -80,6 +85,7 @@ impl<'p> Port<'p> {
     }
 
     #[inline(never)]
+    #[link_section = ".kernel.text"]
     pub(crate) fn write_self<'a>(&'a mut self) {
         for ch in self.rbuf.buf.into_iter() {
             self.write(ch);
@@ -87,6 +93,7 @@ impl<'p> Port<'p> {
     }
 
     #[inline(never)]
+    #[link_section = ".kernel.text"]
     pub(crate) fn handle(&mut self) -> Option<Action> {
         let b = self.peripheral.read();
         self.rbuf.push(b);

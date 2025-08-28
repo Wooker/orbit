@@ -3,7 +3,7 @@
 
 pub mod application;
 
-use orbit_common::{app_stack, feature_mod};
+use orbit_common::feature_mod;
 
 pub mod calc;
 pub mod system_num_ports;

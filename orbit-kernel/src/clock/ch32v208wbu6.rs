@@ -1,8 +1,15 @@
-use fugit::HertzU32 as Hertz;
+// While compiling with  rustc 1.91.0-nightly (54c581243 2025-08-25)
+// cargo produces:
+// ```
+// warning: `#[link_section]` attribute cannot be used on inherent methods
+// ```
+// If such behavior is no longer observable on newer versions of rustc,
+// remove this attribute
+#![allow(unused_attributes)]
 
 #[derive(Copy, Clone, Eq, PartialEq, Debug)]
 pub struct Clocks {
-    pub hclk: Hertz,
+    pub hclk: usize,
 }
 
 impl Clocks {
@@ -36,14 +43,12 @@ impl Clocks {
         // Enable UART4
         rcc.apb1pcenr.write(|w| unsafe { w.bits(uart4_rst_bit) });
 
-        self.hclk = Hertz::from_raw(8_000_000);
+        self.hclk = 8_000_000;
     }
 
     #[inline(never)]
     #[link_section = ".kernel.text"]
     pub const fn default() -> Self {
-        Self {
-            hclk: Hertz::from_raw(0),
-        }
+        Self { hclk: 0 }
     }
 }

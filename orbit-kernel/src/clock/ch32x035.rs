@@ -7,11 +7,9 @@
 // remove this attribute
 #![allow(unused_attributes)]
 
-use fugit::HertzU32 as Hertz;
-
 #[derive(Copy, Clone, Eq, PartialEq)]
 pub struct Clocks {
-    pub hclk: Hertz,
+    pub hclk: usize,
 }
 
 impl Clocks {
@@ -28,7 +26,7 @@ impl Clocks {
             rcc.apb1pcenr().write(|w| w.bits(bits));
         }
 
-        // PA, PB
+        // PA, PB, SPI1
         let bits = 1 << 3 | 1 << 2 | 1 << 12;
         unsafe {
             rcc.apb2prstr().write(|w| w.bits(bits));
@@ -36,14 +34,12 @@ impl Clocks {
             rcc.apb2pcenr().write(|w| w.bits(bits));
         }
 
-        self.hclk = Hertz::from_raw(48_000_000);
+        self.hclk = 48_000_000;
     }
 
     #[inline(never)]
     #[link_section = ".kernel.text"]
     pub const fn default() -> Self {
-        Self {
-            hclk: Hertz::from_raw(0),
-        }
+        Self { hclk: 0 }
     }
 }

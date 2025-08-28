@@ -1,11 +1,11 @@
+use orbit_common::{app_heap, app_stack};
 use orbit_common_proc_macro::{app_init, app_interrupt, app_main, orbit_app, orbit_impl};
 use orbit_kernel::chip::pac::{GPIOB, GPIOC};
 
-use crate::app_stack;
-
 use orbit_kernel::arch;
 
-app_stack!(64, "blinky");
+app_heap!(0);
+app_stack!(64);
 
 #[orbit_app(GPIOB, GPIOC)]
 pub struct Blinky {}

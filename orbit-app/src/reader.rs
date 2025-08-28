@@ -1,16 +1,17 @@
+use orbit_common::{app_heap, app_stack};
 use orbit_common_proc_macro::{app_init, app_interrupt, app_main, orbit_app, orbit_impl};
 use orbit_kernel::chip::pac::{GPIOA, SPI1};
 
 #[allow(unused)]
 use orbit_libos::{
-    eink::Eink as LibEink,
+    eink::{Config as EinkConfig, Direction, Eink as LibEink, Position, Size},
     font_8x10::{self, Letter, ASCII},
     spi::{Config, Spi as LibSpi},
 };
 
-use crate::app_stack;
+app_heap!(0);
+app_stack!(32);
 
-app_stack!(32, "reade");
 const DC_PIN: u8 = 1;
 const BUSY_PIN: u8 = 6;
 
@@ -40,7 +41,15 @@ impl Reade {
     fn init(&mut self) {
         let bus = LibSpi::new(&mut self.spi1, Config::default());
         let mut eink: LibEink<DC_PIN, BUSY_PIN> = LibEink::new(bus, &mut self.gpioa);
-        eink.display(&self.frame.buf, false);
+        let config = EinkConfig {
+            pos: Position { x: 0, y: 0 },
+            dir: Direction::XuYiXi,
+            size: Size {
+                width: 200,
+                height: 200,
+            },
+        };
+        eink.display(config, &self.frame.buf, false);
     }
 
     #[app_interrupt("reade")]
@@ -67,7 +76,15 @@ impl Reade {
                     }
                 }
             }
-            eink.display(&self.frame.buf, false);
+            let config = EinkConfig {
+                pos: Position { x: 0, y: 0 },
+                dir: Direction::XuYiXi,
+                size: Size {
+                    width: 200,
+                    height: 200,
+                },
+            };
+            eink.display(config, &self.frame.buf, false);
             self.letters.flush();
             self.frame.flush();
             self._buf.flush();

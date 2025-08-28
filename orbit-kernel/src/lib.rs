@@ -3,6 +3,8 @@
 #![feature(stmt_expr_attributes)]
 #![feature(ascii_char)]
 #![feature(concat_bytes)]
+#![feature(const_index)]
+#![feature(const_trait_impl)]
 #![feature(fn_align)]
 #![feature(naked_functions_rustic_abi)]
 

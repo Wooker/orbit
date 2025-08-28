@@ -112,10 +112,11 @@ pub fn orbit_app(attr: TokenStream, item: TokenStream) -> TokenStream {
             arch::PMP,
             chip::pac::Peripherals,
             kernel::Kernel,
-            application::{Context, Application, AppContainer},
+            application::{Context, Application, AppContainer, PmpEntry},
             claim::{Claim, Claimed, KernelPeripherals},
             port::{RINGBUF_SIZE, RingbufType, ringbuf::RingBuf, message::Message},
         };
+        use orbit_common::const_assert;
 
         #[repr(C,align(4))]
         #(#attributes)*
@@ -125,19 +126,34 @@ pub fn orbit_app(attr: TokenStream, item: TokenStream) -> TokenStream {
             #existing_fields
             #(#peripherals)*
             _phantom: PhantomData<&'app ()>,
-            stack: [usize; stack_size]
+            heap: [usize; heap_size],
+            stack: [usize; stack_size],
         }
 
         impl #impl_generics #struct_name #ty_generics {
+            #[unsafe(link_section = concat!(".", #app_name, ".text"))]
             pub fn new(peripherals: &'app mut Peripherals) -> Self{
                 Self {
                     context: Context::new(),
                     _buf: RingBuf::new(RingbufType::default()),
                     _phantom: PhantomData,
+                    heap: [0; heap_size],
                     stack: [0; stack_size],
                     #(#existing_fields_default)*
                     #(#peripherals_in_self),*
                 }
+            }
+
+            #[inline(always)]
+            #[unsafe(link_section = concat!(".", #app_name, ".text"))]
+            const fn heap_size() -> usize{
+                heap_size
+            }
+
+            #[inline(always)]
+            #[unsafe(link_section = concat!(".", #app_name, ".text"))]
+            const fn stack_size() -> usize{
+                stack_size
             }
         }
 
@@ -176,22 +192,38 @@ pub fn orbit_app(attr: TokenStream, item: TokenStream) -> TokenStream {
                 unsafe { asm!("li a0, -1; li a1, 0;") };
             }
 
-            #[inline(never)]
+            #[inline(always)]
             #[unsafe(link_section = concat!(".", #app_name, ".text"))]
             fn context(&mut self) -> usize {
                 &self.context as *const Context as usize
             }
 
-            #[inline(never)]
+            #[inline(always)]
             #[unsafe(link_section = concat!(".", #app_name, ".text"))]
             fn buf(&mut self) -> usize {
                 &self._buf as *const RingBuf<RINGBUF_SIZE, RingbufType> as usize
             }
 
-            #[inline(always)]
+            #[inline(never)]
             #[unsafe(link_section = concat!(".", #app_name, ".text"))]
-            fn stack_size() -> usize{
-                stack_size
+            fn to_container<'b>(&self, name: &'b str) -> AppContainer<'b, PMP>
+            where
+                Self: Sized,
+                'b: 'app,
+            {
+                let struct_addr = self as *const Self as usize;
+                let main_addr = Self::main as *const fn() as usize;
+                let interrupt_addr = Self::interrupt as *const fn() as usize;
+                let pmp = [PmpEntry::default(); PMP];
+                let peripherals = [None; PMP];
+                AppContainer::new(
+                    name,
+                    struct_addr,
+                    main_addr,
+                    interrupt_addr,
+                    pmp,
+                    peripherals,
+                )
             }
 
             #[unsafe(naked)]
@@ -247,6 +279,7 @@ pub fn app_init(attr: TokenStream, item: TokenStream) -> TokenStream {
     let block = &function.block;
 
     let expanded = quote! {
+        #[inline(always)]
         #[unsafe(link_section = concat!(".", #app_name, ".text"))]
         pub fn _init(&mut self) {
             #block
@@ -263,6 +296,7 @@ pub fn app_interrupt(attr: TokenStream, item: TokenStream) -> TokenStream {
     let block = &function.block;
 
     let expanded = quote! {
+        #[inline(always)]
         #[unsafe(link_section = concat!(".", #app_name, ".text.interrupt"))]
         pub fn _interrupt(&mut self) {
             #block
@@ -286,7 +320,7 @@ pub fn app_main(attr: TokenStream, item: TokenStream) -> TokenStream {
     };
 
     let expanded = quote! {
-        #[inline(never)]
+        #[inline(always)]
         #[unsafe(link_section = concat!(".", #app_name, ".text"))]
         pub fn _main<'a>(#inputs) -> impl AsBytes<Output = #output> + use<'a>{
             // #[forbid(unsafe_code)]

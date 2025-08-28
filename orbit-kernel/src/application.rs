@@ -28,9 +28,7 @@ impl PmpEntry {
             locked,
         }
     }
-}
-impl Default for PmpEntry {
-    fn default() -> Self {
+    pub const fn default() -> Self {
         Self {
             address: 0x0,
             range: Range::OFF,
@@ -54,27 +52,13 @@ pub trait Application<'a> {
     fn init(&mut self);
     fn main(&mut self);
     fn interrupt(&mut self);
-    fn stack_size() -> usize;
     fn context(&mut self) -> usize;
     fn buf(&mut self) -> usize;
     #[inline(never)]
     fn to_container<'b>(&self, name: &'b str) -> AppContainer<'b, PMP>
     where
         Self: Sized,
-        'b: 'a,
-    {
-        let struct_addr = self as *const Self as usize;
-        let main_addr = Self::main as *const fn() as usize;
-        let interrupt_addr = Self::interrupt as *const fn() as usize;
-        AppContainer {
-            name,
-            struct_addr,
-            main_addr,
-            interrupt_addr,
-            pmp: [PmpEntry::default(); PMP],
-            peripherals: [None; PMP],
-        }
-    }
+        'b: 'a;
     extern "C" fn ecall();
 }
 

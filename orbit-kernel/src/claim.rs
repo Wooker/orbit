@@ -1,4 +1,11 @@
-// use crate::kernel::Kernel;
+// While compiling with  rustc 1.91.0-nightly (54c581243 2025-08-25)
+// cargo produces:
+// ```
+// warning: `#[link_section]` attribute cannot be used on inherent methods
+// ```
+// If such behavior is no longer observable on newer versions of rustc,
+// remove this attribute
+#![allow(unused_attributes)]
 
 pub enum ClaimError {
     AlreadyClaimed,
@@ -58,6 +65,7 @@ macro_rules! impl_claim {
             #[cfg(feature = $chip)]
             impl Claimable for $field {}
             #[cfg(feature = $chip)]
+            #[link_section = ".kernel.text"]
             impl<'p> Claim<'p, $field> for chip::pac::$field {
                 #[inline(never)]
                 fn claim(&'p mut self) -> Claimed<'p,$field>{
@@ -88,7 +96,6 @@ impl_claim!(
     GPIOA = 0x40010800,
     GPIOB = 0x40010C00,
     GPIOC = 0x40011000,
-    // GPIOC = 0x40011000,
     USART1 = 0x40013800,
     SPI1 = 0x40013000,
 );

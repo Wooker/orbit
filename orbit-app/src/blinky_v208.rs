@@ -1,9 +1,11 @@
+use orbit_common::{app_heap, app_stack};
 use orbit_common_proc_macro::{app_init, app_interrupt, app_main, orbit_app, orbit_impl};
 use orbit_kernel::{arch::delay, chip::pac::GPIOB, syscall::SysCall};
 
-use crate::{app_stack, syscall};
+use crate::syscall;
 
-app_stack!(64, "blinky");
+app_stack!(64);
+app_heap!(0);
 
 #[orbit_app(GPIOB)]
 pub struct Blinky {}

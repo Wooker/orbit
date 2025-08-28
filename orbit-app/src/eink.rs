@@ -1,16 +1,17 @@
+use orbit_common::{app_heap, app_stack};
 use orbit_common_proc_macro::{app_init, app_interrupt, app_main, orbit_app, orbit_impl};
 use orbit_kernel::chip::pac::{GPIOA, SPI1};
 
 #[allow(unused)]
 use orbit_libos::{
-    eink::Eink as LibEink,
+    eink::{Config as EinkConfig, Direction, Eink as LibEink, Position, Size},
     font_8x8::{self, Letter},
     spi::{Config, Spi as LibSpi},
 };
 
-use crate::app_stack;
+app_heap!(0);
+app_stack!(64);
 
-app_stack!(64, "eink");
 const DC_PIN: u8 = 1;
 const BUSY_PIN: u8 = 6;
 
@@ -47,7 +48,16 @@ impl Eink {
             self._buf.flush();
             Output { 0: [2] }
         } else {
-            eink.display(&self.frame.buf, false);
+            let config = EinkConfig {
+                pos: Position { x: 0, y: 0 },
+                dir: Direction::XuYiXi,
+                size: Size {
+                    width: 200,
+                    height: 200,
+                },
+            };
+
+            eink.display(config, &self.frame.buf, false);
             self.frame.flush();
             self._buf.flush();
             Output { 0: [1] }
