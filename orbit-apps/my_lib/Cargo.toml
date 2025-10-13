@@ -1,0 +1,15 @@
+[package]
+name = "my_lib"
+version = "0.1.0"
+edition = "2024"
+links = "libos_my_lib" # Needed for linking in orbit-bin
+build = ".cargo/build.rs"
+
+[dependencies]
+orbit-app-common = { path = "../orbit-app-common" }
+orbit-app-proc-macro = { path = "../orbit-app-proc-macro" }
+
+orbit-kernel = { path = "../../orbit-kernel", features = [ "ch32x035" ] }
+orbit-common = { path =  "../../orbit-common" }
+
+my_lib2 = { path = "../my_lib2" }

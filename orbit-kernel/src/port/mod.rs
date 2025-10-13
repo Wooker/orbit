@@ -1,20 +1,17 @@
 #![allow(unused)]
 
 use chip::PortPeripheral;
+
 use orbit_arch::interface::timer::Timer;
 use orbit_common::{feature_mod_use, feature_mod_use_mutual};
 
-pub(crate) mod action;
-use action::Action;
-
-pub mod message;
-use message::Message;
+use crate::action::Action;
+use crate::message::Message;
+use crate::ringbuf::RingBuf;
+use crate::{RingbufType, RINGBUF_SIZE};
 
 pub mod port_kind;
 pub(crate) use port_kind::PortKinds;
-
-pub mod ringbuf;
-use ringbuf::RingBuf;
 
 feature_mod_use_mutual!(uart_v208, "ch32v208wbu6", "ch32v003");
 feature_mod_use_mutual!(uart_x035, "ch32x035");
@@ -25,9 +22,6 @@ pub(crate) enum Role {
     Follower,
     Candidate,
 }
-
-pub const RINGBUF_SIZE: usize = 32;
-pub type RingbufType = u8;
 
 pub trait ConfigureGPIO {
     fn configure(&self);

@@ -16,6 +16,7 @@ ch32x0 = { version = "0.1.7", optional = true }
 bl702-pac = { version = "0.0.3", optional = true }
 
 [features]
+rt = []
 esp32c3 = [ "dep:esp32c3", "esp32c3/critical-section", "esp32c3/rt" ]
 ch32v208wbu6 = [ "dep:ch32v2", "ch32v2/ch32v20x", "ch32v2/critical-section",  ]
 ch32x035 = [ "dep:ch32x0", "ch32x0/ch32x035", "ch32x0/critical-section",  ]

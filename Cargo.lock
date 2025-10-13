@@ -77,6 +77,16 @@ dependencies = [
 ]
 
 [[package]]
+name = "ch32x035_spi_driver"
+version = "0.1.0"
+dependencies = [
+ "orbit-app-common",
+ "orbit-app-proc-macro",
+ "orbit-common",
+ "orbit-kernel",
+]
+
+[[package]]
 name = "ch59x"
 version = "0.1.8"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -129,6 +139,17 @@ dependencies = [
 ]
 
 [[package]]
+name = "eink_lib"
+version = "0.1.0"
+dependencies = [
+ "ch32x035_spi_driver",
+ "orbit-app-common",
+ "orbit-app-proc-macro",
+ "orbit-common",
+ "orbit-kernel",
+]
+
+[[package]]
 name = "embedded-hal"
 version = "0.2.7"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -166,10 +187,24 @@ dependencies = [
 ]
 
 [[package]]
+name = "font_8x10"
+version = "0.1.0"
+
+[[package]]
 name = "litrs"
 version = "0.4.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "b4ce301924b7887e9d637144fdade93f9dfff9b60981d4ac161db09720d39aa5"
+
+[[package]]
+name = "math"
+version = "0.1.0"
+dependencies = [
+ "orbit-app-common",
+ "orbit-app-proc-macro",
+ "orbit-common",
+ "orbit-kernel",
+]
 
 [[package]]
 name = "memchr"
@@ -193,25 +228,28 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "8d5439c4ad607c3c23abf66de8c8bf57ba8adcd1f129e699851a6e43935d339d"
 
 [[package]]
-name = "orbit-app"
+name = "orbit-app-common"
+version = "0.1.0"
+
+[[package]]
+name = "orbit-app-proc-macro"
 version = "0.1.0"
 dependencies = [
- "orbit-common",
- "orbit-common-proc-macro",
- "orbit-kernel",
- "orbit-libos",
+ "proc-macro2",
+ "quote",
+ "syn 1.0.109",
 ]
 
 [[package]]
 name = "orbit-arch"
-version = "0.1.0"
+version = "0.0.1"
 dependencies = [
  "cortex-m",
  "embedded-hal 1.0.0",
  "esp-riscv-rt",
  "qingke",
  "qingke-rt",
- "riscv 0.12.1",
+ "riscv 0.15.0",
  "riscv-rt",
  "riscv-rt-macros",
 ]
@@ -220,11 +258,12 @@ dependencies = [
 name = "orbit-bin"
 version = "0.1.0"
 dependencies = [
- "orbit-app",
  "orbit-common",
  "orbit-common-proc-macro",
  "orbit-kernel",
+ "reade",
  "regex",
+ "spi_app",
 ]
 
 [[package]]
@@ -252,14 +291,6 @@ dependencies = [
  "orbit-arch",
  "orbit-common",
  "orbit-common-proc-macro",
-]
-
-[[package]]
-name = "orbit-libos"
-version = "0.1.0"
-dependencies = [
- "orbit-common",
- "orbit-kernel",
 ]
 
 [[package]]
@@ -344,6 +375,20 @@ dependencies = [
 ]
 
 [[package]]
+name = "reade"
+version = "0.1.0"
+dependencies = [
+ "ch32x035_spi_driver",
+ "eink_lib",
+ "font_8x10",
+ "math",
+ "orbit-app-common",
+ "orbit-app-proc-macro",
+ "orbit-common",
+ "orbit-kernel",
+]
+
+[[package]]
 name = "regex"
 version = "1.11.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -392,7 +437,20 @@ dependencies = [
  "critical-section",
  "embedded-hal 1.0.0",
  "paste",
- "riscv-macros",
+ "riscv-macros 0.1.0",
+ "riscv-pac",
+]
+
+[[package]]
+name = "riscv"
+version = "0.15.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "b05cfa3f7b30c84536a9025150d44d26b8e1cc20ddf436448d74cd9591eefb25"
+dependencies = [
+ "critical-section",
+ "embedded-hal 1.0.0",
+ "paste",
+ "riscv-macros 0.3.0",
  "riscv-pac",
 ]
 
@@ -401,6 +459,17 @@ name = "riscv-macros"
 version = "0.1.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "f265be5d634272320a7de94cea15c22a3bfdd4eb42eb43edc528415f066a1f25"
+dependencies = [
+ "proc-macro2",
+ "quote",
+ "syn 2.0.86",
+]
+
+[[package]]
+name = "riscv-macros"
+version = "0.3.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "7d323d13972c1b104aa036bc692cd08b822c8bbf23d79a27c526095856499799"
 dependencies = [
  "proc-macro2",
  "quote",
@@ -458,6 +527,20 @@ name = "semver-parser"
 version = "0.7.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "388a1df253eca08550bef6c72392cfe7c30914bf41df5269b68cbd6ff8f570a3"
+
+[[package]]
+name = "spi_app"
+version = "0.1.0"
+dependencies = [
+ "ch32x035_spi_driver",
+ "eink_lib",
+ "font_8x10",
+ "math",
+ "orbit-app-common",
+ "orbit-app-proc-macro",
+ "orbit-common",
+ "orbit-kernel",
+]
 
 [[package]]
 name = "syn"

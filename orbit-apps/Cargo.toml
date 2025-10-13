@@ -1,0 +1,15 @@
+[workspace]
+members = [
+    "calc",
+    "eink_lib",
+    "font_8x10",
+    "math",
+    "my_app",
+    "my_lib",
+    "my_lib2",
+    "orbit-app-common",
+    "orbit-app-proc-macro",
+    "reade",
+    "spi_app",
+]
+resolver = "2"

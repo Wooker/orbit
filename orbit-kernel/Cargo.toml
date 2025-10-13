@@ -6,17 +6,18 @@ description = "Orbit kernel crate"
 
 [dependencies]
 embedded-hal = "1.0.0"
-orbit-arch = { path = "../orbit-arch"}
+orbit-arch = { path = "../orbit-arch", optional = true }
+chip = { path = "../chip", optional = true }
 orbit-common = { path = "../orbit-common" }
 orbit-common-proc-macro = { path = "../orbit-common-proc-macro" }
-chip = { path = "../chip", optional = true}
 
 [features]
+rt = ["orbit-arch", "chip/rt"]
 lib  = []
 pfic = []
-ch32v208wbu6 = [ "orbit-arch/qingke_v4", "chip/ch32v208wbu6" ]
-ch32x035 = [ "orbit-arch/qingke_v4", "chip/ch32x035" ]
-ch592 = [ "orbit-arch/qingke_v4", "chip/ch592" ]
-esp32c3 = [ "orbit-arch/esp_riscv", "chip/esp32c3" ]
-ch32v003 = [ "orbit-arch/qingke_v2", "chip/ch32v003" ]
-bl702 = [ "orbit-arch/riscv", "chip/bl702" ]
+ch32v208wbu6 = [ "rt", "orbit-arch/qingke_v4", "chip/ch32v208wbu6" ]
+ch32x035 = [ "rt", "orbit-arch/qingke_v4", "chip/ch32x035" ]
+ch592 = [ "rt", "orbit-arch/qingke_v4", "chip/ch592" ]
+esp32c3 = [ "rt", "orbit-arch/esp_riscv", "chip/esp32c3" ]
+ch32v003 = [ "rt", "orbit-arch/qingke_v2", "chip/ch32v003" ]
+bl702 = [ "rt", "orbit-arch/riscv", "chip/bl702" ]

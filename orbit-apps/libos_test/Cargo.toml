@@ -1,0 +1,7 @@
+[package]
+name = "libos_test"
+version = "0.1.0"
+edition = "2024"
+links = "libos_test"
+
+[dependencies]

@@ -7,19 +7,19 @@ pub use paste;
 macro_rules! feature_mod {
     ($chip:literal) => {
         $crate::paste::paste! {
-            #[cfg(feature = $chip)]
+            #[cfg(all(feature = $chip, feature = "rt"))]
             pub mod [<$chip>];
         }
     };
     ($chip:literal, $vis:vis) => {
         $crate::paste::paste! {
-            #[cfg(feature = $chip)]
+            #[cfg(all(feature = $chip, feature = "rt"))]
             $vis mod [<$chip>];
         }
     };
     ($chip:literal, $vis:vis, $name:ident) => {
         $crate::paste::paste! {
-            #[cfg(feature = $chip)]
+            #[cfg(all(feature = $chip, feature = "rt"))]
             $vis mod [<$name>];
         }
     };
@@ -29,25 +29,25 @@ macro_rules! feature_mod {
 macro_rules! feature_mod_use {
     ($chip:literal) => {
         $crate::paste::paste! {
-            #[cfg(feature = $chip)]
+            #[cfg(all(feature = $chip, feature = "rt"))]
             pub mod [<$chip>];
-            #[cfg(feature = $chip)]
+            #[cfg(all(feature = $chip, feature = "rt"))]
             pub use [<$chip>]::*;
         }
     };
     ($chip:literal, $vis:vis) => {
         $crate::paste::paste! {
-            #[cfg(feature = $chip)]
+            #[cfg(all(feature = $chip, feature = "rt"))]
             $vis mod [<$chip>];
-            #[cfg(feature = $chip)]
+            #[cfg(all(feature = $chip, feature = "rt"))]
             $vis use [<$chip>]::*;
         }
     };
     ($chip:literal, $vis:vis, $name:ident) => {
         $crate::paste::paste! {
-            #[cfg(feature = $chip)]
+            #[cfg(all(feature = $chip, feature = "rt"))]
             $vis mod [<$chip>];
-            #[cfg(feature = $chip)]
+            #[cfg(all(feature = $chip, feature = "rt"))]
             $vis use [<$chip>] as $name;
         }
     };
@@ -57,9 +57,9 @@ macro_rules! feature_mod_use {
 macro_rules! feature_mod_use_mutual {
     ($name:ident, $($chip:literal),+ $(,)?) => {
         $crate::paste::paste! {
-            #[cfg(any($(feature = $chip),+))]
+            #[cfg(all(any($(feature = $chip),+), feature = "rt"))]
             pub mod [<$name>];
-            #[cfg(any($(feature = $chip),+))]
+            #[cfg(all(any($(feature = $chip),+), feature = "rt"))]
             pub use [<$name>]::*;
         }
     };
@@ -68,10 +68,6 @@ macro_rules! feature_mod_use_mutual {
 #[macro_export]
 macro_rules! const_assert {
     ($x:expr $(,)?) => {
-        // const _: [(); 0 - !{
-        //     const ASSERT: bool = $x;
-        //     ASSERT
-        // } as usize] = [];
         const _: usize = 0
             - (!{
                 const ASSERT: bool = $x;
@@ -101,6 +97,6 @@ macro_rules! count_idents {
     ($head:ident $(, $tail:ident)*) => {1usize + count_idents!($($tail),*)};
 }
 
-pub const fn check_overlap<const N: usize>(perpherals: [usize; N]) -> bool {
+pub const fn check_overlap<const N: usize>(_perpherals: [usize; N]) -> bool {
     false
 }

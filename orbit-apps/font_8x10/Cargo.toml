@@ -1,0 +1,8 @@
+[package]
+name = "font_8x10"
+version = "0.1.0"
+edition = "2024"
+links = "libos_font_8x10" # Needed for linking in orbit-bin
+build = ".cargo/build.rs"
+
+[dependencies]

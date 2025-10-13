@@ -8,34 +8,38 @@
 #![feature(fn_align)]
 #![feature(naked_functions_rustic_abi)]
 
-use core::arch::{asm, global_asm};
-
+pub mod action;
 pub mod application;
 pub mod claim;
 pub mod clock;
-pub mod kernel;
-pub mod port;
+pub mod message;
+pub mod ringbuf;
 pub mod syscall;
 pub mod task;
 pub mod usizebuf;
 
+#[cfg(feature = "rt")]
+pub mod kernel;
+#[cfg(feature = "rt")]
+pub mod port;
+
 pub use chip;
 pub use orbit_arch as arch;
+
+// TODO: make use of PMP internal. Application code should
+// not rely on this const. to_container does rely at the moment
+pub const PMP: usize = 4;
+pub const RINGBUF_SIZE: usize = 32;
+pub type RingbufType = u8;
 
 #[panic_handler]
 pub fn panic_handler<'a, 'b>(_: &'a core::panic::PanicInfo<'b>) -> ! {
     loop {}
 }
 
-#[inline(never)]
-#[no_mangle]
-#[link_section = "interrupt_handler.uart4"]
-unsafe extern "C" fn UART4() {
-    loop {
-        asm!("nop")
-    }
-}
-
+#[cfg(feature = "rt")]
+use core::arch::global_asm;
+#[cfg(feature = "rt")]
 global_asm!(
     "
     .section .init

@@ -4,7 +4,8 @@ use core::{mem::ManuallyDrop, ops::Add};
 
 use crate::{
     claim::KernelPeripherals,
-    port::{ringbuf::RingBuf, RingbufType, RINGBUF_SIZE},
+    ringbuf::RingBuf,
+    {RingbufType, RINGBUF_SIZE},
 };
 use orbit_arch::{riscv::register::Permission, riscv::register::Range, PMP};
 
@@ -49,16 +50,31 @@ pub enum RunApplication {
 }
 
 pub trait Application<'a> {
+    const NAME: &'a str;
     fn init(&mut self);
     fn main(&mut self);
     fn interrupt(&mut self);
     fn context(&mut self) -> usize;
     fn buf(&mut self) -> usize;
     #[inline(never)]
-    fn to_container<'b>(&self, name: &'b str) -> AppContainer<'b, PMP>
+    fn to_container(&self) -> AppContainer<'a, PMP>
     where
         Self: Sized,
-        'b: 'a;
+    {
+        let struct_addr = self as *const Self as usize;
+        let main_addr = Self::main as *const fn() as usize;
+        let interrupt_addr = Self::interrupt as *const fn() as usize;
+        let pmp = [PmpEntry::default(); PMP];
+        let peripherals = [None; PMP];
+        AppContainer::new(
+            Self::NAME,
+            struct_addr,
+            main_addr,
+            interrupt_addr,
+            pmp,
+            peripherals,
+        )
+    }
     extern "C" fn ecall();
 }
 

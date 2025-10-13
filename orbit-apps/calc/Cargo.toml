@@ -1,0 +1,13 @@
+[package]
+name = "calc"
+version = "0.1.0"
+edition = "2024"
+links = "app_calc" # Needed for linking in orbit-bin
+build = ".cargo/build.rs"
+
+[dependencies]
+orbit-app-common = { path = "../orbit-app-common" }
+orbit-app-proc-macro = { path = "../orbit-app-proc-macro" }
+orbit-common = { path =  "../../orbit-common" }
+
+orbit-kernel = { path = "../../orbit-kernel" , features = []}

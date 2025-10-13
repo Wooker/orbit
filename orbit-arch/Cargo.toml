@@ -1,6 +1,6 @@
 [package]
 name = "orbit-arch"
-version = "0.1.0"
+version = "0.0.1"
 edition = "2021"
 description = "Architecture-dependent library crate"
 
@@ -13,7 +13,7 @@ qingke-rt = { version = "0.5.0", optional = true }
 
 esp-riscv-rt = { version = "0.9.1", optional = true }
 
-riscv = { version = "0.12.1", optional = true }
+riscv = { version = "0.15.0", optional = true }
 riscv-rt = { version = "0.13.0", optional = true }
 riscv-rt-macros = { version = "0.2.2", optional = true }
 

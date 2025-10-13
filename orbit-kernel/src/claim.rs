@@ -61,16 +61,16 @@ macro_rules! impl_claim {
         pub enum KernelPeripherals {
             $( $field, )*
         }
-        #[cfg(feature = $chip)]
+        #[cfg(all(feature = $chip, feature = "rt"))]
         pub const PERIPHERALS_NUM: usize = count_idents!($($field),*);
-        #[cfg(feature = $chip)]
+        #[cfg(all(feature = $chip, feature = "rt"))]
         pub const PERIPHERALS_TABLE: [usize; PERIPHERALS_NUM] = [0;PERIPHERALS_NUM];
         $(
-            #[cfg(feature = $chip)]
+            #[cfg(all(feature = $chip, feature = "rt"))]
             use chip::pac::$field;
-            #[cfg(feature = $chip)]
+            #[cfg(all(feature = $chip, feature = "rt"))]
             impl Claimable for $field {}
-            #[cfg(feature = $chip)]
+            #[cfg(all(feature = $chip, feature = "rt"))]
             #[link_section = ".kernel.text"]
             impl<'p> Claim<'p, $field> for chip::pac::$field {
                 #[inline(never)]

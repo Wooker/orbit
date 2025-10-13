@@ -18,12 +18,13 @@ use orbit_arch::{interface::pmp::Pmp, Core, PMP};
 use crate::{
     application::{AppContainer, Context, RunApplication},
     clock::Clocks,
+    message::Message,
     port::{
-        message::Message,
         port_kind::{PORT_INTERRUPTS, PORT_NUM},
         Port,
     },
     syscall::SysCall,
+    RingbufType, RINGBUF_SIZE,
 };
 
 pub const APPS: usize = 5;
@@ -52,7 +53,6 @@ pub struct Kernel<'k> {
 impl<'k> Kernel<'k> {
     #[rustc_align(4)]
     #[inline(never)]
-    #[link_section = ".kernel.text"]
     pub fn new() -> Self {
         // Enable clocks
         let mut clock = Clocks::default();
@@ -97,14 +97,12 @@ impl<'k> Kernel<'k> {
     }
 
     #[inline(never)]
-    #[unsafe(link_section = ".kernel.text")]
     pub const fn add_application(&mut self, index: usize, app_cont: AppContainer<'k, PMP>) {
         let app_i = unsafe { self.apps.get_unchecked_mut(index) };
         app_i.write(app_cont);
     }
 
     #[inline(never)]
-    #[unsafe(link_section = ".kernel.text")]
     fn set_pmp(&mut self, app: &AppContainer<PMP>) {
         for (i, pe) in app.get_pmp().iter().enumerate() {
             let _ = self
@@ -116,14 +114,12 @@ impl<'k> Kernel<'k> {
     }
 
     #[inline(never)]
-    #[unsafe(link_section = ".kernel.text")]
     pub fn clock(&self) -> usize {
         self.clock.hclk
     }
 
     #[inline(never)]
     #[no_mangle]
-    #[unsafe(link_section = ".kernel.text.port_handler")]
     fn port_handler(&mut self, i: usize) -> RunApplication {
         let awaiting = self
             .ports
@@ -160,12 +156,16 @@ impl<'k> Kernel<'k> {
 
                             if arg.ne(&[0]) {
                                 // Flush the application buffer
-                                app.buf().flush();
+                                let app_buf = app.buf();
+                                app_buf.flush();
 
                                 // Write command arguments after the space to
                                 // the application buffer
                                 for ch in arg.iter().skip(1) {
-                                    app.buf().push(*ch);
+                                    app_buf.push(*ch);
+                                }
+                                while app_buf.end != RINGBUF_SIZE {
+                                    app_buf.push(RingbufType::default());
                                 }
                             }
 
@@ -248,7 +248,6 @@ impl<'k> Kernel<'k> {
 
     #[inline(never)]
     #[no_mangle]
-    #[unsafe(link_section = ".kernel.text.interrupt_handler")]
     fn interrupt_handler(&mut self) -> RunApplication {
         let code = orbit_arch::riscv::register::mcause::read().code();
 
@@ -272,7 +271,6 @@ impl<'k> Kernel<'k> {
     // and call app differently
     #[unsafe(naked)]
     #[no_mangle]
-    #[unsafe(link_section = ".kernel.text")]
     unsafe extern "C" fn interrupt_handler_exit() {
         naked_asm!(
             // a0 is 0 or 1
@@ -289,7 +287,6 @@ impl<'k> Kernel<'k> {
 
     #[unsafe(naked)]
     #[no_mangle]
-    #[unsafe(link_section = ".kernel.text")]
     unsafe extern "C" fn call_app() {
         // a0 = RunApplication variant
         naked_asm!(
@@ -305,7 +302,6 @@ impl<'k> Kernel<'k> {
 
     #[inline(never)]
     #[no_mangle]
-    #[unsafe(link_section = ".kernel.text.syscall_handler")]
     fn syscall_handler(&mut self, syscall: SysCall) {
         {
             let app_cont = unsafe {
@@ -409,7 +405,6 @@ impl<'k> Kernel<'k> {
 
     #[unsafe(naked)]
     #[no_mangle]
-    #[unsafe(link_section = ".kernel.text")]
     unsafe extern "C" fn syscall_handler_exit() {
         naked_asm!(
             "
@@ -424,7 +419,6 @@ impl<'k> Kernel<'k> {
 
     #[unsafe(naked)]
     #[no_mangle]
-    #[unsafe(link_section = ".kernel.text")]
     unsafe extern "C" fn syscall_handler_await() {
         naked_asm!(
             "
@@ -442,7 +436,6 @@ impl<'k> Kernel<'k> {
 
     #[unsafe(naked)]
     #[no_mangle]
-    #[unsafe(link_section = ".kernel.text")]
     unsafe extern "C" fn syscall_handler_return_to_app() {
         naked_asm!(
             "
@@ -457,7 +450,6 @@ impl<'k> Kernel<'k> {
 
     #[unsafe(naked)]
     #[no_mangle]
-    #[unsafe(link_section = ".kernel.text")]
     unsafe extern "C" fn syscall_handler_return() {
         naked_asm!(
             "
@@ -470,7 +462,6 @@ impl<'k> Kernel<'k> {
 
     #[unsafe(naked)]
     #[no_mangle]
-    #[unsafe(link_section = ".kernel.text.port_handler_exit")]
     pub unsafe extern "C" fn initialize_finish() -> ! {
         naked_asm!(
             "
@@ -483,14 +474,12 @@ impl<'k> Kernel<'k> {
 
     #[no_mangle]
     #[inline(never)]
-    #[unsafe(link_section = ".kernel.text")]
     fn wait(&self) {
         loop {}
     }
 
     #[unsafe(naked)]
     #[no_mangle]
-    #[unsafe(link_section = ".kernel.text.main")]
     unsafe fn kernel_main() {
         naked_asm!(
             "
@@ -501,7 +490,6 @@ impl<'k> Kernel<'k> {
 
     #[no_mangle]
     #[inline(never)]
-    #[unsafe(link_section = ".kernel.text.setup_event_loop")]
     fn setup_event_loop(&mut self, variant: RunApplication) {
         let app_cont = unsafe {
             self.apps
@@ -530,7 +518,6 @@ impl<'k> Kernel<'k> {
     #[unsafe(naked)]
     #[no_mangle]
     #[cfg(target_feature = "e")]
-    #[unsafe(link_section = ".kernel.text")]
     unsafe extern "C" fn save_context() {
         naked_asm!(
             // "sw ra, 0x0(gp);",
@@ -565,7 +552,6 @@ impl<'k> Kernel<'k> {
     #[cfg(not(target_feature = "e"))]
     #[unsafe(naked)]
     #[no_mangle]
-    #[unsafe(link_section = ".kernel.text")]
     unsafe extern "C" fn save_context() {
         naked_asm!(
             // "sw ra, 0x0(gp);",
@@ -614,7 +600,6 @@ impl<'k> Kernel<'k> {
 
     #[inline(never)]
     #[no_mangle]
-    #[unsafe(link_section = ".kernel.text.context_switch")]
     fn context_switch(&mut self, _struct_addr: usize, _addr: usize) {
         unsafe {
             asm!(
@@ -630,7 +615,6 @@ impl<'k> Kernel<'k> {
 
             #[unsafe(naked)]
             #[no_mangle]
-            #[unsafe(link_section = ".kernel.text")]
             unsafe extern "C" fn load_check() {
                 naked_asm!(
                     "
@@ -645,7 +629,6 @@ impl<'k> Kernel<'k> {
 
             #[unsafe(naked)]
             #[no_mangle]
-            #[unsafe(link_section = ".kernel.text")]
             unsafe extern "C" fn load_for_app() {
                 naked_asm!(
                     // Save app context to gp
@@ -657,7 +640,6 @@ impl<'k> Kernel<'k> {
 
             #[unsafe(naked)]
             #[no_mangle]
-            #[unsafe(link_section = ".kernel.text")]
             unsafe extern "C" fn load_for_kernel() {
                 naked_asm!(
                     // Save kernel context to gp
@@ -671,7 +653,6 @@ impl<'k> Kernel<'k> {
             #[cfg(target_feature = "e")]
             #[unsafe(naked)]
             #[no_mangle]
-            #[unsafe(link_section = ".kernel.text")]
             unsafe extern "C" fn load_context() {
                 naked_asm!(
                     "
@@ -707,7 +688,6 @@ impl<'k> Kernel<'k> {
             #[cfg(not(target_feature = "e"))]
             #[unsafe(naked)]
             #[no_mangle]
-            #[unsafe(link_section = ".kernel.text")]
             unsafe extern "C" fn load_context() {
                 naked_asm!(
                     "
@@ -752,7 +732,6 @@ impl<'k> Kernel<'k> {
 
             #[unsafe(naked)]
             #[no_mangle]
-            #[unsafe(link_section = ".kernel.text")]
             unsafe extern "C" fn load_finish() {
                 naked_asm!(
                     // Save t0 on stack
@@ -774,7 +753,6 @@ impl<'k> Kernel<'k> {
 
             #[unsafe(naked)]
             #[no_mangle]
-            #[unsafe(link_section = ".kernel.text")]
             unsafe extern "C" fn load_finish_for_app() {
                 naked_asm!(
                     "
@@ -785,7 +763,6 @@ impl<'k> Kernel<'k> {
 
             #[unsafe(naked)]
             #[no_mangle]
-            #[unsafe(link_section = ".kernel.text")]
             unsafe extern "C" fn load_finish_for_app_to_main() {
                 naked_asm!(
                     // Restore t0
@@ -806,7 +783,6 @@ impl<'k> Kernel<'k> {
 
             #[unsafe(naked)]
             #[no_mangle]
-            #[unsafe(link_section = ".kernel.text")]
             unsafe extern "C" fn load_finish_for_app_from_interrupt() {
                 naked_asm!(
                     // Restore t0
@@ -824,7 +800,6 @@ impl<'k> Kernel<'k> {
 
             #[unsafe(naked)]
             #[no_mangle]
-            #[unsafe(link_section = ".kernel.text")]
             unsafe extern "C" fn load_finish_for_kernel() {
                 naked_asm!(
                     // Restore t0
@@ -844,7 +819,6 @@ impl<'k> Kernel<'k> {
 
     #[unsafe(naked)]
     #[no_mangle]
-    #[unsafe(link_section = ".kernel.text.handler")]
     unsafe extern "C" fn handler() {
         naked_asm!(
             // Save current context
@@ -867,7 +841,6 @@ impl<'k> Kernel<'k> {
 
     #[unsafe(naked)]
     #[no_mangle]
-    #[unsafe(link_section = ".kernel.text")]
     unsafe extern "C" fn handle_mcause() {
         naked_asm!(
             // Read mcause
@@ -896,14 +869,12 @@ impl<'k> Kernel<'k> {
 
         #[unsafe(naked)]
         #[no_mangle]
-        #[unsafe(link_section = ".kernel.text")]
         unsafe extern "C" fn handle_loop() {
             naked_asm!("j handle_loop;");
         }
 
         #[unsafe(naked)]
         #[no_mangle]
-        #[unsafe(link_section = ".kernel.text")]
         unsafe extern "C" fn handle_int() {
             naked_asm!(
                 // t0 = mcause
@@ -919,7 +890,6 @@ impl<'k> Kernel<'k> {
 
         #[unsafe(naked)]
         #[no_mangle]
-        #[unsafe(link_section = ".kernel.text")]
         unsafe extern "C" fn user_ecall() {
             naked_asm!(
                 // t0 = exception code
@@ -934,7 +904,6 @@ impl<'k> Kernel<'k> {
 
         #[unsafe(naked)]
         #[no_mangle]
-        #[unsafe(link_section = ".kernel.text")]
         unsafe extern "C" fn handle_syscall() {
             naked_asm!(
                 "
@@ -946,14 +915,12 @@ impl<'k> Kernel<'k> {
 
         #[unsafe(naked)]
         #[no_mangle]
-        #[unsafe(link_section = ".kernel.text")]
         unsafe extern "C" fn user_ecall_int() {
             naked_asm!("call load_context;");
         }
 
         #[unsafe(naked)]
         #[no_mangle]
-        #[unsafe(link_section = ".kernel.text")]
         unsafe extern "C" fn return_handler() {
             naked_asm!("ret");
         }

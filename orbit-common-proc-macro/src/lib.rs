@@ -1,6 +1,6 @@
 use proc_macro::TokenStream;
 use proc_macro2::Span;
-use quote::{ToTokens, format_ident, quote};
+use quote::{format_ident, quote};
 use syn::{
     Expr, Fields, Ident, ItemFn, ItemImpl, ItemStruct, Lifetime, LifetimeDef, LitStr, ReturnType,
     Token, Type,
@@ -92,14 +92,15 @@ pub fn orbit_app(attr: TokenStream, item: TokenStream) -> TokenStream {
             #lower: Claimed<'app, #i>,
         }
     });
-    println!(
-        "{:?}",
-        args.iter()
-            .map(|p| quote! { KernelPeripheral::#p as usize}
-                .to_token_stream()
-                .to_string())
-            .collect::<Vec<String>>()
-    );
+    // println!(
+    //     "{}{:?}",
+    //     app_name.to_token_stream().to_string(),
+    //     args.iter()
+    //         .map(|p| quote! { KernelPeripheral::#p as usize}
+    //             .to_token_stream()
+    //             .to_string())
+    //         .collect::<Vec<String>>()
+    // );
     let peripherals_in_self = args.iter().map(|i| {
         let lower = format_ident!("{}", i.to_string().to_lowercase());
         let upper = format_ident!("{}", i.to_string().to_uppercase());
@@ -109,7 +110,7 @@ pub fn orbit_app(attr: TokenStream, item: TokenStream) -> TokenStream {
     });
 
     let expanded = quote! {
-        use crate::application::AsBytes;
+        use orbit_app::application::AsBytes;
         use core::{
             arch::{asm, naked_asm},
             mem::MaybeUninit,
@@ -122,7 +123,9 @@ pub fn orbit_app(attr: TokenStream, item: TokenStream) -> TokenStream {
             kernel::Kernel,
             application::{Context, Application, AppContainer, PmpEntry},
             claim::{Claim, Claimed, KernelPeripherals},
-            port::{RINGBUF_SIZE, RingbufType, ringbuf::RingBuf, message::Message},
+            port::{RINGBUF_SIZE, RingbufType},
+            ringbuf::RingBuf,
+            message::Message,
         };
         use orbit_common::const_assert;
 
@@ -362,9 +365,9 @@ pub fn orbit_main_attribute(attr: TokenStream, _item: TokenStream) -> TokenStrea
         .map(|(i, s)| {
             let struct_lower = format_ident!("{}", s.to_string().to_lowercase());
             quote! {
-                let mut #struct_lower = #s::new(&mut peripherals);
+                let mut #struct_lower = #s::new();
                 #struct_lower.init();
-                kernel.add_application( #i, #struct_lower.to_container(stringify!(#struct_lower) ) );
+                kernel.add_application( #i, #struct_lower.to_container() );
             }
         })
         .collect::<Vec<proc_macro2::TokenStream>>();
@@ -384,15 +387,14 @@ pub fn orbit_main_attribute(attr: TokenStream, _item: TokenStream) -> TokenStrea
         use core::{arch::asm,mem::MaybeUninit};
 
         use orbit_kernel::application::{Application, Context, PmpEntry, AppContainer};
-        use orbit_kernel::port::ringbuf::RingBuf;
+        use orbit_kernel::ringbuf::RingBuf;
         use orbit_kernel::{arch,chip, kernel::APPS};
         use orbit_common::const_assert;
 
         const_assert!(#app_size <= APPS);
-        const_assert!(#(#app_sizes)+* < chip::RAM_SIZE);
+        const_assert!(0 #(+ #app_sizes)* < chip::RAM_SIZE);
 
         #[unsafe(no_mangle)]
-        #[unsafe(link_section = ".text.bin")]
         fn main() -> ! {
             let mut kernel = Kernel::new();
             let mut peripherals = unsafe {chip::pac::Peripherals::steal()};

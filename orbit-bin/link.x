@@ -1,6 +1,11 @@
 SECTIONS
 {
-    .text : ALIGN(4)
+    .bin.text : ALIGN(4)
+    {
+        *(.text.main);
+    } >FLASH
+
+    .rust.text : ALIGN(4)
     {
         *(.text .text.*);
     } >FLASH
@@ -13,12 +18,13 @@ SECTIONS
     .data : ALIGN(4)
     {
         *(.data.*);
-    } >RAM
+    } >RAM AT>FLASH
 
     .bss : ALIGN(4)
     {
-        *(.bss.* .sbss.*);
-    } >RAM
+        *(.bss .bss.*);
+        *(.sbss .sbss.*);
+    } >RAM AT>FLASH
 
     .kernel.stack ORIGIN(RAM) + LENGTH(RAM) : ALIGN(4)
     {

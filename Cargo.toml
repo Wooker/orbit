@@ -6,6 +6,7 @@ members = [
     "chip",
     "orbit-kernel",
     # "orbit-libos",
-    "orbit-app",
+    # "orbit-app",
     "orbit-bin", "orbit-common", "orbit-common-proc-macro",
 ]
+exclude = ["orbit-apps"]

@@ -5,9 +5,9 @@ pub mod application;
 
 use orbit_common::feature_mod;
 
-pub mod calc;
-pub mod system_num_ports;
-pub mod wfi;
+// pub mod calc;
+// pub mod system_num_ports;
+// pub mod wfi;
 
 feature_mod!("ch592", pub, blinky);
 feature_mod!("ch32v208wbu6", pub, blinky_v208);

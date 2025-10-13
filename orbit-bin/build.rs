@@ -3,7 +3,7 @@
 use regex::Regex;
 use std::{
     env,
-    fs::{self, File, write},
+    fs::{self, File, read_dir, write},
     io::{Read, Write},
     path::{Path, PathBuf},
     str::FromStr,
@@ -89,9 +89,6 @@ fn main() {
             }
         })
         .collect();
-    if features.len() != 1 {
-        panic!("Use only one feature for the chip.");
-    }
     p!("Chip: {}", features[0]);
 
     // Get OUT_DIR and save the main linker script there
@@ -102,20 +99,20 @@ fn main() {
         .expect("Could not find link.x");
 
     // Get OUT_DIR of orbit-app crate
-    let app_out_dir_var = "DEP_ORBIT_APP_OUT_DIR";
-    let app_out = &PathBuf::from(
-        env::var_os(app_out_dir_var)
-            .expect(format!("Cannot find the {} env var", app_out_dir_var).as_str()),
-    );
+    // let app_out_dir_var = "DEP_ORBIT_APP_OUT_DIR";
+    // let app_out = &PathBuf::from(
+    //     env::var_os(app_out_dir_var)
+    //         .expect(format!("Cannot find the {} env var", app_out_dir_var).as_str()),
+    // );
 
     // Delete all linker files in app OUT_DIR
-    for entry in fs::read_dir(app_out).unwrap() {
-        let e = entry.unwrap();
-        let file_name = e.file_name().into_string().unwrap();
-        if file_name.starts_with("app") && file_name.ends_with("link.x") {
-            fs::remove_file(e.path()).expect("Could not delete app link file");
-        }
-    }
+    // for entry in fs::read_dir(app_out).unwrap() {
+    //     let e = entry.unwrap();
+    //     let file_name = e.file_name().into_string().unwrap();
+    //     if file_name.starts_with("app") && file_name.ends_with("link.x") {
+    //         fs::remove_file(e.path()).expect("Could not delete app link file");
+    //     }
+    // }
 
     // Read bin main contents
     let file = format!(
@@ -136,7 +133,7 @@ fn main() {
                 .collect::<Vec<String>>();
             p!("Apps: {:?}", names);
             for name in names {
-                write_linker_script(app_out, name.clone());
+                // write_linker_script(app_out, name.clone());
             }
         } else {
             p!("Apps empty: []");
@@ -149,30 +146,59 @@ fn main() {
     println!("cargo:rustc-link-arg={}", "-Tmemory.x");
     println!("cargo:rustc-link-arg={}", "-Tkernel.x");
 
-    let mut dir: Vec<_> = fs::read_dir(app_out)
-        .unwrap()
-        .filter_map(Result::ok)
-        .collect();
+    // let mut dir: Vec<_> = fs::read_dir(app_out)
+    //     .unwrap()
+    //     .filter_map(Result::ok)
+    //     .collect();
 
-    dir.sort_by_key(|entry| entry.file_name());
+    // dir.sort_by_key(|entry| entry.file_name());
 
     // Add linker scripts of applications
-    for e in dir {
-        let file_name = e.file_name().into_string().unwrap();
-        if file_name.starts_with("app") && file_name.ends_with("link.x") {
-            // p!("Including linker script: {}", file_name);
-            println!("cargo:rustc-link-arg=-T{}", e.file_name().to_str().unwrap());
+    // for e in dir {
+    //     let file_name = e.file_name().into_string().unwrap();
+    //     if file_name.starts_with("app") && file_name.ends_with("link.x") {
+    //         // p!("Including linker script: {}", file_name);
+    //         println!("cargo:rustc-link-arg=-T{}", e.file_name().to_str().unwrap());
+    //     }
+    // }
+    for dep in env::vars()
+        .into_iter()
+        .filter(|(key, _)| key.starts_with("DEP") && !key.contains("COMPILER"))
+    {
+        p!("{}", dep.0);
+        let delim_pos = dep.1.find('=').expect("Incorrect metadata format");
+        let (key, out_dir) = dep.1.split_at(delim_pos + 1);
+        assert_eq!(key, "OUT_DIR=");
+
+        p!("{} {}", key, out_dir);
+        println!("cargo:rustc-link-search={}", out_dir);
+
+        let count = dep.0.split("_").count();
+        let name = dep
+            .0
+            .split("_")
+            .skip(2)
+            .take(count - 3)
+            .collect::<Vec<&str>>()
+            .join("_")
+            .to_lowercase();
+        p!("{}", name);
+
+        for entry in read_dir(out_dir).unwrap() {
+            let entry = entry.unwrap();
+            let file_path = entry.path();
+            p!("Link {}", file_path.display());
+            println!("cargo:rustc-link-arg=-T{}", file_path.display());
         }
     }
 
     // Add final linker scripts
-    // println!("cargo:rustc-link-arg={}", "-Tapp.x");
     println!("cargo:rustc-link-arg={}", "-Tlink.x");
 
     // Create the binary map
     println!(
-        "cargo:rustc-link-arg={}{}/{}",
-        "-Map=", crate_dir, "bin.map"
+        "cargo:rustc-link-arg=-Map={}/bin-{}.map",
+        crate_dir, features[0]
     );
 
     // Add OUT_DIR to link search

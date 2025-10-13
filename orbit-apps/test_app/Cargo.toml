@@ -1,0 +1,13 @@
+[package]
+name = "test_app"
+version = "0.1.0"
+edition = "2024"
+
+[dependencies]
+orbit-app-common = { path = "../orbit-app-common" }
+orbit-app-proc-macro = { path = "../orbit-app-proc-macro" }
+
+orbit-kernel = { path = "../../orbit-kernel", features = [ "ch32x035"] }
+orbit-common = { path =  "../../orbit-common" }
+
+test_libos = { path = "../test_libos" }
