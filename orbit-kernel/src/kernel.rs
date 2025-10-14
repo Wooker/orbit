@@ -17,6 +17,7 @@ use orbit_arch::{interface::pmp::Pmp, Core, PMP};
 
 use crate::{
     application_container::{AppContainer, RunApplication},
+    claim::KernelPeripherals,
     clock::Clocks,
     context::Context,
     message::Message,
@@ -98,7 +99,12 @@ impl<'k> Kernel<'k> {
     }
 
     #[inline(never)]
-    pub const fn add_application(&mut self, index: usize, app_cont: AppContainer<'k>) {
+    pub const fn add_application(
+        &mut self,
+        index: usize,
+        app_cont: AppContainer<'k>,
+        peripherals: Option<[KernelPeripherals; PMP]>,
+    ) {
         let app_i = unsafe { self.apps.get_unchecked_mut(index) };
         app_i.write(app_cont);
     }

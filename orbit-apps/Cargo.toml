@@ -12,4 +12,5 @@ members = [
     "reade",
     "spi_app",
 ]
+exclude = ["test_app"]
 resolver = "2"

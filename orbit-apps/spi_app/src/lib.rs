@@ -22,6 +22,7 @@ impl SpiApp {
 
     #[app_interrupt]
     pub fn interrupt(&mut self) {}
+
     #[app_main]
     pub fn main(&mut self) {
         // let bus = Spi::new(&mut self.spi1, Config::default());

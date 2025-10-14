@@ -75,6 +75,7 @@ impl<const SIZE: usize, T: TraitBound> RingBuf<SIZE, T> {
         }
     }
 
+    #[allow(unused)]
     #[rustc_align(4)]
     #[inline(never)]
     #[link_section = ".kernel.text"]

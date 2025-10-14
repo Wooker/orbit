@@ -6,10 +6,10 @@ use proc_macro::TokenStream;
 use proc_macro2::Span;
 use quote::{format_ident, quote};
 use syn::{
+    Fields, Ident, ItemFn, ItemImpl, ItemStruct, Lifetime, LifetimeDef, ReturnType, Token, Type,
     parse::{Parse, ParseStream},
     parse_macro_input,
     punctuated::Punctuated,
-    Fields, Ident, ItemFn, ItemImpl, ItemStruct, Lifetime, LifetimeDef, ReturnType, Token, Type,
 };
 
 struct OrbitAppArgs {
@@ -109,7 +109,7 @@ pub fn orbit_app(attr: TokenStream, item: TokenStream) -> TokenStream {
         let lower = format_ident!("{}", i.to_string().to_lowercase());
         let upper = format_ident!("{}", i.to_string().to_uppercase());
         quote! {
-            // #lower: peripherals.#upper.claim()
+            #lower: peripherals.#upper.claim()
         }
     });
 
@@ -122,8 +122,6 @@ pub fn orbit_app(attr: TokenStream, item: TokenStream) -> TokenStream {
             marker::PhantomData,
         };
         use orbit_kernel::{
-            // chip::pac::Peripherals,
-            // application::{Context, Application, AppContainer, PmpEntry},
             application::Application,
             context::Context,
             claim::{Claim, Claimed},
@@ -139,7 +137,7 @@ pub fn orbit_app(attr: TokenStream, item: TokenStream) -> TokenStream {
             context: Context,
             _buf: RingBuf<RINGBUF_SIZE, RingbufType>,
             #existing_fields
-            // #(#peripherals)*
+            #(#peripherals)*
             _phantom: PhantomData<&'app ()>,
             heap: [usize; heap_size],
             stack: [usize; stack_size],
@@ -154,7 +152,7 @@ pub fn orbit_app(attr: TokenStream, item: TokenStream) -> TokenStream {
                     heap: [0; heap_size],
                     stack: [0; stack_size],
                     #(#existing_fields_default)*
-                    // #(#peripherals_in_self),*
+                    #(#peripherals_in_self),*
                 }
             }
 

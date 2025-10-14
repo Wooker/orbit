@@ -1,3 +1,6 @@
+#[cfg(feature = "rt")]
+use crate::claim::KernelPeripherals;
+
 #[repr(usize)]
 #[derive(Clone, PartialEq, Eq)]
 pub enum SysCall {
@@ -9,6 +12,8 @@ pub enum SysCall {
     Await,
     ReceiveAll,
     Unknown,
+    #[cfg(feature = "rt")]
+    ClaimPeripheral(KernelPeripherals),
 }
 
 impl SysCall {

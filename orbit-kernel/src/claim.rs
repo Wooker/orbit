@@ -57,7 +57,7 @@ impl<'p, P: Claimable> Claimed<'p, P> {
 macro_rules! impl_claim {
     ($chip:literal, $($field:ident=$val:expr),* $(,)?) => {
         #[cfg(feature = $chip)]
-        #[derive(Copy, Clone)]
+        #[derive(Copy, Clone, PartialEq, Eq)]
         pub enum KernelPeripherals {
             $( $field, )*
         }

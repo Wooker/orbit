@@ -1,3 +1,5 @@
+#![allow(unused)]
+
 use crate::{
     message::Message,
     ringbuf::RingBuf,
