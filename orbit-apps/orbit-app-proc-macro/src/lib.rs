@@ -122,9 +122,11 @@ pub fn orbit_app(attr: TokenStream, item: TokenStream) -> TokenStream {
             marker::PhantomData,
         };
         use orbit_kernel::{
-            chip::pac::Peripherals,
-            application::{Context, Application, AppContainer, PmpEntry},
-            claim::{Claim, Claimed, KernelPeripherals},
+            // chip::pac::Peripherals,
+            // application::{Context, Application, AppContainer, PmpEntry},
+            application::Application,
+            context::Context,
+            claim::{Claim, Claimed},
             {PMP, RINGBUF_SIZE, RingbufType},
             ringbuf::RingBuf,
             message::Message,
@@ -340,7 +342,7 @@ pub fn app_main_impl(_attr: TokenStream, item: TokenStream) -> TokenStream {
     };
 
     let expanded = quote! {
-        impl<'app> #main_struct<'app> {
+        impl<'app> Application<'app> #main_struct<'app> {
             #[inline(always)]
             pub fn _main<'a>(#inputs) -> impl AsBytes<Output = #output> + use<'a>{
                 // #[forbid(unsafe_code)]

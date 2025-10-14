@@ -9,7 +9,7 @@ orbit-kernel = { path = "../orbit-kernel", features = [ "rt" ] }
 orbit-common = { path = "../orbit-common" }
 orbit-common-proc-macro = { path = "../orbit-common-proc-macro" }
 
-# calc = { path = "../orbit-apps/calc" }
+calc = { path = "../orbit-apps/calc" }
 reade = { path = "../orbit-apps/reade", optional = true }
 spi_app = { path = "../orbit-apps/spi_app", optional = true }
 

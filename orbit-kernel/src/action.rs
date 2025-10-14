@@ -1,5 +1,3 @@
-use core::mem::MaybeUninit;
-
 use crate::{
     message::Message,
     ringbuf::RingBuf,

@@ -16,8 +16,9 @@ use core::{
 use orbit_arch::{interface::pmp::Pmp, Core, PMP};
 
 use crate::{
-    application::{AppContainer, Context, RunApplication},
+    application_container::{AppContainer, RunApplication},
     clock::Clocks,
+    context::Context,
     message::Message,
     port::{
         port_kind::{PORT_INTERRUPTS, PORT_NUM},
@@ -42,7 +43,7 @@ pub static KERNEL_MINOR: u8 = 1;
 #[repr(C, align(4))]
 pub struct Kernel<'k> {
     context: Context,
-    apps: [MaybeUninit<AppContainer<'k, PMP>>; APPS],
+    apps: [MaybeUninit<AppContainer<'k>>; APPS],
     running: Option<usize>,
     ports: [Port<'k>; PORT_NUM],
     // pub peripherals: Peripherals,
@@ -97,21 +98,21 @@ impl<'k> Kernel<'k> {
     }
 
     #[inline(never)]
-    pub const fn add_application(&mut self, index: usize, app_cont: AppContainer<'k, PMP>) {
+    pub const fn add_application(&mut self, index: usize, app_cont: AppContainer<'k>) {
         let app_i = unsafe { self.apps.get_unchecked_mut(index) };
         app_i.write(app_cont);
     }
 
-    #[inline(never)]
-    fn set_pmp(&mut self, app: &AppContainer<PMP>) {
-        for (i, pe) in app.get_pmp().iter().enumerate() {
-            let _ = self
-                .core
-                .pmp
-                .write_cfg(0, i, pe.range, pe.permission, pe.locked);
-            let _ = self.core.pmp.write_addr(i, pe.address);
-        }
-    }
+    // #[inline(never)]
+    // fn set_pmp(&mut self, app: &AppContainer<PMP>) {
+    //     for (i, pe) in app.get_pmp().iter().enumerate() {
+    //         let _ = self
+    //             .core
+    //             .pmp
+    //             .write_cfg(0, i, pe.range, pe.permission, pe.locked);
+    //         let _ = self.core.pmp.write_addr(i, pe.address);
+    //     }
+    // }
 
     #[inline(never)]
     pub fn clock(&self) -> usize {
@@ -496,7 +497,7 @@ impl<'k> Kernel<'k> {
                 .get_unchecked(self.running.unwrap_unchecked())
                 .assume_init_read()
         };
-        self.set_pmp(&app_cont);
+        // self.set_pmp(&app_cont);
         let addr = match variant {
             RunApplication::Main => app_cont.main_addr(),
             RunApplication::Interrupt => app_cont.interrupt_addr(),

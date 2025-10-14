@@ -10,8 +10,10 @@
 
 pub mod action;
 pub mod application;
+pub mod application_container;
 pub mod claim;
 pub mod clock;
+pub mod context;
 pub mod message;
 pub mod ringbuf;
 pub mod syscall;
@@ -21,9 +23,12 @@ pub mod usizebuf;
 #[cfg(feature = "rt")]
 pub mod kernel;
 #[cfg(feature = "rt")]
+pub mod pmp_entry;
+#[cfg(feature = "rt")]
 pub mod port;
-
+#[cfg(feature = "rt")]
 pub use chip;
+#[cfg(feature = "rt")]
 pub use orbit_arch as arch;
 
 // TODO: make use of PMP internal. Application code should

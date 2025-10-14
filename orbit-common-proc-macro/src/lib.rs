@@ -386,9 +386,9 @@ pub fn orbit_main_attribute(attr: TokenStream, _item: TokenStream) -> TokenStrea
     let expanded = quote! {
         use core::{arch::asm,mem::MaybeUninit};
 
-        use orbit_kernel::application::{Application, Context, PmpEntry, AppContainer};
-        use orbit_kernel::ringbuf::RingBuf;
-        use orbit_kernel::{arch,chip, kernel::APPS};
+        // use orbit_kernel::application::{Application, Context, PmpEntry, AppContainer};
+        use orbit_kernel::{ringbuf::RingBuf, arch, chip, kernel::APPS,
+        application::Application};
         use orbit_common::const_assert;
 
         const_assert!(#app_size <= APPS);

@@ -1,5 +1,3 @@
-use core::mem::MaybeUninit;
-
 #[repr(usize)]
 pub enum Message {
     Invoke = 1,

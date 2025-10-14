@@ -44,6 +44,16 @@ dependencies = [
 ]
 
 [[package]]
+name = "calc"
+version = "0.1.0"
+dependencies = [
+ "orbit-app-common",
+ "orbit-app-proc-macro",
+ "orbit-common",
+ "orbit-kernel",
+]
+
+[[package]]
 name = "ch32v0"
 version = "0.1.7"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -258,6 +268,7 @@ dependencies = [
 name = "orbit-bin"
 version = "0.1.0"
 dependencies = [
+ "calc",
  "orbit-common",
  "orbit-common-proc-macro",
  "orbit-kernel",

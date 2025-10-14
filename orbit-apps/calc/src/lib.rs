@@ -63,23 +63,19 @@ impl Calc {
         }
     }
     #[app_main]
-    pub fn _main() -> Output {
-        Output([0])
+    pub fn main(&mut self) -> Output {
+        let mut argument = [0u8; 3];
+        {
+            let arg = if let Some(msg) = self._buf.read() {
+                msg
+            } else {
+                &[0u8]
+            };
+            for (i, b) in arg.iter().enumerate().take(3) {
+                argument[i] = *b;
+            }
+        }
+        self._buf.flush();
+        Output([Self::calc_expr(argument)])
     }
 }
-// #[app_main]
-// pub fn main(&mut self) -> Output {
-//     let mut argument = [0u8; 3];
-//     {
-//         let arg = if let Some(msg) = self._buf.read() {
-//             msg
-//         } else {
-//             &[0u8]
-//         };
-//         for (i, b) in arg.iter().enumerate().take(3) {
-//             argument[i] = *b;
-//         }
-//     }
-//     self._buf.flush();
-//     Output([Self::calc_expr(argument)])
-// }
