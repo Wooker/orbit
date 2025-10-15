@@ -2,8 +2,13 @@ pub trait TraitBound
 where
     Self: Sized + Default + Copy + PartialEq,
 {
+    fn termination() -> Self;
 }
-impl TraitBound for u8 {}
+impl TraitBound for u8 {
+    fn termination() -> Self {
+        32
+    }
+}
 
 #[derive(Clone, Copy)]
 #[repr(C)]
@@ -19,7 +24,7 @@ impl<const SIZE: usize, T: TraitBound> RingBuf<SIZE, T> {
     #[inline(never)]
     #[link_section = ".kernel.text"]
     pub fn new(termination: T) -> Self {
-        let buf = [T::default(); SIZE];
+        let buf = [termination; SIZE];
         Self {
             start: 0,
             end: 0,
@@ -59,7 +64,7 @@ impl<const SIZE: usize, T: TraitBound> RingBuf<SIZE, T> {
     #[link_section = ".kernel.text"]
     pub fn fill(&mut self) {
         while self.end != SIZE {
-            self.buf[self.end] = T::default();
+            self.buf[self.end] = T::termination();
             self.end += 1;
         }
     }
@@ -71,7 +76,7 @@ impl<const SIZE: usize, T: TraitBound> RingBuf<SIZE, T> {
         self.start = 0;
         self.end = 0;
         for i in self.buf.iter_mut() {
-            *i = T::default();
+            *i = self.termination;
         }
     }
 
@@ -89,8 +94,8 @@ impl<const SIZE: usize, T: TraitBound> Default for RingBuf<SIZE, T> {
         Self {
             start: 0,
             end: 0,
-            buf: [T::default(); SIZE],
-            termination: T::default(),
+            buf: [T::termination(); SIZE],
+            termination: T::termination(),
         }
     }
 }

@@ -37,64 +37,66 @@ impl AsBytes for Output {
 #[orbit_impl]
 impl Reade {
     #[app_init("reade")]
-    fn init(&mut self) {
-        // let bus = LibSpi::new(&mut self.spi1, Config::default());
-        // let mut eink: LibEink<DC_PIN, BUSY_PIN> = LibEink::new(bus, &mut self.gpioa);
-        // let config = EinkConfig {
-        //     pos: Position { x: 0, y: 0 },
-        //     dir: Direction::XuYiXi,
-        //     size: Size {
-        //         width: 200,
-        //         height: 200,
-        //     },
-        // };
-        // eink.display(config, &self.frame.buf, false);
-    }
+    fn init(&mut self) {}
 
     #[app_interrupt("reade")]
     fn interrupt(&mut self) {}
 
     #[app_main("reade")]
     fn main(&mut self) -> Output {
-        //     let bus = LibSpi::new(&mut self.spi1, Config::default());
-        //     let mut eink: LibEink<DC_PIN, BUSY_PIN> = LibEink::new(bus, &mut self.gpioa);
-        //     if self._buf.buf[..4].cmp(b"show") != core::cmp::Ordering::Equal {
-        //         let letter = self._buf.buf[0];
-        //         self._buf.buf[..25]
-        //             .iter()
-        //             .for_each(|b| self.letters.push(*b));
-        //         self._buf.flush();
-        //         Output { 0: [letter] }
-        //     } else {
-        //         for line in 0..HEIGHT {
-        //             for layer in 0..LAYERS {
-        //                 for ch in 0..WIDTH {
-        //                     let pos = self.letters.buf[ch + (line * WIDTH)] as usize;
-        //                     self.frame.buf[((layer * WIDTH) + ch) + (line * WIDTH * LAYERS)] =
-        //                         ASCII[pos][layer];
-        //                 }
-        //             }
-        //         }
-        //         let config = EinkConfig {
-        //             pos: Position {
-        //                 x: math::add_t::<usize>(0, 0),
-        //                 y: 0,
-        //             },
-        //             dir: Direction::XuYiXi,
-        //             size: Size {
-        //                 width: 200,
-        //                 height: 200,
-        //             },
-        //         };
-        //         eink.display(config, &self.frame.buf, false);
-        //         self.letters.flush();
-        //         self.frame.flush();
-        //         self._buf.flush();
-        //         Output {
-        //             0: [font_8x10::version() as u8],
-        //         }
-        //     }
-        //
-        Output([0])
+        if let Some(arg) = self._buf.read() {
+            let arg = str::from_utf8(&arg).unwrap().trim();
+            let cmp = arg[..4].cmp("show");
+
+            let mut gpioa = Self::claim_peripheral_gpioa();
+            let mut gpioa = Claimed::new(&mut gpioa);
+            let mut spi1 = Self::claim_peripheral_spi1();
+            let mut spi1 = Claimed::new(&mut spi1);
+
+            let bus = LibSpi::new(&mut spi1, Config::default());
+            let mut eink: LibEink<DC_PIN, BUSY_PIN> = LibEink::new(bus, &mut gpioa);
+
+            match cmp {
+                core::cmp::Ordering::Equal => {
+                    self.letters.buf[0] = b'a';
+                    for line in 0..HEIGHT {
+                        for layer in 0..LAYERS {
+                            for ch in 0..WIDTH {
+                                let pos = self.letters.buf[ch + (line * WIDTH)] as usize;
+                                self.frame.buf[((layer * WIDTH) + ch) + (line * WIDTH * LAYERS)] =
+                                    ASCII[pos][layer];
+                            }
+                        }
+                    }
+                    let config = EinkConfig {
+                        pos: Position {
+                            x: math::add_t::<usize>(0, 0),
+                            y: 0,
+                        },
+                        dir: Direction::XuYiXi,
+                        size: Size {
+                            width: 200,
+                            height: 200,
+                        },
+                    };
+                    eink.display(config, &self.frame.buf, false);
+                    self.letters.flush();
+                    self.frame.flush();
+                    self._buf.flush();
+                    Output([1])
+                }
+                _ => {
+                    let chars = arg.chars();
+                    chars.clone().for_each(|b| self.letters.push(b as u8));
+                    // self._buf.buf[..25]
+                    //     .iter()
+                    //     .for_each(|b| self.letters.push(*b));
+                    // self._buf.flush();
+                    Output([chars.count() as u8])
+                }
+            }
+        } else {
+            Output([0xff])
+        }
     }
 }

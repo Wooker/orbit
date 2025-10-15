@@ -25,6 +25,7 @@ use crate::{
         port_kind::{PORT_INTERRUPTS, PORT_NUM},
         Port,
     },
+    ringbuf::{RingBuf, TraitBound},
     syscall::SysCall,
     RingbufType, RINGBUF_SIZE,
 };
@@ -139,12 +140,19 @@ impl<'k> Kernel<'k> {
                         if port.awaiting {}
 
                         let info = unsafe { action.rbuf.read().unwrap_unchecked() };
-                        let delimiter = info.iter().take_while(|e| **e != b' ').count();
-                        let (name, arg) = if delimiter == info.len() {
-                            info.split_at(delimiter - 1)
+                        let (name, arg) = if let Some((name, arg)) =
+                            info.split_once(|p| *p == <RingbufType as TraitBound>::termination())
+                        {
+                            (name, Some(arg))
                         } else {
-                            info.split_at(delimiter)
+                            (info, None)
                         };
+
+                        // let mut dbg: RingBuf<RINGBUF_SIZE, RingbufType> = RingBuf::default();
+                        // name.iter().for_each(|d| dbg.push(*d));
+                        // port.write_str(&str::from_utf8(&dbg.buf).unwrap().trim().as_bytes());
+                        // dbg.flush();
+                        // port.write_str(&dbg.buf);
 
                         // Find app by name
                         if let Some((app_index, _)) =
@@ -156,26 +164,34 @@ impl<'k> Kernel<'k> {
                             let app =
                                 unsafe { self.apps.get_unchecked_mut(app_index).assume_init_mut() };
 
-                            if arg.ne(&[0]) {
+                            if let Some(arg) = arg {
+                                // arg.iter().for_each(|d| dbg.push(*d));
+                                // port.write_str(&dbg.buf);
+                                // dbg.flush();
+
                                 // Flush the application buffer
                                 let app_buf = app.buf();
                                 app_buf.flush();
 
+                                let mut arg_buf: RingBuf<RINGBUF_SIZE, RingbufType> =
+                                    RingBuf::default();
                                 // Write command arguments after the space to
                                 // the application buffer
-                                for ch in arg.iter().skip(1) {
-                                    app_buf.push(*ch);
-                                }
-                                while app_buf.end != RINGBUF_SIZE {
-                                    app_buf.push(RingbufType::default());
-                                }
+                                arg.iter().for_each(|ch| arg_buf.push(*ch));
+                                app_buf.buf.copy_from_slice(&arg_buf.buf);
+                                app_buf.end = RINGBUF_SIZE;
+                                port.write_str(&app_buf.buf);
                             }
 
                             // Run the application
                             self.running = Some(app_index);
                             return RunApplication::Main;
                         } else {
-                            port.write_str(&[Message::Unknown.into(), Message::Invoke.into(), 0]);
+                            let mut resp: RingBuf<RINGBUF_SIZE, RingbufType> = RingBuf::default();
+                            resp.push(Message::Unknown.into());
+                            resp.push(Message::Invoke.into());
+                            name.iter().for_each(|b| resp.push(*b));
+                            port.write_str(&resp.buf);
                             port.msg -= 1;
                         }
                     }
@@ -201,7 +217,10 @@ impl<'k> Kernel<'k> {
                                 return RunApplication::Jumped;
                             }
                         } else {
-                            port.write_str(&[Message::Unknown.into(), Message::Reply.into(), 0]);
+                            let mut resp: RingBuf<RINGBUF_SIZE, RingbufType> = RingBuf::default();
+                            resp.push(Message::Unknown.into());
+                            resp.push(Message::Reply.into());
+                            port.write_str(&resp.buf);
                             port.msg -= 1;
                         }
                     }
@@ -373,6 +392,9 @@ impl<'k> Kernel<'k> {
                     // }
                     // app_cont.buf().push(awaiting_num as u8);
                     // app_cont.buf().push(b'\0');
+                }
+                SysCall::ClaimPeripheral => {
+                    app_cont.buf().flush();
                 }
                 _ => {
                     for port in self

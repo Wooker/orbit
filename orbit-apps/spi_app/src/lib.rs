@@ -25,7 +25,11 @@ impl SpiApp {
 
     #[app_main]
     pub fn main(&mut self) {
-        // let bus = Spi::new(&mut self.spi1, Config::default());
-        // let eink: LibEink<DC_PIN, BUSY_PIN> = LibEink::new(bus, &mut self.gpioa);
+        let mut gpioa = Self::claim_peripheral_gpioa();
+        let mut c_gp = Claimed::new(&mut gpioa);
+        let mut spi1 = Self::claim_peripheral_spi1();
+        let mut c_spi = Claimed::new(&mut spi1);
+        let bus = Spi::new(&mut c_spi, Config::default());
+        let eink: LibEink<DC_PIN, BUSY_PIN> = LibEink::new(bus, &mut c_gp);
     }
 }

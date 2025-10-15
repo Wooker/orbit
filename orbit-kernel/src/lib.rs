@@ -7,6 +7,7 @@
 #![feature(const_trait_impl)]
 #![feature(fn_align)]
 #![feature(naked_functions_rustic_abi)]
+#![feature(slice_split_once)]
 
 pub mod action;
 pub mod application;

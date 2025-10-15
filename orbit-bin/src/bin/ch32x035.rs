@@ -6,4 +6,4 @@ use orbit_bin::orbit_main;
 use reade::Reade;
 use spi_app::SpiApp;
 
-orbit_main!(Calc, Reade, SpiApp);
+orbit_main!(Calc, Reade);

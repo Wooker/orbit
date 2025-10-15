@@ -7,7 +7,7 @@ use orbit_common::{feature_mod_use, feature_mod_use_mutual};
 
 use crate::action::Action;
 use crate::message::Message;
-use crate::ringbuf::RingBuf;
+use crate::ringbuf::{RingBuf, TraitBound};
 use crate::{RingbufType, RINGBUF_SIZE};
 
 pub mod port_kind;
@@ -44,7 +44,7 @@ impl<'p> Port<'p> {
             msg: 0,
             peripheral: Uart::new(peripheral, kind, Config::default()),
             role: Role::Candidate,
-            rbuf: RingBuf::new(0x0),
+            rbuf: RingBuf::default(),
         }
     }
 

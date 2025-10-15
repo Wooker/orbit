@@ -2,8 +2,8 @@
 
 use crate::{
     message::Message,
-    ringbuf::RingBuf,
-    {RingbufType, RINGBUF_SIZE},
+    ringbuf::{RingBuf, TraitBound},
+    RingbufType, RINGBUF_SIZE,
 };
 
 pub(crate) struct Action {
@@ -15,7 +15,7 @@ impl Action {
     pub fn new(message: Message, termination: RingbufType) -> Self {
         Self {
             message,
-            rbuf: RingBuf::new(termination),
+            rbuf: RingBuf::default(),
         }
     }
 }
@@ -23,13 +23,13 @@ impl Action {
 impl From<&[u8]> for Action {
     fn from(value: &[u8]) -> Self {
         let message: Message = value[0].into();
-        let mut rbuf = RingBuf::new(0);
+        let mut rbuf = RingBuf::default();
         match message {
             Message::Invoke => {
                 for ch in value[1..].iter() {
                     rbuf.push(*ch);
                 }
-                rbuf.push(0);
+                rbuf.push(<RingbufType as TraitBound>::termination());
                 Self {
                     message: Message::Invoke,
                     rbuf,

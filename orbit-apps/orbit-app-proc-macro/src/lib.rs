@@ -100,7 +100,7 @@ pub fn orbit_app(attr: TokenStream, item: TokenStream) -> TokenStream {
         let lower = format_ident!("{}", i.to_string().to_lowercase());
         let fn_name = format_ident!("claim_peripheral_{}", lower);
         quote! {
-            fn #fn_name(p: KernelPeripherals) -> orbit_kernel::chip::pac::#i {
+            fn #fn_name() -> orbit_kernel::chip::pac::#i {
                 syscall!(SysCall::ClaimPeripheral);
                 unsafe { orbit_kernel::chip::pac::#i::steal() }
             }
@@ -158,7 +158,7 @@ pub fn orbit_app(attr: TokenStream, item: TokenStream) -> TokenStream {
             pub fn new() -> Self{
                 Self {
                     context: Context::new(),
-                    _buf: RingBuf::new(RingbufType::default()),
+                    _buf: RingBuf::default(),
                     _phantom: PhantomData,
                     heap: [0; HEAP_SIZE],
                     stack: [0; STACK_SIZE],
@@ -192,7 +192,7 @@ pub fn orbit_app(attr: TokenStream, item: TokenStream) -> TokenStream {
                 self._buf
                     .buf
                     .iter_mut()
-                    .for_each(|i| *i = RingbufType::default());
+                    .for_each(|i| *i = 32);
                 self._init();
             }
 
@@ -276,6 +276,7 @@ pub fn app_init(_attr: TokenStream, item: TokenStream) -> TokenStream {
     let expanded = quote! {
         #[inline(always)]
         pub fn _init(&mut self) {
+
             #block
         }
     };
