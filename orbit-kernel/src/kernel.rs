@@ -180,7 +180,7 @@ impl<'k> Kernel<'k> {
                                 arg.iter().for_each(|ch| arg_buf.push(*ch));
                                 app_buf.buf.copy_from_slice(&arg_buf.buf);
                                 app_buf.end = RINGBUF_SIZE;
-                                port.write_str(&app_buf.buf);
+                                // port.write_str(&app_buf.buf);
                             }
 
                             // Run the application
