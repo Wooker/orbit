@@ -55,11 +55,23 @@ impl<'p, P: Claimable> Claimed<'p, P> {
 /// will give access to _Peripheral1_ and _Peripheral2_ of _chip_ while
 /// hiding all other peripherals via trait bound of the _Claimable_ trait.
 macro_rules! impl_claim {
+    () => {
+        #[cfg(not(feature = "rt"))]
+        #[derive(Copy, Clone, PartialEq, Eq)]
+        pub enum KernelPeripherals { }
+
+        impl KernelPeripherals {
+            pub const fn discriminant(&self) -> usize {
+                unsafe { *(self as *const Self as *const usize) }
+            }
+        }
+    };
     ($chip:literal, $($field:ident=$val:expr),* $(,)?) => {
         #[cfg(feature = $chip)]
+        #[repr(usize)]
         #[derive(Copy, Clone, PartialEq, Eq)]
         pub enum KernelPeripherals {
-            $( $field, )*
+            $( $field = $val, )*
         }
         #[cfg(all(feature = $chip, feature = "rt"))]
         pub const PERIPHERALS_NUM: usize = count_idents!($($field),*);
@@ -105,3 +117,4 @@ impl_claim!(
     USART1 = 0x40013800,
     SPI1 = 0x40013000,
 );
+impl_claim!();

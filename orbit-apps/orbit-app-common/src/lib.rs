@@ -20,15 +20,15 @@ impl AsBytes for () {
 #[macro_export]
 macro_rules! app_stack {
     ($size:expr) => {
-        const stack_size: usize = $size;
-        const_assert!(stack_size >= 1);
+        const STACK_SIZE: usize = $size;
+        const_assert!(STACK_SIZE >= 1);
     };
 }
 #[macro_export]
 macro_rules! app_heap {
     ($size:expr) => {
-        const heap_size: usize = $size;
-        const_assert!(stack_size >= 0);
+        const HEAP_SIZE: usize = $size;
+        const_assert!(HEAP_SIZE >= 0);
     };
 }
 

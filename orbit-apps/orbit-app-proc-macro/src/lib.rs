@@ -93,7 +93,17 @@ pub fn orbit_app(attr: TokenStream, item: TokenStream) -> TokenStream {
     let peripherals = args.iter().map(|i| {
         let lower = format_ident!("{}", i.to_string().to_lowercase());
         quote! {
-            #lower: Claimed<'app, #i>,
+            #lower: MaybeUninit<Claimed<'app, #i>>,
+        }
+    });
+    let claim_peripherals = args.iter().map(|i| {
+        let lower = format_ident!("{}", i.to_string().to_lowercase());
+        let fn_name = format_ident!("claim_peripheral_{}", lower);
+        quote! {
+            fn #fn_name(p: KernelPeripherals) -> orbit_kernel::chip::pac::#i {
+                syscall!(SysCall::ClaimPeripheral);
+                unsafe { orbit_kernel::chip::pac::#i::steal() }
+            }
         }
     });
     // println!(
@@ -109,12 +119,12 @@ pub fn orbit_app(attr: TokenStream, item: TokenStream) -> TokenStream {
         let lower = format_ident!("{}", i.to_string().to_lowercase());
         let upper = format_ident!("{}", i.to_string().to_uppercase());
         quote! {
-            #lower: peripherals.#upper.claim()
+            #lower: MaybeUninit::uninit() //peripherals.#upper.claim()
         }
     });
 
     let expanded = quote! {
-        use orbit_app_common::AsBytes;
+        use orbit_app_common::{syscall,AsBytes};
         use core::{
             arch::{asm, naked_asm},
             mem::MaybeUninit,
@@ -124,10 +134,11 @@ pub fn orbit_app(attr: TokenStream, item: TokenStream) -> TokenStream {
         use orbit_kernel::{
             application::Application,
             context::Context,
-            claim::{Claim, Claimed},
+            claim::{Claim, Claimed, KernelPeripherals},
             {PMP, RINGBUF_SIZE, RingbufType},
             ringbuf::RingBuf,
             message::Message,
+            syscall::SysCall,
         };
         use orbit_common::const_assert;
 
@@ -139,8 +150,8 @@ pub fn orbit_app(attr: TokenStream, item: TokenStream) -> TokenStream {
             #existing_fields
             #(#peripherals)*
             _phantom: PhantomData<&'app ()>,
-            heap: [usize; heap_size],
-            stack: [usize; stack_size],
+            heap: [usize; HEAP_SIZE],
+            stack: [usize; STACK_SIZE],
         }
 
         impl #impl_generics #struct_name #ty_generics {
@@ -149,21 +160,23 @@ pub fn orbit_app(attr: TokenStream, item: TokenStream) -> TokenStream {
                     context: Context::new(),
                     _buf: RingBuf::new(RingbufType::default()),
                     _phantom: PhantomData,
-                    heap: [0; heap_size],
-                    stack: [0; stack_size],
+                    heap: [0; HEAP_SIZE],
+                    stack: [0; STACK_SIZE],
                     #(#existing_fields_default)*
                     #(#peripherals_in_self),*
                 }
             }
 
+            #(#claim_peripherals)*
+
             #[inline(always)]
             pub const fn heap_size() -> usize{
-                heap_size
+                HEAP_SIZE
             }
 
             #[inline(always)]
             pub const fn stack_size() -> usize{
-                stack_size
+                STACK_SIZE
             }
         }
 

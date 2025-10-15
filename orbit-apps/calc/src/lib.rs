@@ -1,8 +1,7 @@
 #![no_std]
 
-use orbit_app_common::{app_heap, app_stack, syscall};
+use orbit_app_common::{app_heap, app_stack};
 use orbit_app_proc_macro::{app_init, app_interrupt, app_main, orbit_app, orbit_impl};
-use orbit_kernel::syscall::SysCall;
 
 app_heap!(32);
 app_stack!(32);

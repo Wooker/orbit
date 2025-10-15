@@ -99,12 +99,7 @@ impl<'k> Kernel<'k> {
     }
 
     #[inline(never)]
-    pub const fn add_application(
-        &mut self,
-        index: usize,
-        app_cont: AppContainer<'k>,
-        peripherals: Option<[KernelPeripherals; PMP]>,
-    ) {
+    pub const fn add_application(&mut self, index: usize, app_cont: AppContainer<'k>) {
         let app_i = unsafe { self.apps.get_unchecked_mut(index) };
         app_i.write(app_cont);
     }
