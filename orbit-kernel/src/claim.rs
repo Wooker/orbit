@@ -1,7 +1,7 @@
 // While compiling with  rustc 1.91.0-nightly (54c581243 2025-08-25)
 // cargo produces:
 // ```
-// warning: `#[link_section]` attribute cannot be used on inherent methods
+// warning: `#[unsafe(link_section)]` attribute cannot be used on inherent methods
 // ```
 // If such behavior is no longer observable on newer versions of rustc,
 // remove this attribute
@@ -68,10 +68,11 @@ macro_rules! impl_claim {
     };
     ($chip:literal, $($field:ident=$val:expr),* $(,)?) => {
         #[cfg(feature = $chip)]
-        #[repr(usize)]
+        #[repr(u8)]
         #[derive(Copy, Clone, PartialEq, Eq)]
         pub enum KernelPeripherals {
-            $( $field = $val, )*
+            $( $field, )*
+            MAX
         }
         #[cfg(all(feature = $chip, feature = "rt"))]
         pub const PERIPHERALS_NUM: usize = count_idents!($($field),*);
@@ -83,7 +84,7 @@ macro_rules! impl_claim {
             #[cfg(all(feature = $chip, feature = "rt"))]
             impl Claimable for $field {}
             #[cfg(all(feature = $chip, feature = "rt"))]
-            #[link_section = ".kernel.text"]
+            #[unsafe(link_section = ".kernel.text")]
             impl<'p> Claim<'p, $field> for chip::pac::$field {
                 #[inline(never)]
                 fn claim(&'p mut self) -> Claimed<'p,$field>{

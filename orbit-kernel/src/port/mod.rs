@@ -8,7 +8,7 @@ use orbit_common::{feature_mod_use, feature_mod_use_mutual};
 use crate::action::Action;
 use crate::message::Message;
 use crate::ringbuf::{RingBuf, TraitBound};
-use crate::{RingbufType, RINGBUF_SIZE};
+use crate::{RINGBUF_SIZE, RingbufType};
 
 pub mod port_kind;
 pub(crate) use port_kind::PortKinds;
@@ -37,7 +37,7 @@ pub(crate) struct Port<'p> {
 
 impl<'p> Port<'p> {
     #[inline(never)]
-    #[link_section = ".kernel.text"]
+    #[unsafe(link_section = ".kernel.text")]
     pub(crate) fn new(peripheral: &'p PortPeripheral, kind: PortKinds) -> Self {
         Self {
             awaiting: false,
@@ -49,19 +49,19 @@ impl<'p> Port<'p> {
     }
 
     #[inline(never)]
-    #[link_section = ".kernel.text"]
+    #[unsafe(link_section = ".kernel.text")]
     pub(crate) fn push(&mut self) {
         self.rbuf.push(self.peripheral.read());
     }
 
     #[inline(never)]
-    #[link_section = ".kernel.text"]
+    #[unsafe(link_section = ".kernel.text")]
     pub(crate) fn read_buf(&mut self, index: usize) -> RingbufType {
         self.rbuf.at(index)
     }
 
     #[inline(never)]
-    #[link_section = ".kernel.text"]
+    #[unsafe(link_section = ".kernel.text")]
     pub(crate) fn write(&mut self, ch: RingbufType) {
         self.peripheral.blocking_write_char(ch);
         for i in 5..=9 {
@@ -71,7 +71,7 @@ impl<'p> Port<'p> {
     }
 
     #[inline(never)]
-    #[link_section = ".kernel.text"]
+    #[unsafe(link_section = ".kernel.text")]
     pub(crate) fn write_str<'a>(&'a mut self, buf: &[RingbufType]) {
         for ch in buf.iter() {
             self.write(*ch);
@@ -79,7 +79,7 @@ impl<'p> Port<'p> {
     }
 
     #[inline(never)]
-    #[link_section = ".kernel.text"]
+    #[unsafe(link_section = ".kernel.text")]
     pub(crate) fn write_self<'a>(&'a mut self) {
         for ch in self.rbuf.buf.into_iter() {
             self.write(ch);
@@ -87,7 +87,7 @@ impl<'p> Port<'p> {
     }
 
     #[inline(never)]
-    #[link_section = ".kernel.text"]
+    #[unsafe(link_section = ".kernel.text")]
     pub(crate) fn handle(&mut self) -> Option<Action> {
         let b = self.peripheral.read();
         self.rbuf.push(b);

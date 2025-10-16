@@ -7,7 +7,7 @@ pub struct Clocks {
 
 impl Clocks {
     #[inline(never)]
-    #[link_section = ".kernel.text"]
+    #[unsafe(link_section = ".kernel.text")]
     pub fn freeze(&mut self) {
         let rcc = unsafe { &*chip::pac::RCC::PTR };
 
@@ -23,7 +23,7 @@ impl Clocks {
     }
 
     #[inline(never)]
-    #[link_section = ".kernel.text"]
+    #[unsafe(link_section = ".kernel.text")]
     pub const fn default() -> Self {
         Self {
             hclk: Hertz::from_raw(0),

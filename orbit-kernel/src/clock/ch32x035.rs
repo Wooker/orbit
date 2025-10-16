@@ -1,7 +1,7 @@
 // While compiling with  rustc 1.91.0-nightly (54c581243 2025-08-25)
 // cargo produces:
 // ```
-// warning: `#[link_section]` attribute cannot be used on inherent methods
+// warning: `#[unsafe(link_section)]` attribute cannot be used on inherent methods
 // ```
 // If such behavior is no longer observable on newer versions of rustc,
 // remove this attribute
@@ -14,7 +14,7 @@ pub struct Clocks {
 
 impl Clocks {
     #[inline(never)]
-    #[link_section = ".kernel.text"]
+    #[unsafe(link_section = ".kernel.text")]
     pub fn freeze(&mut self) {
         let rcc = unsafe { &*chip::pac::RCC::PTR };
 
@@ -38,7 +38,7 @@ impl Clocks {
     }
 
     #[inline(never)]
-    #[link_section = ".kernel.text"]
+    #[unsafe(link_section = ".kernel.text")]
     pub const fn default() -> Self {
         Self { hclk: 0 }
     }

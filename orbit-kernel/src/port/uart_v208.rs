@@ -3,7 +3,7 @@
 
 // Default UART is UART4()
 use chip::PortPeripheral;
-use core::sync::atomic::{compiler_fence, Ordering};
+use core::sync::atomic::{Ordering, compiler_fence};
 
 use super::{ConfigureGPIO, PortKinds};
 
@@ -37,7 +37,7 @@ pub struct Config {
 impl Default for Config {
     #[rustc_align(4)]
     #[inline(never)]
-    #[link_section = ".kernel.text"]
+    #[unsafe(link_section = ".kernel.text")]
     fn default() -> Self {
         Self {
             baudrate: 115200,
@@ -56,7 +56,7 @@ pub struct Uart<'a> {
 impl<'a> Uart<'a> {
     #[rustc_align(4)]
     #[inline(never)]
-    #[link_section = ".kernel.text"]
+    #[unsafe(link_section = ".kernel.text")]
     pub fn new(uart: &'a PortPeripheral, kind: impl ConfigureGPIO, config: Config) -> Self {
         kind.configure();
 
@@ -102,7 +102,7 @@ impl<'a> Uart<'a> {
 
     #[rustc_align(4)]
     #[inline(never)]
-    #[link_section = ".kernel.text"]
+    #[unsafe(link_section = ".kernel.text")]
     pub fn blocking_write(&mut self, buf: &[u8]) {
         for c in buf {
             // Read TC
@@ -118,7 +118,7 @@ impl<'a> Uart<'a> {
 
     #[rustc_align(4)]
     #[inline(never)]
-    #[link_section = ".kernel.text"]
+    #[unsafe(link_section = ".kernel.text")]
     pub fn blocking_write_char(&mut self, c: u8) {
         // Read TC
         // while (self.uart.statr.read().bits() & (1 << 6)) == 0 {} // wait tx complete
@@ -130,7 +130,7 @@ impl<'a> Uart<'a> {
 
     #[rustc_align(4)]
     #[inline(never)]
-    #[link_section = ".kernel.text"]
+    #[unsafe(link_section = ".kernel.text")]
     pub fn read(&mut self) -> u8 {
         let val = self.uart.datar.read().dr().bits() as u8;
         for i in 5..=9 {
@@ -141,14 +141,14 @@ impl<'a> Uart<'a> {
 
     #[rustc_align(4)]
     #[inline(never)]
-    #[link_section = ".kernel.text"]
+    #[unsafe(link_section = ".kernel.text")]
     pub fn status(&mut self) -> u32 {
         self.uart.statr.read().bits()
     }
 
     #[rustc_align(4)]
     #[inline(never)]
-    #[link_section = ".kernel.text"]
+    #[unsafe(link_section = ".kernel.text")]
     pub fn clear_int(&mut self, bit: u8) {
         self.uart
             .statr

@@ -5,7 +5,7 @@ use crate::{
     context::Context,
     // pmp_entry::PmpEntry,
     ringbuf::RingBuf,
-    {RingbufType, RINGBUF_SIZE},
+    {RINGBUF_SIZE, RingbufType},
 };
 
 #[derive(Clone, Copy)]

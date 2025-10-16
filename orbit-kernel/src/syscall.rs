@@ -1,5 +1,3 @@
-use crate::claim::KernelPeripherals;
-
 #[repr(usize)]
 #[derive(Clone, PartialEq, Eq)]
 pub enum SysCall {
