@@ -50,7 +50,6 @@ impl Reade {
 
             match cmp {
                 core::cmp::Ordering::Equal => {
-                    self.letters.buf[0] = b'a';
                     for line in 0..HEIGHT {
                         for layer in 0..LAYERS {
                             for ch in 0..WIDTH {
