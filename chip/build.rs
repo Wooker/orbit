@@ -1,5 +1,5 @@
 use std::env;
-use std::fs::{DirBuilder, File};
+use std::fs::File;
 use std::io::{Read, Write};
 use std::path::PathBuf;
 use std::str::FromStr;
@@ -7,7 +7,7 @@ use std::str::FromStr;
 #[allow(unused)]
 macro_rules! p {
     ($($tokens: tt)*) => {
-        println!("cargo:warning={}", format!($($tokens)*))
+        println!("cargo:warning=\r\x1b[34;1m   {}: \x1b[0m{}", "chip", format!($($tokens)*))
     }
 }
 
