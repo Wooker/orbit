@@ -8,6 +8,7 @@
 #![allow(unused_attributes)]
 
 mod asm;
+mod port_handler;
 
 use core::{
     arch::{asm, naked_asm},
@@ -22,6 +23,7 @@ use crate::{
     claim::KernelPeripherals,
     clock::Clocks,
     context::Context,
+    kernel::port_handler::handle_invoke,
     message::Message,
     port::{
         port_kind::{PORT_INTERRUPTS, PORT_NUM},
@@ -132,141 +134,87 @@ impl<'k> Kernel<'k> {
             .filter_map(|port| port.awaiting.then(|| port))
             .count();
         let port = &mut self.ports[i];
-        if let Some(mut action) = port.handle() {
-            if port.msg > 0 {
-                port.write_str(&[Message::Busy.into(), 0]);
-            } else {
-                port.msg += 1;
-                match action.message {
-                    Message::Invoke => {
-                        if port.awaiting {}
+        if let Some(mut action) = port.handle()
+            && port.msg == 0
+        {
+            port.msg += 1;
+
+            let msg = unsafe { action.rbuf.read().unwrap_unchecked() };
+            match action.message {
+                Message::Invoke => handle_invoke(port, msg, &mut self.apps, &mut self.running),
+                Message::Reply => {
+                    if let Some(app_index) = self.running {
+                        port.awaiting = false;
+                        port.msg = 0;
 
                         let info = unsafe { action.rbuf.read().unwrap_unchecked() };
-                        let (name, arg) = if let Some((name, arg)) =
-                            info.split_once(|p| *p == <RingbufType as TraitBound>::termination())
-                        {
-                            (name, Some(arg))
-                        } else {
-                            (info, None)
-                        };
 
-                        // let mut dbg: RingBuf<RINGBUF_SIZE, RingbufType> = RingBuf::default();
-                        // name.iter().for_each(|d| dbg.push(*d));
-                        // port.write_str(&str::from_utf8(&dbg.buf).unwrap().trim().as_bytes());
-                        // dbg.flush();
-                        // port.write_str(&dbg.buf);
+                        let app =
+                            unsafe { self.apps.get_unchecked_mut(app_index).assume_init_mut() };
+                        // Flush the application buffer
+                        app.buf().flush();
 
-                        // Find app by name
-                        if let Some((app_index, _)) =
-                            self.apps.iter().enumerate().find(|(_, app)| unsafe {
-                                app.assume_init_read().name().as_bytes().eq(name)
-                            })
-                        {
-                            // Get the app container
-                            let app =
-                                unsafe { self.apps.get_unchecked_mut(app_index).assume_init_mut() };
-
-                            if let Some(arg) = arg {
-                                // arg.iter().for_each(|d| dbg.push(*d));
-                                // port.write_str(&dbg.buf);
-                                // dbg.flush();
-
-                                // Flush the application buffer
-                                let app_buf = app.buf();
-                                app_buf.flush();
-
-                                let mut arg_buf: RingBuf<RINGBUF_SIZE, RingbufType> =
-                                    RingBuf::default();
-                                // Write command arguments after the space to
-                                // the application buffer
-                                arg.iter().for_each(|ch| arg_buf.push(*ch));
-                                app_buf.buf.copy_from_slice(&arg_buf.buf);
-                                app_buf.end = RINGBUF_SIZE;
-                                // port.write_str(&app_buf.buf);
-                            }
-
-                            // Run the application
-                            self.running = Some(app_index);
-                            return RunApplication::Main;
-                        } else {
-                            let mut resp: RingBuf<RINGBUF_SIZE, RingbufType> = RingBuf::default();
-                            resp.push(Message::Unknown.into());
-                            resp.push(Message::Invoke.into());
-                            name.iter().for_each(|b| resp.push(*b));
-                            port.write_str(&resp.buf);
-                            port.msg -= 1;
+                        // Write command arguments after the space to
+                        // the application buffer
+                        for ch in info.iter() {
+                            app.buf().push(*ch);
                         }
-                    }
-                    Message::Reply => {
-                        if let Some(app_index) = self.running {
-                            port.awaiting = false;
-                            port.msg = 0;
 
-                            let info = unsafe { action.rbuf.read().unwrap_unchecked() };
-
-                            let app =
-                                unsafe { self.apps.get_unchecked_mut(app_index).assume_init_mut() };
-                            // Flush the application buffer
-                            app.buf().flush();
-
-                            // Write command arguments after the space to
-                            // the application buffer
-                            for ch in info.iter() {
-                                app.buf().push(*ch);
-                            }
-
-                            if awaiting - 1 == 0 {
-                                return RunApplication::Jumped;
-                            }
-                        } else {
-                            let mut resp: RingBuf<RINGBUF_SIZE, RingbufType> = RingBuf::default();
-                            resp.push(Message::Unknown.into());
-                            resp.push(Message::Reply.into());
-                            port.write_str(&resp.buf);
-                            port.msg -= 1;
+                        if awaiting - 1 == 0 {
+                            return RunApplication::Jumped;
                         }
-                    }
-                    Message::Busy => {
-                        if let Some(_) = self.running {
-                            // return RunApplication::Abort;
-                        }
+                    } else {
+                        let mut resp: RingBuf<RINGBUF_SIZE, RingbufType> = RingBuf::default();
+                        resp.push(Message::Unknown.into());
+                        resp.push(Message::Reply.into());
+                        port.write_str(&resp.buf);
                         port.msg -= 1;
                     }
-                    Message::Append => {
-                        let info = unsafe { action.rbuf.read().unwrap_unchecked() };
-                        let delimiter = info.iter().take_while(|e| **e != b' ').count();
-                        let (name, arg) = info.split_at(delimiter);
-
-                        // Find app by name
-                        if let Some((app_index, _)) =
-                            self.apps.iter().enumerate().find(|(_, app)| unsafe {
-                                app.assume_init_read().name().as_bytes().eq(name)
-                            })
-                        {
-                            // Get the app container
-                            let app =
-                                unsafe { self.apps.get_unchecked_mut(app_index).assume_init_mut() };
-
-                            // Write command arguments after the space to
-                            // the application buffer
-                            for ch in arg.iter().skip(1) {
-                                app.buf().push(*ch);
-                            }
-                            port.msg -= 1;
-                        } else {
-                            port.write_str(&[Message::Unknown.into(), Message::Append.into(), 0]);
-                            port.msg -= 1;
-                        }
+                    RunApplication::None
+                }
+                Message::Busy => {
+                    if let Some(_) = self.running {
+                        // return RunApplication::Abort;
                     }
-                    Message::Unknown => {
-                        port.msg = 0;
+                    port.msg -= 1;
+                    RunApplication::None
+                }
+                Message::Append => {
+                    let info = unsafe { action.rbuf.read().unwrap_unchecked() };
+                    let delimiter = info.iter().take_while(|e| **e != b' ').count();
+                    let (name, arg) = info.split_at(delimiter);
+
+                    // Find app by name
+                    if let Some((app_index, _)) =
+                        self.apps.iter().enumerate().find(|(_, app)| unsafe {
+                            app.assume_init_read().name().as_bytes().eq(name)
+                        })
+                    {
+                        // Get the app container
+                        let app =
+                            unsafe { self.apps.get_unchecked_mut(app_index).assume_init_mut() };
+
+                        // Write command arguments after the space to
+                        // the application buffer
+                        for ch in arg.iter().skip(1) {
+                            app.buf().push(*ch);
+                        }
+                        port.msg -= 1;
+                        RunApplication::None
+                    } else {
+                        port.write_str(&[Message::Unknown.into(), Message::Append.into(), 0]);
+                        port.msg -= 1;
+                        RunApplication::None
                     }
                 }
+                Message::Unknown => {
+                    port.msg = 0;
+                    RunApplication::None
+                }
             }
+        } else {
+            RunApplication::None
         }
-        // let end = port.rbuf.end;
-        // port.write(end as u8);
-        RunApplication::None
     }
 
     #[inline(never)]
