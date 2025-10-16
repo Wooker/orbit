@@ -100,7 +100,9 @@ pub fn orbit_app(attr: TokenStream, item: TokenStream) -> TokenStream {
         let lower = format_ident!("{}", i.to_string().to_lowercase());
         let fn_name = format_ident!("claim_peripheral_{}", lower);
         quote! {
-            fn #fn_name() -> orbit_kernel::chip::pac::#i {
+            fn #fn_name(&mut self) -> orbit_kernel::chip::pac::#i {
+                self._buf.push(KernelPeripherals::#i as u8);
+                self._buf.fill();
                 syscall!(SysCall::ClaimPeripheral);
                 unsafe { orbit_kernel::chip::pac::#i::steal() }
             }
@@ -117,7 +119,7 @@ pub fn orbit_app(attr: TokenStream, item: TokenStream) -> TokenStream {
     // );
     let peripherals_in_self = args.iter().map(|i| {
         let lower = format_ident!("{}", i.to_string().to_lowercase());
-        let upper = format_ident!("{}", i.to_string().to_uppercase());
+        // let upper = format_ident!("{}", i.to_string().to_uppercase());
         quote! {
             #lower: MaybeUninit::uninit() //peripherals.#upper.claim()
         }

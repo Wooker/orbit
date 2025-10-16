@@ -16,9 +16,10 @@ use core::{
 };
 
 // use chip::pac::Peripherals;
-use orbit_arch::{interface::pmp::Pmp, Core, PMP};
+use orbit_arch::{Core, PMP};
 
 use crate::{
+    RINGBUF_SIZE, RingbufType,
     application_container::{AppContainer, RunApplication},
     claim::KernelPeripherals,
     clock::Clocks,
@@ -26,12 +27,11 @@ use crate::{
     kernel::port_handler::handle_invoke,
     message::Message,
     port::{
-        port_kind::{PORT_INTERRUPTS, PORT_NUM},
         Port,
+        port_kind::{PORT_INTERRUPTS, PORT_NUM},
     },
     ringbuf::{RingBuf, TraitBound},
     syscall::SysCall,
-    RingbufType, RINGBUF_SIZE,
 };
 
 pub const APPS: usize = 5;
@@ -53,6 +53,7 @@ pub struct Kernel<'k> {
     running: Option<usize>,
     ports: [Port<'k>; PORT_NUM],
     // pub peripherals: Peripherals,
+    claims: [bool; KernelPeripherals::MAX as usize],
     pub core: Core<PMP>,
     pub clock: Clocks,
 }
@@ -92,6 +93,7 @@ impl<'k> Kernel<'k> {
             core: Core::new(),
             ports,
             apps: [MaybeUninit::uninit(); APPS],
+            claims: [false; KernelPeripherals::MAX as usize],
             clock,
             running: None,
         }
@@ -248,7 +250,7 @@ impl<'k> Kernel<'k> {
                     .assume_init_mut()
             };
 
-            match syscall.clone() {
+            match syscall {
                 SysCall::Return => {
                     orbit_arch::riscv::register::mepc::write(asm::wait as *const fn() as usize);
                     self.context.a1 = 0;
@@ -311,7 +313,19 @@ impl<'k> Kernel<'k> {
                     // app_cont.buf().push(b'\0');
                 }
                 SysCall::ClaimPeripheral => {
-                    app_cont.buf().flush();
+                    let app_buf = app_cont.buf();
+                    let ind = app_buf.read().unwrap().get(0).unwrap().clone() as usize;
+                    app_buf.flush();
+
+                    let claim_spot = self.claims.get_mut(ind).unwrap();
+                    if *claim_spot == false {
+                        app_buf.flush();
+                        app_buf.push(1);
+                        *claim_spot = true;
+                    } else {
+                        app_buf.push(0);
+                    }
+                    app_buf.fill();
                 }
                 _ => {
                     for port in self

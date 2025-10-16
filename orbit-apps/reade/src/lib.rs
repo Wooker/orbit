@@ -67,9 +67,10 @@ impl Reade {
                             height: 200,
                         },
                     };
-                    let mut gpioa = Self::claim_peripheral_gpioa();
+                    let mut gpioa = self.claim_peripheral_gpioa();
                     let mut gpioa = Claimed::new(&mut gpioa);
-                    let mut spi1 = Self::claim_peripheral_spi1();
+                    let mut spi1 = self.claim_peripheral_spi1();
+                    let res = self._buf.read().unwrap()[0];
                     let mut spi1 = Claimed::new(&mut spi1);
                     let bus = LibSpi::new(&mut spi1, Config::default());
                     let mut eink: LibEink<DC_PIN, BUSY_PIN> = LibEink::new(bus, &mut gpioa);
@@ -77,7 +78,7 @@ impl Reade {
                     self.letters.flush();
                     self.frame.flush();
                     self._buf.flush();
-                    Output([1])
+                    Output([res])
                 }
                 _ => {
                     let chars = arg.chars();
