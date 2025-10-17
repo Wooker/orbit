@@ -6,7 +6,16 @@ use proc_macro::TokenStream;
 use proc_macro2::Span;
 use quote::{format_ident, quote};
 use syn::{
-    Fields, Ident, ItemFn, ItemImpl, ItemStruct, Lifetime, LifetimeDef, ReturnType, Token, Type,
+    // Fields,
+    // Type,
+    Ident,
+    ItemFn,
+    ItemImpl,
+    ItemStruct,
+    Lifetime,
+    LifetimeDef,
+    ReturnType,
+    Token,
     parse::{Parse, ParseStream},
     parse_macro_input,
     punctuated::Punctuated,
@@ -51,61 +60,90 @@ pub fn orbit_app(attr: TokenStream, item: TokenStream) -> TokenStream {
     //     struct_name.span(),
     // );
 
-    let existing_fields_default = match struct_item.fields {
-        Fields::Named(ref fields_named) => fields_named.named.iter().map(|f| {
-            let name = f.ident.as_ref().expect("Expected named field");
-            let ty = &f.ty;
+    // let existing_fields_default = match struct_item.fields {
+    //     Fields::Named(ref named) => named
+    //         .named
+    //         .iter()
+    //         .enumerate()
+    //         .map(|(i, f)| {
+    //             let name = f.ident.as_ref().expect("Expected named field");
+    //             let ty = &f.ty;
 
-            match ty {
-                Type::Array(arr) => {
-                    let arr_len = &arr.len;
+    //             match ty {
+    //                 Type::Array(arr) => {
+    //                     let arr_len = &arr.len;
 
-                    quote! { #name: [0; #arr_len], }
-                }
-                _ => quote! {
-                    #name: <#ty>::default(),
-                },
-            }
-        }),
-        _ => {
-            return syn::Error::new_spanned(
-                struct_item.fields.clone(),
-                "Only structs with named fields are supported",
-            )
-            .to_compile_error()
-            .into();
-        }
-    };
+    //                     quote! { #name: [0; #arr_len], }
+    //                 }
+    //                 _ => quote! {
+    //                     #name: <#ty>::default(),
+    //                 },
+    //             }
+    //         })
+    //         .collect::<Vec<_>>(),
+    //     Fields::Unnamed(ref unnamed) => unnamed
+    //         .unnamed
+    //         .iter()
+    //         .enumerate()
+    //         .map(|(i, f)| {
+    //             // let name = f.ident.as_ref().expect("Expected named field");
+    //             let ty = &f.ty;
 
-    let existing_fields = match struct_item.fields {
-        Fields::Named(ref fields_named) => &fields_named.named,
-        _ => {
-            return syn::Error::new_spanned(
-                struct_item.fields.clone(),
-                "Only structs with named fields are supported",
-            )
-            .to_compile_error()
-            .into();
-        }
-    };
+    //             match ty {
+    //                 Type::Array(arr) => {
+    //                     let arr_len = &arr.len;
+
+    //                     quote! { #i: [0; #arr_len], }
+    //                 }
+    //                 _ => quote! {
+    //                     #i: <#ty>::default(),
+    //                 },
+    //             }
+    //         })
+    //         .collect::<Vec<_>>(),
+    //     Fields::Unit => {
+    //         vec![]
+    //     }
+    // };
+
+    // let existing_fields = match struct_item.fields {
+    //     Fields::Named(ref fields_named) => &fields_named.named,
+    //     _ => {
+    //         return syn::Error::new_spanned(
+    //             struct_item.fields.clone(),
+    //             "Only structs with named fields are supported",
+    //         )
+    //         .to_compile_error()
+    //         .into();
+    //     }
+    // };
 
     // Parsing peripherals
     let peripherals = args.iter().map(|i| {
         let lower = format_ident!("{}", i.to_string().to_lowercase());
         quote! {
-            #lower: MaybeUninit<Claimed<'app, #i>>,
+            #lower: MaybeUninit<#i>,
         }
     });
     let claim_peripherals = args.iter().map(|i| {
         let lower = format_ident!("{}", i.to_string().to_lowercase());
-        let fn_name = format_ident!("claim_peripheral_{}", lower);
+        // let fn_name = format_ident!("claim_peripheral_{}", lower);
         quote! {
-            fn #fn_name(&mut self) -> orbit_kernel::chip::pac::#i {
-                self._buf.push(KernelPeripherals::#i as u8);
-                self._buf.fill();
+            // fn #fn_name(&mut self) -> orbit_kernel::chip::pac::#i {
+                self.ringbuf.push(KernelPeripherals::#i as u8);
+                self.ringbuf.fill();
                 syscall!(SysCall::ClaimPeripheral);
-                unsafe { orbit_kernel::chip::pac::#i::steal() }
-            }
+                self.peripherals.#lower.write(unsafe { orbit_kernel::chip::pac::#i::steal() });
+            // }
+        }
+    });
+    let peripherals_assume_init = args.iter().map(|i| {
+        let lower = format_ident!("{}", i.to_string().to_lowercase());
+        // let fn_name = format_ident!("claim_peripheral_{}", lower);
+        quote! {
+            // fn #fn_name(&mut self) -> orbit_kernel::chip::pac::#i {
+                let #lower = unsafe {self.peripherals.#lower.assume_init_mut() };
+            // }
         }
     });
     // println!(
@@ -117,13 +155,16 @@ pub fn orbit_app(attr: TokenStream, item: TokenStream) -> TokenStream {
     //             .to_string())
     //         .collect::<Vec<String>>()
     // );
-    let peripherals_in_self = args.iter().map(|i| {
-        let lower = format_ident!("{}", i.to_string().to_lowercase());
-        // let upper = format_ident!("{}", i.to_string().to_uppercase());
-        quote! {
-            #lower: MaybeUninit::uninit() //peripherals.#upper.claim()
-        }
-    });
+    let peripherals_in_self = args
+        .iter()
+        .map(|i| {
+            let lower = format_ident!("{}", i.to_string().to_lowercase());
+            // let upper = format_ident!("{}", i.to_string().to_uppercase());
+            quote! {
+                #lower: MaybeUninit::uninit(), //peripherals.#upper.claim()
+            }
+        })
+        .collect::<Vec<_>>();
 
     let expanded = quote! {
         use orbit_app_common::{syscall,AsBytes};
@@ -146,30 +187,39 @@ pub fn orbit_app(attr: TokenStream, item: TokenStream) -> TokenStream {
 
         #[repr(C,align(4))]
         #(#attributes)*
-        pub struct #struct_name #ty_generics {
-            context: Context,
-            _buf: RingBuf<RINGBUF_SIZE, RingbufType>,
-            #existing_fields
+        pub struct Peripherals<'app> {
             #(#peripherals)*
             _phantom: PhantomData<&'app ()>,
+        }
+
+        #[repr(C,align(4))]
+        #(#attributes)*
+        pub struct #struct_name #ty_generics {
+            context: Context,
+            ringbuf: RingBuf<RINGBUF_SIZE, RingbufType>,
+            // #existing_fields
+            peripherals: Peripherals<'app>,
             heap: [usize; HEAP_SIZE],
             stack: [usize; STACK_SIZE],
+            _phantom: PhantomData<&'app ()>,
         }
 
         impl #impl_generics #struct_name #ty_generics {
             pub fn new() -> Self{
                 Self {
                     context: Context::new(),
-                    _buf: RingBuf::default(),
-                    _phantom: PhantomData,
+                    ringbuf: RingBuf::default(),
+                    // #(#existing_fields_default)*
+                    peripherals: Peripherals {
+                        _phantom: PhantomData,
+                        #(#peripherals_in_self)*
+                    },
                     heap: [0; HEAP_SIZE],
                     stack: [0; STACK_SIZE],
-                    #(#existing_fields_default)*
-                    #(#peripherals_in_self),*
+                    _phantom: PhantomData,
                 }
             }
 
-            #(#claim_peripherals)*
 
             #[inline(always)]
             pub const fn heap_size() -> usize{
@@ -182,7 +232,9 @@ pub fn orbit_app(attr: TokenStream, item: TokenStream) -> TokenStream {
             }
         }
 
+
         impl #impl_generics Application<'app> for #struct_name #ty_generics #where_clause {
+            type Peripherals = Peripherals<'app>;
             const NAME: &'app str = #struct_name_str;
             #[inline(never)]
             fn init(&mut self) {
@@ -191,21 +243,24 @@ pub fn orbit_app(attr: TokenStream, item: TokenStream) -> TokenStream {
                 self.context.gp = &self.context as *const Context as usize;
                 self.context.ra = Self::ecall as *const fn() as usize;
 
-                self._buf
-                    .buf
-                    .iter_mut()
-                    .for_each(|i| *i = 32);
+                // self.ringbuf
+                //     .buf
+                //     .iter_mut()
+                //     .for_each(|i| *i = 32);
+                #(#claim_peripherals)*
+                #(#peripherals_assume_init)*
                 self._init();
             }
 
             #[inline(never)]
             fn main(&mut self) {
-                let output = self._main();
-                self._buf.push(Message::Reply as u8);
+                // #(#peripherals_assume_main)*
+                let output = Self::_main(unsafe { self.ringbuf.read().unwrap_unchecked()}, &mut self.peripherals);
+                self.ringbuf.push(Message::Reply as u8);
                 output.as_bytes()
                     .iter()
-                    .for_each(|byte| self._buf.push(*byte));
-                self._buf.push(self._buf.termination);
+                    .for_each(|byte| self.ringbuf.push(*byte));
+                self.ringbuf.push(self.ringbuf.termination);
                 unsafe { asm!("li a0, 0;li a1, 0;") };
             }
 
@@ -222,7 +277,7 @@ pub fn orbit_app(attr: TokenStream, item: TokenStream) -> TokenStream {
 
             #[inline(always)]
             fn buf(&mut self) -> usize {
-                &self._buf as *const RingBuf<RINGBUF_SIZE, RingbufType> as usize
+                &self.ringbuf as *const RingBuf<RINGBUF_SIZE, RingbufType> as usize
             }
 
             #[unsafe(naked)]

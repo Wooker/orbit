@@ -7,6 +7,7 @@
 // remove this attribute
 #![allow(unused_attributes)]
 
+#[cfg(feature = "rt")]
 use orbit_common::count_idents;
 
 pub enum ClaimError {

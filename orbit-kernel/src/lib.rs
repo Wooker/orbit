@@ -38,6 +38,7 @@ pub const PMP: usize = 4;
 pub const RINGBUF_SIZE: usize = 32;
 pub type RingbufType = u8;
 
+#[cfg(feature = "rt")]
 #[panic_handler]
 pub fn panic_handler<'a, 'b>(_: &'a core::panic::PanicInfo<'b>) -> ! {
     loop {}

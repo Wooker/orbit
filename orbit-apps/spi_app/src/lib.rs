@@ -13,8 +13,7 @@ app_heap!(32);
 app_stack!(32);
 
 #[orbit_app(SPI1, GPIOA)]
-struct SpiApp {}
-
+struct SpiApp;
 #[orbit_impl]
 impl SpiApp {
     #[app_init]
@@ -24,12 +23,11 @@ impl SpiApp {
     pub fn interrupt(&mut self) {}
 
     #[app_main]
-    pub fn main(&mut self) {
-        let mut gpioa = Self::claim_peripheral_gpioa();
-        let mut c_gp = Claimed::new(&mut gpioa);
-        let mut spi1 = Self::claim_peripheral_spi1();
-        let mut c_spi = Claimed::new(&mut spi1);
-        let bus = Spi::new(&mut c_spi, Config::default());
-        let eink: LibEink<DC_PIN, BUSY_PIN> = LibEink::new(bus, &mut c_gp);
+    pub fn main(_buf: &[u8], peripherals: &mut Peripherals) {
+        let mut spi1 = unsafe { peripherals.spi1.assume_init_read() };
+        let mut gpioa = unsafe { peripherals.gpioa.assume_init_read() };
+
+        let bus = Spi::new(&mut spi1, Config::default());
+        let _eink: LibEink<DC_PIN, BUSY_PIN> = LibEink::new(bus, &mut gpioa);
     }
 }

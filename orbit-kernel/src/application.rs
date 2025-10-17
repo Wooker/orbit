@@ -1,6 +1,7 @@
 use crate::application_container::AppContainer;
 
 pub trait Application<'a> {
+    type Peripherals;
     const NAME: &'a str;
     fn init(&mut self);
     fn main(&mut self);

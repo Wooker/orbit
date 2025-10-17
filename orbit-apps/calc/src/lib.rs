@@ -6,19 +6,18 @@ use orbit_app_proc_macro::{app_init, app_interrupt, app_main, orbit_app, orbit_i
 app_heap!(32);
 app_stack!(32);
 
-#[orbit_app]
-struct Calc {}
-
 #[repr(C)]
 struct Output([u8; 1]);
 
 impl AsBytes for Output {
     type Output = Self;
     fn as_bytes(&self) -> &[u8] {
-        self.0.as_slice()
+        &self.0
     }
 }
 
+#[orbit_app]
+struct Calc;
 #[orbit_impl]
 impl Calc {
     #[app_init]
@@ -62,19 +61,12 @@ impl Calc {
         }
     }
     #[app_main]
-    pub fn main(&mut self) -> Output {
+    pub fn main(buf: &[u8], _peripherals: &mut Peripherals) -> Output {
         let mut argument = [0u8; 3];
-        {
-            let arg = if let Some(msg) = self._buf.read() {
-                msg
-            } else {
-                &[0u8]
-            };
-            for (i, b) in arg.iter().enumerate().take(3) {
-                argument[i] = *b;
-            }
+        for (i, b) in buf.iter().enumerate().take(3) {
+            argument[i] = *b;
         }
-        self._buf.flush();
+        syscall!(SysCall::NumPorts);
         Output([Self::calc_expr(argument)])
     }
 }

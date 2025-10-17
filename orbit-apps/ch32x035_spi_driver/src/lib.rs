@@ -3,7 +3,7 @@
 
 use core::{
     mem::MaybeUninit,
-    sync::atomic::{Ordering, compiler_fence},
+    sync::atomic::{compiler_fence, Ordering},
 };
 
 use orbit_kernel::{
@@ -75,84 +75,75 @@ impl Default for Config {
     }
 }
 
-pub struct Spi<'app, 'claim> {
-    spi: &'app mut Claimed<'claim, SPI1>,
+pub struct Spi<'app> {
+    spi: &'app mut SPI1,
     ctlr1: u16,
 }
 
-impl<'app, 'claim> Spi<'app, 'claim>
-where
-    'claim: 'app,
-{
-    pub fn new(spi: &'app mut Claimed<'claim, SPI1>, config: Config) -> Self {
+impl<'app> Spi<'app> {
+    pub fn new(spi: &'app mut SPI1, config: Config) -> Self {
         let mut bits = 0;
-        spi.modify(|p| {
-            bits = match config.dir {
-                Direction::OneWireTX => 1 << 15 | 1 << 14,
-                Direction::OneWireRX => 1 << 15,
-                Direction::TwoWire => 0,
-            };
-            bits = bits
+        bits = match config.dir {
+            Direction::OneWireTX => 1 << 15 | 1 << 14,
+            Direction::OneWireRX => 1 << 15,
+            Direction::TwoWire => 0,
+        };
+        bits = bits
                 | (config.data_size as u16) << 11
                 | 0b11 << 8  // Software control CE
                 // | 0b1 << 9  // Software control CE
                 // | 1 << 8
                 | (config.first as u16) << 7 | (config.baud as u16) << 3
                 | (config.mode as u16) << 2 | (config.cpol as u16) << 1 | config.cpha as u16;
-            p.ctlr1().modify(|r, w| unsafe { w.bits(bits) });
+        spi.ctlr1().modify(|r, w| unsafe { w.bits(bits) });
 
-            p.ctlr2().modify(|r, w| unsafe { w.bits(1 << 2) });
+        spi.ctlr2().modify(|r, w| unsafe { w.bits(1 << 2) });
 
-            // Enable SPI
-            p.ctlr1()
-                .modify(|r, w| unsafe { w.bits(r.bits() | (1 << 6)) });
-        });
+        // Enable SPI
+        spi.ctlr1()
+            .modify(|r, w| unsafe { w.bits(r.bits() | (1 << 6)) });
 
         Self { spi, ctlr1: bits }
     }
 
     pub fn cs_toggle(&mut self) {
-        self.spi.modify(|p| {
-            p.ctlr1()
-                .modify(|r, w| unsafe { w.bits(r.bits() ^ (1 << 8)) })
-        });
+        self.spi
+            .ctlr1()
+            .modify(|r, w| unsafe { w.bits(r.bits() ^ (1 << 8)) })
     }
 
     pub fn write_8(&mut self, data: u8) {
-        if self.spi.read(|p| (p.statr().read().bits() & 0x1) as u32) == 1 {
+        if (self.spi.statr().read().bits() & 0x1) == 1 {
             let _ = self.read_8();
         }
 
-        while !self.spi.read(|p| (p.statr().read().txe().bit_is_set())) {
-            if self.spi.read(|p| (p.statr().read().modf().bit_is_set())) {
-                self.spi.modify(|p| {
-                    p.ctlr1().modify(|r, w| unsafe { w.bits(self.ctlr1) });
-                });
+        while !self.spi.statr().read().txe().bit_is_set() {
+            if self.spi.statr().read().modf().bit_is_set() {
+                self.spi
+                    .ctlr1()
+                    .modify(|r, w| unsafe { w.bits(self.ctlr1) });
             }
         }
 
-        self.spi
-            .modify(|p| p.datar().write(|w| unsafe { w.bits(data as u16) }));
+        self.spi.datar().write(|w| unsafe { w.bits(data as u16) });
         // self.spi.read(|p| p.crcr().read().bits().into());
     }
     pub fn read_8(&mut self) -> u8 {
-        self.spi.read(|p| p.datar().read().bits() as u32) as u8
+        self.spi.datar().read().bits() as u8
     }
 
     pub fn busy(&self) -> bool {
-        self.spi.read(|p| p.statr().read().bsy().bit_is_set())
+        self.spi.statr().read().bsy().bit_is_set()
     }
 
     pub fn reset(&mut self) {
         delay(1000);
-        self.spi.modify(|p| {
-            p.ctlr1()
-                .modify(|r, w| unsafe { w.bits(r.bits() ^ (1 << 6)) })
-        });
+        self.spi
+            .ctlr1()
+            .modify(|r, w| unsafe { w.bits(r.bits() ^ (1 << 6)) });
         delay(1000);
-        self.spi.modify(|p| {
-            p.ctlr1()
-                .modify(|r, w| unsafe { w.bits(r.bits() ^ (1 << 6)) })
-        });
+        self.spi
+            .ctlr1()
+            .modify(|r, w| unsafe { w.bits(r.bits() ^ (1 << 6)) });
     }
 }

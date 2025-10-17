@@ -18,8 +18,7 @@ const WIDTH: usize = 25;
 const HEIGHT: usize = 20;
 const LAYERS: usize = 10;
 
-#[orbit_app(GPIOA, SPI1)]
-struct Reade {
+struct S {
     letters: RingBuf<625, u8>,
     frame: RingBuf<5000, u8>,
 }
@@ -34,6 +33,8 @@ impl AsBytes for Output {
     }
 }
 
+#[orbit_app(GPIOA, SPI1)]
+struct Reade;
 #[orbit_impl]
 impl Reade {
     #[app_init("reade")]
@@ -43,55 +44,48 @@ impl Reade {
     fn interrupt(&mut self) {}
 
     #[app_main("reade")]
-    fn main(&mut self) -> Output {
-        if let Some(arg) = self._buf.read() {
-            let arg = str::from_utf8(&arg).unwrap().trim();
-            let cmp = arg[..4].cmp("show");
+    fn main(buf: &[u8], peripherals: &mut Peripherals) -> Output {
+        let mut spi1 = unsafe { peripherals.spi1.assume_init_read() };
+        let mut gpioa = unsafe { peripherals.gpioa.assume_init_read() };
+        let mut s = S {
+            letters: RingBuf::default(),
+            frame: RingBuf::default(),
+        };
 
-            match cmp {
-                core::cmp::Ordering::Equal => {
-                    for line in 0..HEIGHT {
-                        for layer in 0..LAYERS {
-                            for ch in 0..WIDTH {
-                                let pos = self.letters.buf[ch + (line * WIDTH)] as usize;
-                                self.frame.buf[((layer * WIDTH) + ch) + (line * WIDTH * LAYERS)] =
-                                    ASCII[pos][layer];
-                            }
+        let arg = str::from_utf8(buf).unwrap().trim();
+        let cmp = arg[..4].cmp("show");
+
+        match cmp {
+            core::cmp::Ordering::Equal => {
+                for line in 0..HEIGHT {
+                    for layer in 0..LAYERS {
+                        for ch in 0..WIDTH {
+                            let pos = s.letters.buf[ch + (line * WIDTH)] as usize;
+                            s.frame.buf[((layer * WIDTH) + ch) + (line * WIDTH * LAYERS)] =
+                                ASCII[pos][layer];
                         }
                     }
-                    let config = EinkConfig {
-                        pos: Position { x: 0, y: 0 },
-                        dir: Direction::XuYiXi,
-                        size: Size {
-                            width: 200,
-                            height: 200,
-                        },
-                    };
-                    let mut gpioa = self.claim_peripheral_gpioa();
-                    let mut gpioa = Claimed::new(&mut gpioa);
-                    let mut spi1 = self.claim_peripheral_spi1();
-                    let res = self._buf.read().unwrap()[0];
-                    let mut spi1 = Claimed::new(&mut spi1);
-                    let bus = LibSpi::new(&mut spi1, Config::default());
-                    let mut eink: LibEink<DC_PIN, BUSY_PIN> = LibEink::new(bus, &mut gpioa);
-                    eink.display(config, &self.frame.buf, false);
-                    self.letters.flush();
-                    self.frame.flush();
-                    self._buf.flush();
-                    Output([res])
                 }
-                _ => {
-                    let chars = arg.chars();
-                    chars.clone().for_each(|b| self.letters.push(b as u8));
-                    // self._buf.buf[..25]
-                    //     .iter()
-                    //     .for_each(|b| self.letters.push(*b));
-                    // self._buf.flush();
-                    Output([chars.count() as u8])
-                }
+                let config = EinkConfig {
+                    pos: Position { x: 0, y: 0 },
+                    dir: Direction::XuYiXi,
+                    size: Size {
+                        width: 200,
+                        height: 200,
+                    },
+                };
+                let bus = LibSpi::new(&mut spi1, Config::default());
+                let mut eink: LibEink<DC_PIN, BUSY_PIN> = LibEink::new(bus, &mut gpioa);
+                eink.display(config, &s.frame.buf, false);
+                s.letters.flush();
+                s.frame.flush();
+                Output([0])
             }
-        } else {
-            Output([0xff])
+            _ => {
+                let chars = arg.chars();
+                chars.clone().for_each(|b| s.letters.push(b as u8));
+                Output([chars.count() as u8])
+            }
         }
     }
 }
