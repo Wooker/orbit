@@ -207,11 +207,8 @@ pub fn orbit_app(attr: TokenStream, item: TokenStream) -> TokenStream {
 
         impl #impl_generics #struct_name #ty_generics {
             pub fn new() -> Self{
-                let mut context = Context::new();
-                context.t0 = 0;
-                context.ra = Self::ecall as *const fn() as usize;
-                Self {
-                    context,
+                let mut app = Self {
+                    context: Context::new(),
                     ringbuf: RingBuf::default(),
                     // #(#existing_fields_default)*
                     peripherals: Peripherals {
@@ -221,7 +218,11 @@ pub fn orbit_app(attr: TokenStream, item: TokenStream) -> TokenStream {
                     heap: [0; HEAP_SIZE],
                     stack: [0; STACK_SIZE],
                     _phantom: PhantomData,
-                }
+                };
+                app.context.ra = Self::ecall as *const fn() as usize;
+                app.context.sp = &app.stack as *const [usize; STACK_SIZE] as usize + STACK_SIZE;
+
+                app
             }
 
 
