@@ -22,6 +22,7 @@ SECTIONS
 	.app.calc : ALIGN(4)
 	{
 		*calc*.o(.text .text.*);
+		*calc*.o(.rodata .rodata.*);
 	} >FLASH
 }
         ";

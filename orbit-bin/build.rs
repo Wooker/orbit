@@ -61,6 +61,10 @@ SECTIONS
 
         PROVIDE( _app_{0}_text_end = .);
     }} >FLASH
+    .apps.{0}.rodata : ALIGN(4)
+    {{
+        *(.{0}.rodata)
+    }}
 }}
 ",
             name

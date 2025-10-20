@@ -23,6 +23,7 @@ SECTIONS
 	.app.reade : ALIGN(4)
 	{
 		*reade*.o(.text .text.*);
+		*reade*.o(.rodata .rodata.*);
 	} >FLASH
 }
         ";
