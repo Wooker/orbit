@@ -31,8 +31,8 @@ pub fn orbit_main_attribute(attr: TokenStream, _item: TokenStream) -> TokenStrea
             let struct_lower = format_ident!("{}", s.to_string().to_lowercase());
             quote! {
                 let mut #struct_lower = #s::new();
-                #struct_lower.init();
-                kernel.add_application( #i, #struct_lower.to_container() );
+                // #struct_lower.init();
+                kernel.add_application( #i, #struct_lower.to_container(), core::mem::size_of::<#s>() );
             }
         })
         .collect::<Vec<proc_macro2::TokenStream>>();
@@ -52,7 +52,7 @@ pub fn orbit_main_attribute(attr: TokenStream, _item: TokenStream) -> TokenStrea
         use core::{arch::asm,mem::MaybeUninit};
 
         // use orbit_kernel::application::{Application, Context, PmpEntry, AppContainer};
-        use orbit_kernel::{ringbuf::RingBuf, arch, chip, kernel::APPS,
+        use orbit_kernel::{ringbuf::RingBuf, arch, chip, kernel::{asm, APPS},
         application::Application};
         use orbit_common::const_assert;
 
@@ -64,7 +64,7 @@ pub fn orbit_main_attribute(attr: TokenStream, _item: TokenStream) -> TokenStrea
             let mut kernel = Kernel::new();
             let mut peripherals = unsafe {chip::pac::Peripherals::steal()};
             arch::riscv::register::mscratch::write(&mut kernel as *mut Kernel as usize);
-            unsafe { asm!("csrr gp, mscratch") };
+            unsafe { asm!("csrr gp, mscratch"); asm::save_context() };
 
             #(#inits)*
 

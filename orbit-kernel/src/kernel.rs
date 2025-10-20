@@ -7,12 +7,13 @@
 // remove this attribute
 #![allow(unused_attributes)]
 
-mod asm;
+pub mod asm;
 mod port_handler;
 
 use core::{
     arch::{asm, naked_asm},
     mem::MaybeUninit,
+    panic::PanicInfo,
 };
 
 // use chip::pac::Peripherals;
@@ -49,8 +50,8 @@ pub static KERNEL_MINOR: u8 = 1;
 #[repr(C, align(4))]
 pub struct Kernel<'k> {
     context: Context,
-    apps: [MaybeUninit<AppContainer<'k>>; APPS],
     running: Option<usize>,
+    apps: [MaybeUninit<AppContainer<'k>>; APPS],
     ports: [Port<'k>; PORT_NUM],
     // pub peripherals: Peripherals,
     claims: [bool; KernelPeripherals::MAX as usize],
@@ -76,7 +77,12 @@ impl<'k> Kernel<'k> {
         });
 
         // Initialize context
-        let context = Context::new();
+        let mut context = Context::new();
+        let mut sp = 0;
+        unsafe {
+            asm!("mv {0}, sp", out(reg) sp);
+        }
+        context.sp = sp;
         // context.ra = Self::wait as *const fn() as usize;
 
         // Save trap handler
@@ -106,9 +112,17 @@ impl<'k> Kernel<'k> {
     }
 
     #[inline(never)]
-    pub const fn add_application(&mut self, index: usize, app_cont: AppContainer<'k>) {
+    pub fn add_application(&mut self, index: usize, app_cont: AppContainer<'k>, size: usize) {
         let app_i = unsafe { self.apps.get_unchecked_mut(index) };
         app_i.write(app_cont);
+        self.running = Some(index);
+        app_cont.context().sp = app_cont.context() as *const Context as usize + size;
+        app_cont.context().gp = app_cont.context() as *const Context as usize;
+        unsafe {
+            asm!("sw ra, 0x0(gp);");
+            // asm!("sw sp, 0x4(gp);");
+        }
+        self.setup_event_loop(RunApplication::Init);
     }
 
     // #[inline(never)]
@@ -142,6 +156,8 @@ impl<'k> Kernel<'k> {
             port.msg += 1;
 
             let msg = unsafe { action.rbuf.read().unwrap_unchecked() };
+            // port.write_str(b"Got");
+            // port.write_str(msg);
             match action.message {
                 Message::Invoke => handle_invoke(port, msg, &mut self.apps, &mut self.running),
                 Message::Reply => {
@@ -242,120 +258,192 @@ impl<'k> Kernel<'k> {
 
     #[inline(never)]
     #[unsafe(no_mangle)]
-    fn syscall_handler(&mut self, syscall: SysCall) {
-        {
-            let app_cont = unsafe {
-                self.apps
-                    .get_unchecked_mut(self.running.unwrap_unchecked())
-                    .assume_init_mut()
-            };
+    fn syscall_handler(&mut self) {
+        let self_addr = self as *const Kernel as usize;
+        let app = unsafe { self.apps.get_unchecked_mut(self.running.unwrap_unchecked()) };
 
-            match syscall {
-                SysCall::Return => {
-                    orbit_arch::riscv::register::mepc::write(asm::wait as *const fn() as usize);
-                    self.context.a1 = 0;
+        let mut maybe_syscall: MaybeUninit<SysCall> = MaybeUninit::uninit();
 
-                    self.running = None;
-                    if let Some(port) = self
-                        .ports
-                        .iter_mut()
-                        .filter_map(|port| port.msg.ne(&0usize).then(|| port))
-                        .nth(0)
-                    {
-                        app_cont.buf().fill();
-                        if let Some(output) = app_cont.buf().read() {
-                            port.write_str(output);
+        maybe_syscall.write(SysCall::from_usize(
+            unsafe { app.assume_init_mut() }.context().a0,
+        ));
+        let syscall = unsafe { maybe_syscall.assume_init() };
+
+        match syscall {
+            SysCall::ReturnInit => {
+                let app_cont = unsafe { app.assume_init_mut() };
+                match app_cont.context().a1 {
+                    0 => {
+                        self.running = None;
+                        unsafe {
+                            asm!(
+                                "",
+                                in("a0") self_addr,
+                                in("a1") app_cont.struct_addr() as usize,
+                                in("a2") app_cont.main_addr() as usize,
+                                in("a3") app_cont.interrupt_addr() as usize,
+                            )
                         }
                     }
-                    self.ports.iter_mut().for_each(|port| {
-                        port.msg = 0;
-                    });
-                }
-                SysCall::NumPorts => {
-                    app_cont.buf().flush();
-                    usize::to_le_bytes(PORT_NUM)
-                        .iter()
-                        .for_each(|b| app_cont.buf().push(*b));
-                    app_cont.buf().push(b'\0');
-                }
-                SysCall::SendAll => {
-                    if let Some(info) = app_cont.buf().read() {
-                        for port in self
-                            .ports
-                            .iter_mut()
-                            .filter_map(|port| port.msg.eq(&0usize).then(|| port))
-                        {
-                            port.write_str(info);
-                            port.awaiting = true;
+                    1 => {
+                        unsafe {
+                            app.assume_init_drop();
+                            self.apps[self.running.unwrap_unchecked()] = (MaybeUninit::zeroed());
+                        }
+                        // app.write(unsafe { core::mem::zeroed() });
+                        unsafe {
+                            asm!(
+                                "",
+                                in("a0") self_addr,
+                                in("a1") 0,
+                                in("a2") 0,
+                                in("a3") 0,
+                            )
                         }
                     }
+                    _ => {}
                 }
-                SysCall::Await => {
-                    // app_cont.buf().flush();
-                    // let awaiting_num = self
-                    //     .ports
-                    //     .iter()
-                    //     .filter(|p| unsafe { p.assume_init_read() }.awaiting)
-                    //     .count();
-                    // app_cont.buf().push(awaiting_num as u8);
-                    // app_cont.buf().push(b'\0');
-                }
-                SysCall::ReceiveAll => {
-                    // app_cont.buf().flush();
-                    // for port in self.ports.iter_mut().filter_map(|p| {
-                    //     let port = unsafe { p.assume_init_mut() };
-                    //     port.msg.eq(&0usize).then(|| port)
-                    // }) {
-                    //     port.write_str(info);
-                    //     port.awaiting = true;
-                    // }
-                    // app_cont.buf().push(awaiting_num as u8);
-                    // app_cont.buf().push(b'\0');
-                }
-                SysCall::ClaimPeripheral => {
-                    let app_buf = app_cont.buf();
-                    let ind = app_buf.read().unwrap().get(0).unwrap().clone() as usize;
-                    app_buf.flush();
+            }
+            SysCall::ReturnMain => {
+                orbit_arch::riscv::register::mepc::write(asm::wait as *const fn() as usize);
+                self.context.a1 = 0;
 
-                    let claim_spot = self.claims.get_mut(ind).unwrap();
-                    if *claim_spot == false {
-                        app_buf.flush();
-                        app_buf.push(1);
-                        *claim_spot = true;
-                    } else {
-                        app_buf.push(0);
+                let app_cont = unsafe { app.assume_init_mut() };
+                self.running = None;
+                if let Some(port) = self
+                    .ports
+                    .iter_mut()
+                    .filter_map(|port| port.msg.ne(&0usize).then(|| port))
+                    .nth(0)
+                {
+                    app_cont.buf().fill();
+                    if let Some(output) = app_cont.buf().read() {
+                        port.write_str(output);
                     }
-                    app_buf.fill();
                 }
-                _ => {
+                self.ports.iter_mut().for_each(|port| {
+                    port.msg = 0;
+                });
+                unsafe {
+                    asm!(
+                        "",
+                        in("a0") self_addr,
+                        in("a1") app_cont.struct_addr() as usize,
+                        in("a2") app_cont.main_addr() as usize,
+                        in("a3") app_cont.interrupt_addr() as usize,
+                    )
+                }
+            }
+            SysCall::NumPorts => {
+                let app_cont = unsafe { app.assume_init_mut() };
+                app_cont.buf().flush();
+                usize::to_le_bytes(PORT_NUM)
+                    .iter()
+                    .for_each(|b| app_cont.buf().push(*b));
+                app_cont.buf().push(b'\0');
+                unsafe {
+                    asm!(
+                        "",
+                        in("a0") self_addr,
+                        in("a1") app_cont.struct_addr() as usize,
+                        in("a2") app_cont.main_addr() as usize,
+                        in("a3") app_cont.interrupt_addr() as usize,
+                    )
+                }
+            }
+            SysCall::SendAll => {
+                let app_cont = unsafe { app.assume_init_mut() };
+                if let Some(info) = app_cont.buf().read() {
                     for port in self
                         .ports
                         .iter_mut()
                         .filter_map(|port| port.msg.eq(&0usize).then(|| port))
                     {
-                        let start = app_cont.buf().start;
-                        let end = app_cont.buf().end;
-                        port.write_str(&[start as u8, end as u8, syscall.discriminant() as u8]);
+                        port.write_str(info);
+                        port.awaiting = true;
+                    }
+                }
+                unsafe {
+                    asm!(
+                        "",
+                        in("a0") self_addr,
+                        in("a1") app_cont.struct_addr() as usize,
+                        in("a2") app_cont.main_addr() as usize,
+                        in("a3") app_cont.interrupt_addr() as usize,
+                    )
+                }
+            }
+            SysCall::Await => {
+                // let app_cont = unsafe { app.assume_init_mut() };
+                // app_cont.buf().flush();
+                // let awaiting_num = self
+                //     .ports
+                //     .iter()
+                //     .filter(|p| unsafe { p.assume_init_read() }.awaiting)
+                //     .count();
+                // app_cont.buf().push(awaiting_num as u8);
+                // app_cont.buf().push(b'\0');
+            }
+            SysCall::ReceiveAll => {
+                // let app_cont = unsafe { app.assume_init_mut() };
+                // app_cont.buf().flush();
+                // for port in self.ports.iter_mut().filter_map(|p| {
+                //     let port = unsafe { p.assume_init_mut() };
+                //     port.msg.eq(&0usize).then(|| port)
+                // }) {
+                //     port.write_str(info);
+                //     port.awaiting = true;
+                // }
+                // app_cont.buf().push(awaiting_num as u8);
+                // app_cont.buf().push(b'\0');
+            }
+            SysCall::ClaimPeripheral => {
+                let app_cont = unsafe { app.assume_init_mut() };
+                let app_buf = app_cont.buf();
+                let ind = app_buf.read().unwrap().get(0).unwrap().clone() as usize;
+                app_buf.flush();
+
+                let claim_spot = self.claims.get_mut(ind).unwrap();
+                if *claim_spot == false {
+                    app_buf.flush();
+                    app_buf.push(1);
+                    *claim_spot = true;
+                } else {
+                    app_buf.push(0);
+                }
+                app_buf.fill();
+                unsafe {
+                    asm!(
+                        "",
+                        in("a0") self_addr,
+                        in("a1") app_cont.struct_addr() as usize,
+                        in("a2") app_cont.main_addr() as usize,
+                        in("a3") app_cont.interrupt_addr() as usize,
+                    )
+                }
+            }
+            _ => {
+                let app_cont = unsafe { app.assume_init_mut() };
+                for port in self
+                    .ports
+                    .iter_mut()
+                    .filter_map(|port| port.msg.eq(&0usize).then(|| port))
+                {
+                    port.write_str(&[syscall.discriminant() as u8]);
+                    unsafe {
+                        asm!(
+                            "",
+                            in("a0") self_addr,
+                            in("a1") app_cont.struct_addr() as usize,
+                            in("a2") app_cont.main_addr() as usize,
+                            in("a3") app_cont.interrupt_addr() as usize,
+                        )
                     }
                 }
             }
         }
 
-        let app_cont = unsafe {
-            self.apps
-                .get_unchecked(self.running.unwrap_unchecked())
-                .assume_init_read()
-        };
         // self.set_pmp(&app_cont);
-        unsafe {
-            asm!(
-                "",
-                in("a0") self as *const Kernel as usize,
-                in("a1") app_cont.struct_addr(),
-                in("a2") app_cont.main_addr(),
-                in("a3") app_cont.interrupt_addr(),
-            )
-        }
     }
 
     #[unsafe(no_mangle)]
@@ -368,6 +456,7 @@ impl<'k> Kernel<'k> {
         };
         // self.set_pmp(&app_cont);
         let addr = match variant {
+            RunApplication::Init => app_cont.init_addr(),
             RunApplication::Main => app_cont.main_addr(),
             RunApplication::Interrupt => app_cont.interrupt_addr(),
             RunApplication::Jumped => app_cont.context().mepc,
@@ -382,6 +471,14 @@ impl<'k> Kernel<'k> {
             )
         }
         asm::context_switch(self as *const Kernel as usize, app_cont.struct_addr(), addr);
+    }
+    #[unsafe(no_mangle)]
+    #[inline(never)]
+    pub fn handle_panic(&mut self, panic_info: &PanicInfo) {
+        for port in self.ports.iter_mut() {
+            let msg = panic_info.message().as_str().unwrap();
+            port.write_str(msg.as_bytes());
+        }
     }
 
     #[unsafe(naked)]

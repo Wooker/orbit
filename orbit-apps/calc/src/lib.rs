@@ -61,12 +61,14 @@ impl Calc {
         }
     }
     #[app_main]
-    pub fn main(buf: &[u8], _peripherals: &mut Peripherals) -> Output {
+    pub fn main(
+        buf: &mut RingBuf<RINGBUF_SIZE, RingbufType>,
+        _peripherals: &mut Peripherals,
+    ) -> Output {
         let mut argument = [0u8; 3];
-        for (i, b) in buf.iter().enumerate().take(3) {
+        for (i, b) in unsafe { buf.read().unwrap_unchecked().iter().enumerate().take(3) } {
             argument[i] = *b;
         }
-        syscall!(SysCall::NumPorts);
         Output([Self::calc_expr(argument)])
     }
 }

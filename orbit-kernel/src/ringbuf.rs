@@ -37,7 +37,7 @@ impl<const SIZE: usize, T: TraitBound> RingBuf<SIZE, T> {
     #[inline(never)]
     #[unsafe(link_section = ".kernel.text")]
     pub fn push(&mut self, value: T) {
-        if self.end != SIZE {
+        if self.end < SIZE {
             self.buf[self.end] = value;
             self.end += 1;
         }

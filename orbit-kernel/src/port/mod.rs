@@ -73,9 +73,9 @@ impl<'p> Port<'p> {
     #[inline(never)]
     #[unsafe(link_section = ".kernel.text")]
     pub(crate) fn write_str<'a>(&'a mut self, buf: &[RingbufType]) {
-        for ch in buf.iter() {
-            self.write(*ch);
-        }
+        buf.iter().for_each(|ch| self.rbuf.push(*ch));
+        self.rbuf.fill();
+        self.write_self();
     }
 
     #[inline(never)]
@@ -84,6 +84,7 @@ impl<'p> Port<'p> {
         for ch in self.rbuf.buf.into_iter() {
             self.write(ch);
         }
+        self.rbuf.flush();
     }
 
     #[inline(never)]

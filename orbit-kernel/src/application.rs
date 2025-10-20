@@ -15,6 +15,7 @@ pub trait Application<'a> {
         Self: Sized,
     {
         let struct_addr = self as *const Self as usize;
+        let init_addr = Self::init as *const fn() as usize;
         let main_addr = Self::main as *const fn() as usize;
         let interrupt_addr = Self::interrupt as *const fn() as usize;
         // let pmp = [PmpEntry::default(); ];
@@ -22,6 +23,7 @@ pub trait Application<'a> {
         AppContainer::new(
             Self::NAME,
             struct_addr,
+            init_addr,
             main_addr,
             interrupt_addr,
             // pmp,

@@ -14,8 +14,6 @@ pub(super) fn handle_invoke(
     apps: &mut [MaybeUninit<AppContainer>; APPS],
     running: &mut Option<usize>,
 ) -> RunApplication {
-    let mut resp: RingBuf<RINGBUF_SIZE, RingbufType> = RingBuf::default();
-
     let (name, arg) = if let Some((name, arg)) =
         msg.split_once(|p| *p == <RingbufType as TraitBound>::termination())
     {
@@ -30,36 +28,26 @@ pub(super) fn handle_invoke(
         app_name.as_bytes().eq(name)
     }) {
         let app = unsafe { apps.get_unchecked_mut(app_index).assume_init_mut() };
+
+        // Flush the application buffer
+        let app_buf = app.buf();
+        app_buf.flush();
         if let Some(arg) = arg {
-            // arg.iter().for_each(|d| resp.push(*d));
-            // port.write_str(&resp.buf);
-            // resp.flush();
-
-            // Flush the application buffer
-            let app_buf = app.buf();
-            app_buf.flush();
-
             let mut arg_buf: RingBuf<RINGBUF_SIZE, RingbufType> = RingBuf::default();
             // Write command arguments after the space to
             // the application buffer
-            arg.iter().for_each(|ch| arg_buf.push(*ch));
-            app_buf.buf.copy_from_slice(&arg_buf.buf);
-            app_buf.end = RINGBUF_SIZE;
+            arg.iter().for_each(|ch| app_buf.push(*ch));
+            app_buf.fill();
+
             *running = Some(app_index);
             RunApplication::Main
         } else {
-            resp.push(Message::Unknown.into());
-            resp.push(Message::Invoke.into());
-            name.iter().for_each(|b| resp.push(*b));
-            resp.fill();
-            port.write_str(&resp.buf);
-            port.msg -= 1;
-            resp.flush();
-
-            RunApplication::None
+            *running = Some(app_index);
+            RunApplication::Main
         }
     } else {
-        port.write_str(b"not found");
+        port.write_str(&[Message::Unknown.into(), Message::Invoke.into()]);
+        port.msg -= 1;
         RunApplication::None
     }
 }

@@ -12,6 +12,7 @@ use crate::{
 pub struct AppContainer<'a> {
     name: &'a str,
     struct_addr: usize,
+    init_addr: usize,
     main_addr: usize,
     interrupt_addr: usize,
     // pmp: [PmpEntry; PMP_REGS],
@@ -22,6 +23,7 @@ impl<'a> AppContainer<'a> {
     pub fn new(
         name: &'a str,
         app_struct: usize,
+        app_init_addr: usize,
         app_main_addr: usize,
         app_interrupt_addr: usize,
         // pmp: [PmpEntry; PMP_REGS],
@@ -34,6 +36,7 @@ impl<'a> AppContainer<'a> {
         Self {
             name,
             struct_addr: app_struct,
+            init_addr: app_init_addr,
             main_addr: app_main_addr,
             interrupt_addr: app_interrupt_addr,
             // pmp,
@@ -47,6 +50,10 @@ impl<'a> AppContainer<'a> {
 
     pub fn struct_addr(&self) -> usize {
         self.struct_addr
+    }
+
+    pub fn init_addr(&self) -> usize {
+        self.init_addr
     }
 
     pub fn main_addr(&self) -> usize {
@@ -77,6 +84,7 @@ impl<'a> AppContainer<'a> {
 #[derive(Clone, PartialEq, Eq)]
 pub enum RunApplication {
     None,
+    Init,
     Main,
     Interrupt,
     Jumped,

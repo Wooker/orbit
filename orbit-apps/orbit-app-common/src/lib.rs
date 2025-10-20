@@ -45,8 +45,8 @@ macro_rules! syscall {
                 "sw a3, 0xc(sp);",
 
                 // Send the syscall via ECALL
-                "li a1, {syscall}",
-                "li a0, 0",
+                "li a0, {syscall}",
+                "li a1, 0",
                 "ecall",
 
                 // Restore argument registers' values from stack

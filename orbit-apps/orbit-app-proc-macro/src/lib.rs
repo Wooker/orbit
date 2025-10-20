@@ -133,6 +133,7 @@ pub fn orbit_app(attr: TokenStream, item: TokenStream) -> TokenStream {
                 self.ringbuf.push(KernelPeripherals::#i as u8);
                 self.ringbuf.fill();
                 syscall!(SysCall::ClaimPeripheral);
+                self.ringbuf.flush();
                 self.peripherals.#lower.write(unsafe { orbit_kernel::chip::pac::#i::steal() });
             // }
         }
@@ -206,8 +207,11 @@ pub fn orbit_app(attr: TokenStream, item: TokenStream) -> TokenStream {
 
         impl #impl_generics #struct_name #ty_generics {
             pub fn new() -> Self{
+                let mut context = Context::new();
+                context.t0 = 0;
+                context.ra = Self::ecall as *const fn() as usize;
                 Self {
-                    context: Context::new(),
+                    context,
                     ringbuf: RingBuf::default(),
                     // #(#existing_fields_default)*
                     peripherals: Peripherals {
@@ -238,10 +242,12 @@ pub fn orbit_app(attr: TokenStream, item: TokenStream) -> TokenStream {
             const NAME: &'app str = #struct_name_str;
             #[inline(never)]
             fn init(&mut self) {
-                self.context.t0 = 0;
-                self.context.sp = self as *mut Self as usize + core::mem::size_of::<Self>();
-                self.context.gp = &self.context as *const Context as usize;
-                self.context.ra = Self::ecall as *const fn() as usize;
+                // self.context.sp = self as *mut Self as usize + core::mem::size_of::<Self>();
+                // self.context.gp = &self.context as *const Context as usize;
+                // self.context.t0 = 0;
+                // self.context.sp = self as *mut Self as usize + core::mem::size_of::<Self>();
+                // self.context.gp = &self.context as *const Context as usize;
+                // self.context.ra = ecall_addr;
 
                 // self.ringbuf
                 //     .buf
@@ -249,25 +255,27 @@ pub fn orbit_app(attr: TokenStream, item: TokenStream) -> TokenStream {
                 //     .for_each(|i| *i = 32);
                 #(#claim_peripherals)*
                 #(#peripherals_assume_init)*
+
                 self._init();
+                unsafe { asm!("li a0, 0;li a1, 0;") };
             }
 
             #[inline(never)]
             fn main(&mut self) {
                 // #(#peripherals_assume_main)*
-                let output = Self::_main(unsafe { self.ringbuf.read().unwrap_unchecked()}, &mut self.peripherals);
+                let output = Self::_main(&mut self.ringbuf, &mut self.peripherals);
                 self.ringbuf.push(Message::Reply as u8);
                 output.as_bytes()
                     .iter()
                     .for_each(|byte| self.ringbuf.push(*byte));
                 self.ringbuf.push(self.ringbuf.termination);
-                unsafe { asm!("li a0, 0;li a1, 0;") };
+                unsafe { asm!("li a0, 1;li a1, 0;") };
             }
 
             #[inline(never)]
             fn interrupt(&mut self) {
                 self._interrupt();
-                unsafe { asm!("li a0, -1; li a1, 0;") };
+                unsafe { asm!("li a0, 2; li a1, 0;") };
             }
 
             #[inline(always)]
@@ -333,7 +341,6 @@ pub fn app_init(_attr: TokenStream, item: TokenStream) -> TokenStream {
     let expanded = quote! {
         #[inline(always)]
         pub fn _init(&mut self) {
-
             #block
         }
     };
@@ -369,7 +376,7 @@ pub fn app_main(_attr: TokenStream, item: TokenStream) -> TokenStream {
     };
 
     let expanded = quote! {
-        #[inline(always)]
+        #[inline(never)]
         pub fn _main<'a>(#inputs) -> impl AsBytes<Output = #output> + use<'a>{
             // #[forbid(unsafe_code)]
             #block

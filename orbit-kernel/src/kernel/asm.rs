@@ -38,11 +38,15 @@ pub(super) unsafe extern "C" fn call_app() {
 pub(super) unsafe extern "C" fn syscall_handler_exit() {
     naked_asm!(
         "
-            lw t0, 0x28(a1);
+
+            beqz a1, syscall_handler_return_from_init;
+            lw t0, 0x24(a1);
             li t1, 5;
             beq t0, t1, syscall_handler_await;
+            li t1, 1;
+            beq t0, t1, syscall_handler_return;
             bnez t0, syscall_handler_return_to_app;
-            beqz t0, syscall_handler_return;
+            beqz t0, syscall_handler_return_from_init;
             "
     );
 }
@@ -80,6 +84,17 @@ pub(super) unsafe extern "C" fn syscall_handler_return_to_app() {
 
 #[unsafe(naked)]
 #[unsafe(no_mangle)]
+pub(super) unsafe extern "C" fn syscall_handler_return_from_init() {
+    naked_asm!(
+        "
+            lw ra, 0(gp);
+            ret;
+            "
+    );
+}
+
+#[unsafe(naked)]
+#[unsafe(no_mangle)]
 pub(super) unsafe extern "C" fn syscall_handler_return() {
     naked_asm!(
         "
@@ -110,7 +125,7 @@ pub(super) unsafe fn kernel_main() {
 #[unsafe(naked)]
 #[unsafe(no_mangle)]
 #[cfg(target_feature = "e")]
-pub(super) unsafe extern "C" fn save_context() {
+pub unsafe extern "C" fn save_context() {
     naked_asm!(
         // "sw ra, 0x0(gp);",
         // Save registers
@@ -144,7 +159,7 @@ pub(super) unsafe extern "C" fn save_context() {
 #[cfg(not(target_feature = "e"))]
 #[unsafe(naked)]
 #[unsafe(no_mangle)]
-pub(super) unsafe extern "C" fn save_context() {
+pub unsafe extern "C" fn save_context() {
     naked_asm!(
         // "sw ra, 0x0(gp);",
         // Save registers
