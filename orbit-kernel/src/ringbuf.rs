@@ -22,7 +22,6 @@ pub struct RingBuf<const SIZE: usize, T: TraitBound> {
 impl<const SIZE: usize, T: TraitBound> RingBuf<SIZE, T> {
     #[rustc_align(4)]
     #[inline(never)]
-    #[unsafe(link_section = ".kernel.text")]
     pub fn new(termination: T) -> Self {
         let buf = [termination; SIZE];
         Self {
@@ -35,7 +34,6 @@ impl<const SIZE: usize, T: TraitBound> RingBuf<SIZE, T> {
 
     #[rustc_align(4)]
     #[inline(never)]
-    #[unsafe(link_section = ".kernel.text")]
     pub fn push(&mut self, value: T) {
         if self.end < SIZE {
             self.buf[self.end] = value;
@@ -45,7 +43,6 @@ impl<const SIZE: usize, T: TraitBound> RingBuf<SIZE, T> {
 
     #[rustc_align(4)]
     #[inline(never)]
-    #[unsafe(link_section = ".kernel.text")]
     pub fn read(&mut self) -> Option<&[T]> {
         if self.end == SIZE {
             // if self.end != self.start && self.buf[self.end - 1] == self.termination {
@@ -61,7 +58,6 @@ impl<const SIZE: usize, T: TraitBound> RingBuf<SIZE, T> {
 
     #[rustc_align(4)]
     #[inline(never)]
-    #[unsafe(link_section = ".kernel.text")]
     pub fn fill(&mut self) {
         while self.end != SIZE {
             self.buf[self.end] = T::termination();
@@ -71,7 +67,6 @@ impl<const SIZE: usize, T: TraitBound> RingBuf<SIZE, T> {
 
     #[rustc_align(4)]
     #[inline(never)]
-    #[unsafe(link_section = ".kernel.text")]
     pub fn flush(&mut self) {
         self.start = 0;
         self.end = 0;
@@ -83,7 +78,6 @@ impl<const SIZE: usize, T: TraitBound> RingBuf<SIZE, T> {
     #[allow(unused)]
     #[rustc_align(4)]
     #[inline(never)]
-    #[unsafe(link_section = ".kernel.text")]
     pub(super) fn at(&self, index: usize) -> T {
         self.buf[index]
     }
