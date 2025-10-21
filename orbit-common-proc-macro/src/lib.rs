@@ -32,7 +32,7 @@ pub fn orbit_main_attribute(attr: TokenStream, _item: TokenStream) -> TokenStrea
             quote! {
                 let mut #struct_lower = #s::new();
                 // #struct_lower.init();
-                kernel.add_application( #i, #struct_lower.to_container(), core::mem::size_of::<#s>() );
+                kernel.add_application( #i, #struct_lower.to_container(), & #struct_lower.stack as *const usize as usize );
             }
         })
         .collect::<Vec<proc_macro2::TokenStream>>();
@@ -62,9 +62,12 @@ pub fn orbit_main_attribute(attr: TokenStream, _item: TokenStream) -> TokenStrea
         #[unsafe(no_mangle)]
         fn main() -> ! {
             let mut kernel = Kernel::new();
-            let mut peripherals = unsafe {chip::pac::Peripherals::steal()};
+            // let mut peripherals = unsafe {chip::pac::Peripherals::steal()};
             arch::riscv::register::mscratch::write(&mut kernel as *mut Kernel as usize);
-            unsafe { asm!("csrr gp, mscratch"); asm::save_context() };
+            unsafe {
+                asm!("csrr gp, mscratch");
+                asm::save_context()
+            };
 
             #(#inits)*
 

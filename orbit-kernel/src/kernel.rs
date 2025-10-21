@@ -76,15 +76,6 @@ impl<'k> Kernel<'k> {
             Port::new(unsafe { &*ptr }, kind)
         });
 
-        // Initialize context
-        let mut context = Context::new();
-        let mut sp = 0;
-        unsafe {
-            asm!("mv {0}, sp", out(reg) sp);
-        }
-        context.sp = sp;
-        // context.ra = Self::wait as *const fn() as usize;
-
         // Save trap handler
         unsafe {
             crate::arch::riscv::register::mtvec::write(
@@ -93,8 +84,8 @@ impl<'k> Kernel<'k> {
             )
         };
 
-        Self {
-            context,
+        let mut kernel = Self {
+            context: Context::new(),
             // peripherals: unsafe { Peripherals::steal() },
             core: Core::new(),
             ports,
@@ -102,7 +93,13 @@ impl<'k> Kernel<'k> {
             claims: [false; KernelPeripherals::MAX as usize],
             clock,
             running: None,
+        };
+
+        unsafe {
+            asm!("mv {0}, sp", out(reg) kernel.context.sp);
         }
+
+        kernel
     }
 
     #[inline(never)]
@@ -112,11 +109,11 @@ impl<'k> Kernel<'k> {
     }
 
     #[inline(never)]
-    pub fn add_application(&mut self, index: usize, app_cont: AppContainer<'k>, size: usize) {
+    pub fn add_application(&mut self, index: usize, app_cont: AppContainer<'k>, sp: usize) {
         let app_i = unsafe { self.apps.get_unchecked_mut(index) };
         app_i.write(app_cont);
         self.running = Some(index);
-        app_cont.context().sp = app_cont.context() as *const Context as usize + size;
+        app_cont.context().sp = &sp as *const usize as usize;
         app_cont.context().gp = app_cont.context() as *const Context as usize;
         unsafe {
             asm!("sw ra, 0x0(gp);");
@@ -288,7 +285,7 @@ impl<'k> Kernel<'k> {
                     1 => {
                         unsafe {
                             app.assume_init_drop();
-                            self.apps[self.running.unwrap_unchecked()] = (MaybeUninit::zeroed());
+                            self.apps[self.running.unwrap_unchecked()] = MaybeUninit::zeroed();
                         }
                         // app.write(unsafe { core::mem::zeroed() });
                         unsafe {

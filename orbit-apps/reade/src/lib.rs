@@ -8,8 +8,8 @@ use ch32x035_spi_driver::{Config, Spi as LibSpi};
 use eink_lib::{Config as EinkConfig, Direction, Eink as LibEink, Position, Size};
 use font_8x10::{self, ASCII};
 
-app_heap!(0);
-app_stack!(1024);
+app_heap!(1500);
+app_stack!(128);
 
 const DC_PIN: u8 = 1;
 const BUSY_PIN: u8 = 6;
@@ -87,9 +87,8 @@ impl Reade {
                     Output([0])
                 }
                 _ => {
-                    let chars = arg.chars();
-                    chars.clone().for_each(|b| s.letters.push(b as u8));
-                    Output([chars.count() as u8])
+                    arg.as_bytes().iter().for_each(|b| s.letters.push(*b as u8));
+                    Output([s.letters.buf[s.letters.end - 1]])
                 }
             }
         } else {

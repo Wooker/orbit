@@ -30,5 +30,4 @@ pub trait Application<'a> {
             // peripherals,
         )
     }
-    extern "C" fn ecall();
 }

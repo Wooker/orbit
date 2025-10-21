@@ -33,7 +33,6 @@ pub(super) fn handle_invoke(
         let app_buf = app.buf();
         app_buf.flush();
         if let Some(arg) = arg {
-            let mut arg_buf: RingBuf<RINGBUF_SIZE, RingbufType> = RingBuf::default();
             // Write command arguments after the space to
             // the application buffer
             arg.iter().for_each(|ch| app_buf.push(*ch));
