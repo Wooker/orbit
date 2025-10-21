@@ -8,6 +8,7 @@
 #![feature(fn_align)]
 #![feature(naked_functions_rustic_abi)]
 #![feature(slice_split_once)]
+#![feature(iter_array_chunks)]
 
 pub mod action;
 pub mod application;

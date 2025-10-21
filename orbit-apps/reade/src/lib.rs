@@ -39,6 +39,11 @@ struct Reade;
 impl Reade {
     #[app_init("reade")]
     fn init(&mut self) {
+        core::mem::size_of::<S>()
+            .to_le_bytes()
+            .iter()
+            .for_each(|b| self.ringbuf.push(*b));
+        self.ringbuf.fill();
         syscall!(SysCall::MemAlloc);
     }
 

@@ -76,6 +76,7 @@ impl<'p> Port<'p> {
         buf.iter().for_each(|ch| self.rbuf.push(*ch));
         self.rbuf.fill();
         self.write_self();
+        self.rbuf.flush();
     }
 
     #[inline(never)]

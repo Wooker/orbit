@@ -219,7 +219,7 @@ pub fn orbit_app(attr: TokenStream, item: TokenStream) -> TokenStream {
                     stack: [0; STACK_SIZE],
                     _phantom: PhantomData,
                 };
-                // app.context.ra = Self::ecall as *const fn() as usize;
+                app.context.ra = Self::ecall as *const fn() as usize;
                 // app.context.sp = &app.stack as *const [usize; STACK_SIZE] as usize + STACK_SIZE;
                 // app.context.gp = &app as *const Self as usize;
 
@@ -259,7 +259,7 @@ pub fn orbit_app(attr: TokenStream, item: TokenStream) -> TokenStream {
                 #(#peripherals_assume_init)*
 
                 self._init();
-                unsafe { asm!("li a0, 0;li a1, 0; ecall;") };
+                unsafe { asm!("li a0, 0;li a1, 0;") };
             }
 
             #[inline(never)]
@@ -271,13 +271,13 @@ pub fn orbit_app(attr: TokenStream, item: TokenStream) -> TokenStream {
                     .iter()
                     .for_each(|byte| self.ringbuf.push(*byte));
                 self.ringbuf.push(self.ringbuf.termination);
-                unsafe { asm!("li a0, 1;li a1, 0; ecall;") };
+                unsafe { asm!("li a0, 1;li a1, 0;") };
             }
 
             #[inline(never)]
             fn interrupt(&mut self) {
                 self._interrupt();
-                unsafe { asm!("li a0, 2; li a1, 0; ecall;") };
+                unsafe { asm!("li a0, 2; li a1, 0;") };
             }
 
             #[inline(always)]
@@ -293,6 +293,11 @@ pub fn orbit_app(attr: TokenStream, item: TokenStream) -> TokenStream {
             #[inline(always)]
             fn heap(&self) -> (usize,usize) {
                 (&self.heap as *const [usize; HEAP_SIZE] as usize, HEAP_SIZE)
+            }
+
+            #[unsafe(naked)]
+            extern "C" fn ecall(){
+                naked_asm!("ecall")
             }
         }
     };

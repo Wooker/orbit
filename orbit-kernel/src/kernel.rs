@@ -396,6 +396,7 @@ impl<'k> Kernel<'k> {
             }
             SysCall::MemAlloc => {
                 let app_cont = unsafe { app.assume_init_mut() };
+                /*
                 let output = if let Ok(byte_arr) = app_cont.buf().read().unwrap().try_into() {
                     let heap = app_cont.heap();
                     let alloc_size = usize::from_le_bytes(byte_arr);
@@ -414,9 +415,21 @@ impl<'k> Kernel<'k> {
                     1_usize.to_le_bytes()
                 };
 
-                app_cont.buf().flush();
-                output.iter().for_each(|b| app_cont.buf().push(*b));
-                app_cont.buf().fill();
+                */
+                let app_buf = app_cont.buf();
+                app_buf.flush();
+                1_usize.to_le_bytes().iter().for_each(|b| app_buf.push(*b));
+                app_buf.fill();
+
+                unsafe {
+                    asm!(
+                        "",
+                        in("a0") self_addr,
+                        in("a1") app_cont.struct_addr() as usize,
+                        in("a2") app_cont.main_addr() as usize,
+                        in("a3") app_cont.interrupt_addr() as usize,
+                    )
+                }
             }
             SysCall::ClaimPeripheral => {
                 let app_cont = unsafe { app.assume_init_mut() };
@@ -498,7 +511,9 @@ impl<'k> Kernel<'k> {
     pub fn handle_panic(&mut self, panic_info: &PanicInfo) {
         for port in self.ports.iter_mut() {
             let msg = panic_info.message().as_str().unwrap();
-            port.write_str(msg.as_bytes());
+            for chunk in msg.as_bytes().chunks(32) {
+                port.write_str(chunk);
+            }
         }
     }
 
