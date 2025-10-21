@@ -1,10 +1,10 @@
-pub trait TraitBound
+pub trait Terminate
 where
     Self: Sized + Default + Copy + PartialEq,
 {
     fn termination() -> Self;
 }
-impl TraitBound for u8 {
+impl Terminate for u8 {
     fn termination() -> Self {
         32
     }
@@ -12,14 +12,14 @@ impl TraitBound for u8 {
 
 #[derive(Clone, Copy)]
 #[repr(C)]
-pub struct RingBuf<const SIZE: usize, T: TraitBound> {
+pub struct RingBuf<const SIZE: usize, T: Terminate> {
     pub start: usize,
     pub end: usize,
     pub buf: [T; SIZE],
     pub termination: T,
 }
 
-impl<const SIZE: usize, T: TraitBound> RingBuf<SIZE, T> {
+impl<const SIZE: usize, T: Terminate> RingBuf<SIZE, T> {
     #[rustc_align(4)]
     #[inline(never)]
     pub fn new(termination: T) -> Self {
@@ -83,7 +83,7 @@ impl<const SIZE: usize, T: TraitBound> RingBuf<SIZE, T> {
     }
 }
 
-impl<const SIZE: usize, T: TraitBound> Default for RingBuf<SIZE, T> {
+impl<const SIZE: usize, T: Terminate> Default for RingBuf<SIZE, T> {
     fn default() -> Self {
         Self {
             start: 0,

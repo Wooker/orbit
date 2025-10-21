@@ -31,7 +31,7 @@ use crate::{
         Port,
         port_kind::{PORT_INTERRUPTS, PORT_NUM},
     },
-    ringbuf::{RingBuf, TraitBound},
+    ringbuf::{RingBuf, Terminate},
     syscall::SysCall,
 };
 

@@ -1,9 +1,9 @@
 #![allow(unused)]
 
 use crate::{
+    RINGBUF_SIZE, RingbufType,
     message::Message,
-    ringbuf::{RingBuf, TraitBound},
-    RingbufType, RINGBUF_SIZE,
+    ringbuf::{RingBuf, Terminate},
 };
 
 pub(crate) struct Action {
@@ -29,7 +29,7 @@ impl From<&[u8]> for Action {
                 for ch in value[1..].iter() {
                     rbuf.push(*ch);
                 }
-                rbuf.push(<RingbufType as TraitBound>::termination());
+                rbuf.push(<RingbufType as Terminate>::termination());
                 Self {
                     message: Message::Invoke,
                     rbuf,

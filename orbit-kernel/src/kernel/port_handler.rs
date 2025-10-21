@@ -1,9 +1,9 @@
 use core::mem::MaybeUninit;
 
 use crate::{
-    RINGBUF_SIZE, RingbufType,
+    RingbufType,
     application_container::AppContainer,
-    kernel::{APPS, Message, RingBuf, RunApplication, TraitBound},
+    kernel::{APPS, Message, RunApplication, Terminate},
     port::Port,
 };
 
@@ -15,7 +15,7 @@ pub(super) fn handle_invoke(
     running: &mut Option<usize>,
 ) -> RunApplication {
     let (name, arg) = if let Some((name, arg)) =
-        msg.split_once(|p| *p == <RingbufType as TraitBound>::termination())
+        msg.split_once(|p| *p == <RingbufType as Terminate>::termination())
     {
         (name, Some(arg))
     } else {

@@ -7,7 +7,7 @@ use orbit_common::{feature_mod_use, feature_mod_use_mutual};
 
 use crate::action::Action;
 use crate::message::Message;
-use crate::ringbuf::{RingBuf, TraitBound};
+use crate::ringbuf::{RingBuf, Terminate};
 use crate::{RINGBUF_SIZE, RingbufType};
 
 pub mod port_kind;
