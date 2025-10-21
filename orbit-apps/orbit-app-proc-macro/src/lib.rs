@@ -200,7 +200,7 @@ pub fn orbit_app(attr: TokenStream, item: TokenStream) -> TokenStream {
             ringbuf: RingBuf<RINGBUF_SIZE, RingbufType>,
             // #existing_fields
             peripherals: Peripherals<'app>,
-            heap: [usize; HEAP_SIZE],
+            pub heap: [usize; HEAP_SIZE],
             pub stack: [usize; STACK_SIZE],
             _phantom: PhantomData<&'app ()>,
         }
@@ -288,6 +288,11 @@ pub fn orbit_app(attr: TokenStream, item: TokenStream) -> TokenStream {
             #[inline(always)]
             fn buf(&mut self) -> usize {
                 &self.ringbuf as *const RingBuf<RINGBUF_SIZE, RingbufType> as usize
+            }
+
+            #[inline(always)]
+            fn heap(&self) -> (usize,usize) {
+                (&self.heap as *const [usize; HEAP_SIZE] as usize, HEAP_SIZE)
             }
         }
     };

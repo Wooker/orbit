@@ -38,7 +38,9 @@ struct Reade;
 #[orbit_impl]
 impl Reade {
     #[app_init("reade")]
-    fn init(&mut self) {}
+    fn init(&mut self) {
+        syscall!(SysCall::MemAlloc);
+    }
 
     #[app_interrupt("reade")]
     fn interrupt(&mut self) {}

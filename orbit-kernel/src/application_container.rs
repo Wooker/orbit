@@ -15,6 +15,8 @@ pub struct AppContainer<'a> {
     init_addr: usize,
     main_addr: usize,
     interrupt_addr: usize,
+    heap_addr: usize,
+    heap_size: usize,
     // pmp: [PmpEntry; PMP_REGS],
     // peripherals: [Option<KernelPeripherals>; PMP_REGS],
 }
@@ -26,6 +28,8 @@ impl<'a> AppContainer<'a> {
         app_init_addr: usize,
         app_main_addr: usize,
         app_interrupt_addr: usize,
+        heap_addr: usize,
+        heap_size: usize,
         // pmp: [PmpEntry; PMP_REGS],
         // peripherals: [Option<KernelPeripherals>; PMP_REGS],
     ) -> Self {
@@ -39,6 +43,8 @@ impl<'a> AppContainer<'a> {
             init_addr: app_init_addr,
             main_addr: app_main_addr,
             interrupt_addr: app_interrupt_addr,
+            heap_addr,
+            heap_size,
             // pmp,
             // peripherals,
         }
@@ -66,6 +72,12 @@ impl<'a> AppContainer<'a> {
 
     pub fn context(&self) -> &mut Context {
         unsafe { &mut *(self.struct_addr as *mut Context) }
+    }
+
+    pub fn heap(&mut self) -> &mut [usize] {
+        unsafe {
+            core::slice::from_raw_parts_mut(&mut self.heap_addr as *mut usize, self.heap_size)
+        }
     }
 
     pub fn buf(&mut self) -> &mut RingBuf<RINGBUF_SIZE, RingbufType> {

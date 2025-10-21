@@ -8,6 +8,7 @@ pub trait Application<'a> {
     fn interrupt(&mut self);
     fn context(&mut self) -> usize;
     fn buf(&mut self) -> usize;
+    fn heap(&self) -> (usize, usize);
 
     #[inline(never)]
     fn to_container(&self) -> AppContainer<'a>
@@ -18,6 +19,7 @@ pub trait Application<'a> {
         let init_addr = Self::init as *const fn() as usize;
         let main_addr = Self::main as *const fn() as usize;
         let interrupt_addr = Self::interrupt as *const fn() as usize;
+        let (h_addr, h_size) = Self::heap(&self);
         // let pmp = [PmpEntry::default(); ];
         // let peripherals = [None; ];
         AppContainer::new(
@@ -26,6 +28,8 @@ pub trait Application<'a> {
             init_addr,
             main_addr,
             interrupt_addr,
+            h_addr,
+            h_size,
             // pmp,
             // peripherals,
         )

@@ -394,6 +394,30 @@ impl<'k> Kernel<'k> {
                 // app_cont.buf().push(awaiting_num as u8);
                 // app_cont.buf().push(b'\0');
             }
+            SysCall::MemAlloc => {
+                let app_cont = unsafe { app.assume_init_mut() };
+                let output = if let Ok(byte_arr) = app_cont.buf().read().unwrap().try_into() {
+                    let heap = app_cont.heap();
+                    let alloc_size = usize::from_le_bytes(byte_arr);
+                    if let Some((i, space)) =
+                        heap.iter().enumerate().skip_while(|(_, p)| **p != 0).next()
+                    {
+                        if heap[i..].len() > alloc_size {
+                            space.to_le_bytes()
+                        } else {
+                            3_usize.to_le_bytes()
+                        }
+                    } else {
+                        2_usize.to_le_bytes()
+                    }
+                } else {
+                    1_usize.to_le_bytes()
+                };
+
+                app_cont.buf().flush();
+                output.iter().for_each(|b| app_cont.buf().push(*b));
+                app_cont.buf().fill();
+            }
             SysCall::ClaimPeripheral => {
                 let app_cont = unsafe { app.assume_init_mut() };
                 let app_buf = app_cont.buf();

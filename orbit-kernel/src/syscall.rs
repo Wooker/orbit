@@ -10,6 +10,7 @@ pub enum SysCall {
     SendAll,
     Await,
     ReceiveAll,
+    MemAlloc,
     ClaimPeripheral,
     Unknown = 0xff,
 }
