@@ -32,7 +32,7 @@ pub fn orbit_main_attribute(attr: TokenStream, _item: TokenStream) -> TokenStrea
             quote! {
                 let mut #struct_lower = #s::new();
                 // #struct_lower.init();
-                kernel.add_application( #i, #struct_lower.to_container(), & #struct_lower.stack as *const usize as usize );
+                kernel.add_application( #i, #struct_lower.to_container(), & #struct_lower.stack as *const usize as usize + #struct_lower.stack.len());
             }
         })
         .collect::<Vec<proc_macro2::TokenStream>>();

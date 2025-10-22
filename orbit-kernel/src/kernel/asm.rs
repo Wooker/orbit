@@ -45,6 +45,8 @@ pub(super) unsafe extern "C" fn syscall_handler_exit() {
             beq t0, t1, syscall_handler_await;
             li t1, 1;
             beq t0, t1, syscall_handler_return;
+            li t1, 9;
+            beq t0, t1, syscall_handler_mem_alloc;
             bnez t0, syscall_handler_return_to_app;
             beqz t0, syscall_handler_return_from_init;
             "
@@ -64,6 +66,20 @@ pub(super) unsafe extern "C" fn syscall_handler_await() {
             la t0, wait;
             csrw mepc, t0;
             mret;
+            "
+    );
+}
+
+#[unsafe(naked)]
+#[unsafe(no_mangle)]
+pub(super) unsafe extern "C" fn syscall_handler_mem_alloc() {
+    naked_asm!(
+        "
+            lw t0, 0x08(a1);
+            csrr t1, mepc;
+            addi t1, t1, 4;
+            csrw mepc, t1;
+            j load_context;
             "
     );
 }

@@ -113,7 +113,7 @@ impl<'k> Kernel<'k> {
         let app_i = unsafe { self.apps.get_unchecked_mut(index) };
         app_i.write(app_cont);
         self.running = Some(index);
-        app_cont.context().sp = &sp as *const usize as usize;
+        app_cont.context().sp = sp;
         app_cont.context().gp = app_cont.context() as *const Context as usize;
         unsafe {
             asm!("sw ra, 0x0(gp);");
@@ -396,7 +396,6 @@ impl<'k> Kernel<'k> {
             }
             SysCall::MemAlloc => {
                 let app_cont = unsafe { app.assume_init_mut() };
-                /*
                 let output = if let Ok(byte_arr) = app_cont.buf().read().unwrap().try_into() {
                     let heap = app_cont.heap();
                     let alloc_size = usize::from_le_bytes(byte_arr);
@@ -415,7 +414,6 @@ impl<'k> Kernel<'k> {
                     1_usize.to_le_bytes()
                 };
 
-                */
                 let app_buf = app_cont.buf();
                 app_buf.flush();
                 1_usize.to_le_bytes().iter().for_each(|b| app_buf.push(*b));
