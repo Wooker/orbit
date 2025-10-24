@@ -41,15 +41,16 @@ pub type RingbufType = u8;
 
 #[cfg(feature = "rt")]
 #[panic_handler]
-pub fn panic_handler<'a, 'b>(info: &'a core::panic::PanicInfo<'b>) -> ! {
-    use crate::kernel::Kernel;
+pub fn panic_handler<'a, 'b>(_info: &'a core::panic::PanicInfo<'b>) -> ! {
+    // unsafe { save_context() };
+    // use crate::kernel::{Kernel, asm::save_context};
 
-    let mut kernel_addr: usize;
-    unsafe {
-        core::arch::asm!("csrr {0}, mscratch", out(reg) kernel_addr);
-    }
-    let kernel = unsafe { &mut *(kernel_addr as *mut Kernel) };
-    kernel.handle_panic(info);
+    // let mut kernel_addr: usize;
+    // unsafe {
+    //     core::arch::asm!("csrr {0}, mscratch", out(reg) kernel_addr);
+    // }
+    // let kernel = unsafe { &mut *(kernel_addr as *mut Kernel) };
+    // kernel.handle_panic(info);
     loop {}
 }
 

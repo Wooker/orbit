@@ -21,7 +21,7 @@ struct Calc;
 #[orbit_impl]
 impl Calc {
     #[app_init]
-    pub fn init(&mut self) {}
+    pub fn init() {}
 
     #[app_interrupt]
     pub fn interrupt(&mut self) {}
@@ -61,12 +61,16 @@ impl Calc {
         }
     }
     #[app_main]
-    pub fn main(
-        buf: &mut RingBuf<RINGBUF_SIZE, RingbufType>,
-        _peripherals: &mut Peripherals,
-    ) -> Output {
+    pub fn main(&mut self) -> Output {
         let mut argument = [0u8; 3];
-        for (i, b) in unsafe { buf.read().unwrap_unchecked().iter().enumerate().take(3) } {
+        for (i, b) in unsafe {
+            self.ringbuf
+                .read()
+                .unwrap_unchecked()
+                .iter()
+                .enumerate()
+                .take(3)
+        } {
             argument[i] = *b;
         }
         Output([Self::calc_expr(argument)])

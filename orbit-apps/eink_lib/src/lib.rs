@@ -29,6 +29,7 @@ pub struct Config {
     pub pos: Position,
     pub dir: Direction,
     pub size: Size,
+    pub partial: bool,
 }
 
 pub struct Eink<'app, const DC_PIN: u8, const BUSY_PIN: u8> {
@@ -56,7 +57,7 @@ impl<'app, const DC_PIN: u8, const BUSY_PIN: u8> Eink<'app, DC_PIN, BUSY_PIN> {
     }
 
     #[inline(never)]
-    pub fn display(&mut self, config: Config, frame: &[u8; 5000], partial: bool) {
+    pub fn display(&mut self, config: Config, frame: &[u8; 5000]) {
         self.gpioa.bshr().write(|w| unsafe { w.bits(1 << 16) });
         delay(10000);
         self.gpioa.bshr().write(|w| unsafe { w.bits(1 << 0) });
@@ -90,7 +91,7 @@ impl<'app, const DC_PIN: u8, const BUSY_PIN: u8> Eink<'app, DC_PIN, BUSY_PIN> {
         self.data(0x00);
 
         self.cmd(0x22);
-        self.data(if partial { 0xb9 } else { 0xb1 });
+        self.data(if config.partial { 0xb9 } else { 0xb1 });
 
         self.cmd(0x20);
 
@@ -114,7 +115,7 @@ impl<'app, const DC_PIN: u8, const BUSY_PIN: u8> Eink<'app, DC_PIN, BUSY_PIN> {
         }
 
         self.cmd(0x22);
-        self.data(if partial { 0xcf } else { 0xc7 });
+        self.data(if config.partial { 0xcf } else { 0xc7 });
 
         self.cmd(0x20);
 

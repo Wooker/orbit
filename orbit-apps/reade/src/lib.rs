@@ -1,4 +1,5 @@
 #![no_std]
+#![feature(trim_prefix_suffix)]
 
 use orbit_app_common::{app_heap, app_stack};
 use orbit_app_proc_macro::{app_init, app_interrupt, app_main, orbit_app, orbit_impl};
@@ -8,8 +9,8 @@ use ch32x035_spi_driver::{Config, Spi as LibSpi};
 use eink_lib::{Config as EinkConfig, Direction, Eink as LibEink, Position, Size};
 use font_8x10::{self, ASCII};
 
-app_heap!(1500);
-app_stack!(128);
+app_heap!(0);
+app_stack!(2048);
 
 const DC_PIN: u8 = 1;
 const BUSY_PIN: u8 = 6;
@@ -17,11 +18,6 @@ const BUSY_PIN: u8 = 6;
 const WIDTH: usize = 25;
 const HEIGHT: usize = 20;
 const LAYERS: usize = 10;
-
-struct S {
-    letters: RingBuf<625, u8>,
-    frame: RingBuf<5000, u8>,
-}
 
 #[repr(C)]
 struct Output([u8; 1]);
@@ -34,47 +30,75 @@ impl AsBytes for Output {
 }
 
 #[orbit_app(GPIOA, SPI1)]
-struct Reade;
+struct Reade {
+    letters: RingBuf<625, RingbufType>,
+    frame: RingBuf<5000, RingbufType>,
+}
 #[orbit_impl]
 impl Reade {
     #[app_init("reade")]
     fn init(&mut self) {
-        core::mem::size_of::<S>()
-            .to_le_bytes()
-            .iter()
-            .for_each(|b| self.ringbuf.push(*b));
-        self.ringbuf.fill();
-        syscall!(SysCall::MemAlloc);
+        // core::mem::size_of::<S>()
+        //     .to_le_bytes()
+        //     .iter()
+        //     .for_each(|b| self.ringbuf.push(*b));
+        // self.ringbuf.fill();
+        // syscall!(SysCall::MemAlloc);
+
+        let mut spi1 = unsafe { self.peripherals.spi1.assume_init_read() };
+        let mut gpioa = unsafe { self.peripherals.gpioa.assume_init_read() };
+
+        self.letters.flush();
+        self.frame.buf.iter_mut().for_each(|b| *b = 0);
+
+        let bus = LibSpi::new(&mut spi1, Config::default());
+        let mut eink: LibEink<DC_PIN, BUSY_PIN> = LibEink::new(bus, &mut gpioa);
+        let config = EinkConfig {
+            pos: Position { x: 0, y: 0 },
+            dir: Direction::XuYiXi,
+            size: Size {
+                width: 200,
+                height: 200,
+            },
+            partial: false,
+        };
+        eink.display(config, &self.frame.buf);
     }
 
     #[app_interrupt("reade")]
     fn interrupt(&mut self) {}
 
     #[app_main("reade")]
-    fn main(
-        ringbuf: &mut RingBuf<RINGBUF_SIZE, RingbufType>,
-        peripherals: &mut Peripherals,
-    ) -> Output {
-        let mut spi1 = unsafe { peripherals.spi1.assume_init_read() };
-        let mut gpioa = unsafe { peripherals.gpioa.assume_init_read() };
-        let mut s = S {
-            letters: RingBuf::default(),
-            frame: RingBuf::default(),
-        };
+    fn main(&mut self) -> Output {
+        let mut spi1 = unsafe { self.peripherals.spi1.assume_init_read() };
+        let mut gpioa = unsafe { self.peripherals.gpioa.assume_init_read() };
 
-        let buf = unsafe { ringbuf.read().unwrap_unchecked() };
+        let buf = unsafe { self.ringbuf.read().unwrap_unchecked() };
         if let Ok(arg) = str::from_utf8(buf) {
-            let arg = arg.trim();
-            let cmp = arg[..4].cmp("show");
+            let arg = &arg[..WIDTH];
+            // let trimed = arg.trim_end();
+            let len = arg.len();
+            let cmp = if len >= 4 {
+                arg[..4].cmp("show")
+            } else {
+                core::cmp::Ordering::Less
+            };
 
             match cmp {
                 core::cmp::Ordering::Equal => {
                     for line in 0..HEIGHT {
                         for layer in 0..LAYERS {
                             for ch in 0..WIDTH {
-                                let pos = s.letters.buf[ch + (line * WIDTH)] as usize;
-                                s.frame.buf[((layer * WIDTH) + ch) + (line * WIDTH * LAYERS)] =
-                                    ASCII[pos][layer];
+                                if let Some(pos) = self.letters.at(ch + (line * WIDTH)) {
+                                    let pos = *pos as usize;
+                                    let l = if let Some(ascii_ch) = ASCII.get(pos) {
+                                        ascii_ch[layer]
+                                    } else {
+                                        ASCII[32][layer]
+                                    };
+                                    self.frame.buf
+                                        [((layer * WIDTH) + ch) + (line * WIDTH * LAYERS)] = l;
+                                }
                             }
                         }
                     }
@@ -85,21 +109,29 @@ impl Reade {
                             width: 200,
                             height: 200,
                         },
+                        partial: false,
                     };
                     let bus = LibSpi::new(&mut spi1, Config::default());
                     let mut eink: LibEink<DC_PIN, BUSY_PIN> = LibEink::new(bus, &mut gpioa);
-                    eink.display(config, &s.frame.buf, false);
-                    s.letters.flush();
-                    s.frame.flush();
+                    eink.display(config, &self.frame.buf);
+                    self.letters.flush();
+                    self.frame.flush();
                     Output([0])
                 }
                 _ => {
-                    arg.as_bytes().iter().for_each(|b| s.letters.push(*b as u8));
-                    Output([s.letters.buf[s.letters.end - 1]])
+                    arg.as_bytes().iter().enumerate().for_each(|(_, b)| {
+                        self.letters.push(*b);
+                    });
+                    // if let Some(t) = arg.chars().nth(trimed.len()) && t == '\r' {
+                    //     for _ in 0..(WIDTH - trimed.len()) {
+                    //         self.letters.push(b' ');
+                    //     }
+                    // }
+                    Output([1])
                 }
             }
         } else {
-            Output([1])
+            Output([2])
         }
     }
 }

@@ -416,7 +416,7 @@ impl<'k> Kernel<'k> {
 
                 let app_buf = app_cont.buf();
                 app_buf.flush();
-                1_usize.to_le_bytes().iter().for_each(|b| app_buf.push(*b));
+                output.iter().for_each(|b| app_buf.push(*b));
                 app_buf.fill();
 
                 unsafe {

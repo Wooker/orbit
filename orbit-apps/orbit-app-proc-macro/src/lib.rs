@@ -6,19 +6,12 @@ use proc_macro::TokenStream;
 use proc_macro2::Span;
 use quote::{format_ident, quote};
 use syn::{
-    // Fields,
-    // Type,
-    Ident,
-    ItemFn,
-    ItemImpl,
-    ItemStruct,
-    Lifetime,
-    LifetimeDef,
-    ReturnType,
-    Token,
+    Field, Fields, Ident, ItemFn, ItemImpl, ItemStruct, Lifetime, LifetimeDef, ReturnType, Token,
+    Type,
     parse::{Parse, ParseStream},
     parse_macro_input,
     punctuated::Punctuated,
+    token::Comma,
 };
 
 struct OrbitAppArgs {
@@ -60,63 +53,57 @@ pub fn orbit_app(attr: TokenStream, item: TokenStream) -> TokenStream {
     //     struct_name.span(),
     // );
 
-    // let existing_fields_default = match struct_item.fields {
-    //     Fields::Named(ref named) => named
-    //         .named
-    //         .iter()
-    //         .enumerate()
-    //         .map(|(i, f)| {
-    //             let name = f.ident.as_ref().expect("Expected named field");
-    //             let ty = &f.ty;
+    let existing_fields_default = match struct_item.fields {
+        Fields::Named(ref named) => named
+            .named
+            .iter()
+            .enumerate()
+            .map(|(_, f)| {
+                let name = f.ident.as_ref().expect("Expected named field");
+                let ty = &f.ty;
 
-    //             match ty {
-    //                 Type::Array(arr) => {
-    //                     let arr_len = &arr.len;
+                match ty {
+                    Type::Array(arr) => {
+                        let arr_len = &arr.len;
 
-    //                     quote! { #name: [0; #arr_len], }
-    //                 }
-    //                 _ => quote! {
-    //                     #name: <#ty>::default(),
-    //                 },
-    //             }
-    //         })
-    //         .collect::<Vec<_>>(),
-    //     Fields::Unnamed(ref unnamed) => unnamed
-    //         .unnamed
-    //         .iter()
-    //         .enumerate()
-    //         .map(|(i, f)| {
-    //             // let name = f.ident.as_ref().expect("Expected named field");
-    //             let ty = &f.ty;
+                        quote! { #name: [0; #arr_len], }
+                    }
+                    _ => quote! {
+                        #name: <#ty>::default(),
+                    },
+                }
+            })
+            .collect::<Vec<_>>(),
+        Fields::Unnamed(ref unnamed) => unnamed
+            .unnamed
+            .iter()
+            .enumerate()
+            .map(|(i, f)| {
+                // let name = f.ident.as_ref().expect("Expected named field");
+                let ty = &f.ty;
 
-    //             match ty {
-    //                 Type::Array(arr) => {
-    //                     let arr_len = &arr.len;
+                match ty {
+                    Type::Array(arr) => {
+                        let arr_len = &arr.len;
 
-    //                     quote! { #i: [0; #arr_len], }
-    //                 }
-    //                 _ => quote! {
-    //                     #i: <#ty>::default(),
-    //                 },
-    //             }
-    //         })
-    //         .collect::<Vec<_>>(),
-    //     Fields::Unit => {
-    //         vec![]
-    //     }
-    // };
+                        quote! { #i: [0; #arr_len], }
+                    }
+                    _ => quote! {
+                        #i: <#ty>::default(),
+                    },
+                }
+            })
+            .collect::<Vec<_>>(),
+        Fields::Unit => {
+            vec![]
+        }
+    };
 
-    // let existing_fields = match struct_item.fields {
-    //     Fields::Named(ref fields_named) => &fields_named.named,
-    //     _ => {
-    //         return syn::Error::new_spanned(
-    //             struct_item.fields.clone(),
-    //             "Only structs with named fields are supported",
-    //         )
-    //         .to_compile_error()
-    //         .into();
-    //     }
-    // };
+    let existing_fields = match struct_item.fields {
+        Fields::Named(ref fields_named) => &fields_named.named,
+        Fields::Unnamed(ref fields_unnamed) => &fields_unnamed.unnamed,
+        Fields::Unit => &Punctuated::<Field, Comma>::new(),
+    };
 
     // Parsing peripherals
     let peripherals = args.iter().map(|i| {
@@ -198,7 +185,7 @@ pub fn orbit_app(attr: TokenStream, item: TokenStream) -> TokenStream {
         pub struct #struct_name #ty_generics {
             context: Context,
             ringbuf: RingBuf<RINGBUF_SIZE, RingbufType>,
-            // #existing_fields
+            #existing_fields
             peripherals: Peripherals<'app>,
             pub heap: [usize; HEAP_SIZE],
             pub stack: [usize; STACK_SIZE],
@@ -210,7 +197,7 @@ pub fn orbit_app(attr: TokenStream, item: TokenStream) -> TokenStream {
                 let mut app = Self {
                     context: Context::new(),
                     ringbuf: RingBuf::default(),
-                    // #(#existing_fields_default)*
+                    #(#existing_fields_default)*
                     peripherals: Peripherals {
                         _phantom: PhantomData,
                         #(#peripherals_in_self)*
@@ -265,7 +252,7 @@ pub fn orbit_app(attr: TokenStream, item: TokenStream) -> TokenStream {
             #[inline(never)]
             fn main(&mut self) {
                 // #(#peripherals_assume_main)*
-                let output = Self::_main(&mut self.ringbuf, &mut self.peripherals);
+                let output = Self::_main(self);
                 self.ringbuf.push(Message::Reply as u8);
                 output.as_bytes()
                     .iter()

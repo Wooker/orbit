@@ -78,8 +78,8 @@ impl<const SIZE: usize, T: Terminate> RingBuf<SIZE, T> {
     #[allow(unused)]
     #[rustc_align(4)]
     #[inline(never)]
-    pub(super) fn at(&self, index: usize) -> T {
-        self.buf[index]
+    pub fn at(&self, index: usize) -> Option<&T> {
+        self.buf.get(index)
     }
 }
 

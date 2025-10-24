@@ -54,11 +54,11 @@ impl<'p> Port<'p> {
         self.rbuf.push(self.peripheral.read());
     }
 
-    #[inline(never)]
-    #[unsafe(link_section = ".kernel.text")]
-    pub(crate) fn read_buf(&mut self, index: usize) -> RingbufType {
-        self.rbuf.at(index)
-    }
+    // #[inline(never)]
+    // #[unsafe(link_section = ".kernel.text")]
+    // pub(crate) fn read_buf(&mut self, index: usize) -> RingbufType {
+    //     self.rbuf.at(index)
+    // }
 
     #[inline(never)]
     #[unsafe(link_section = ".kernel.text")]
