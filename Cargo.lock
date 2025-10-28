@@ -160,6 +160,17 @@ dependencies = [
 ]
 
 [[package]]
+name = "eink_lib_4_2"
+version = "0.1.0"
+dependencies = [
+ "ch32x035_spi_driver",
+ "orbit-app-common",
+ "orbit-app-proc-macro",
+ "orbit-common",
+ "orbit-kernel",
+]
+
+[[package]]
 name = "embedded-hal"
 version = "0.2.7"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -273,6 +284,7 @@ dependencies = [
  "orbit-common-proc-macro",
  "orbit-kernel",
  "reade",
+ "reade_4_2",
  "regex",
  "spi_app",
 ]
@@ -391,6 +403,20 @@ version = "0.1.0"
 dependencies = [
  "ch32x035_spi_driver",
  "eink_lib",
+ "font_8x10",
+ "math",
+ "orbit-app-common",
+ "orbit-app-proc-macro",
+ "orbit-common",
+ "orbit-kernel",
+]
+
+[[package]]
+name = "reade_4_2"
+version = "0.1.0"
+dependencies = [
+ "ch32x035_spi_driver",
+ "eink_lib_4_2",
  "font_8x10",
  "math",
  "orbit-app-common",

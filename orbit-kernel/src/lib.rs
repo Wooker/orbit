@@ -36,7 +36,7 @@ pub use orbit_arch as arch;
 // TODO: make use of PMP internal. Application code should
 // not rely on this const. to_container does rely at the moment
 pub const PMP: usize = 4;
-pub const RINGBUF_SIZE: usize = 32;
+pub const RINGBUF_SIZE: usize = 64;
 pub type RingbufType = u8;
 
 #[cfg(feature = "rt")]

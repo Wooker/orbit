@@ -1,0 +1,18 @@
+[package]
+name = "reade_4_2"
+version = "0.1.0"
+edition = "2024"
+links = "app_reade_4_2" # Needed for linking in orbit-bin
+build = ".cargo/build.rs"
+
+[dependencies]
+orbit-app-common = { path = "../orbit-app-common" }
+orbit-app-proc-macro = { path = "../orbit-app-proc-macro" }
+orbit-common = { path =  "../../orbit-common" }
+
+orbit-kernel = { path = "../../orbit-kernel" , features = [ "ch32x035" ]}
+
+eink_lib_4_2 = { path = "../eink_lib_4_2", version = "0.1.0" }
+font_8x10 = { path = "../font_8x10", version = "0.1.0" }
+ch32x035_spi_driver = { path = "../ch32x035_spi_driver", version = "0.1.0" }
+math = { path = "../math", version = "0.1.0" }
