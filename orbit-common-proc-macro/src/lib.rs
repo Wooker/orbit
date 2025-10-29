@@ -52,9 +52,14 @@ pub fn orbit_main_attribute(attr: TokenStream, _item: TokenStream) -> TokenStrea
         use core::{arch::asm,mem::MaybeUninit};
 
         // use orbit_kernel::application::{Application, Context, PmpEntry, AppContainer};
-        use orbit_kernel::{ringbuf::RingBuf, arch, chip, kernel::{asm, APPS},
-        application::Application};
-        use orbit_common::const_assert;
+        use orbit_bin::{
+            ringbuf::RingBuf,
+            arch,
+            chip,
+            kernel::{asm, Kernel, APPS},
+            application::Application
+        };
+        use orbit_bin::const_assert;
 
         const_assert!(#app_size <= APPS);
         const_assert!(0 #(+ #app_sizes)* < chip::RAM_SIZE);

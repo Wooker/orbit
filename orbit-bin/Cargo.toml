@@ -5,41 +5,10 @@ edition = "2024"
 
 [dependencies]
 orbit-kernel = { path = "../orbit-kernel", features = [ "rt" ] }
-# orbit-app = { path = "../orbit-app" }
 orbit-common = { path = "../orbit-common" }
 orbit-common-proc-macro = { path = "../orbit-common-proc-macro" }
 
-calc = { path = "../orbit-apps/calc" }
-reade = { path = "../orbit-apps/reade", optional = true }
-reade_4_2 = { path = "../orbit-apps/reade_4_2", optional = true }
-spi_app = { path = "../orbit-apps/spi_app", optional = true }
-
-[build-dependencies]
-regex = "1.11.1"
-
 [features]
-# ch592 = [ "orbit-kernel/ch592", "orbit-app/ch592" ]
 ch32v208wbu6 = [ "orbit-kernel/ch32v208wbu6" ]
-ch32x035 = [ "orbit-kernel/ch32x035", "reade", "reade_4_2" ]
-# ch32v003 = [ "orbit-kernel/ch32v003", "orbit-app/ch32v003" ]
-# bl702 = [ "orbit-kernel/bl702", "orbit-app/bl702" ]
+ch32x035 = [ "orbit-kernel/ch32x035" ]
 
-[[bin]]
-name = "ch592f"
-required-features = [ "ch592" ]
-
-[[bin]]
-name = "ch32x035"
-required-features = [ "ch32x035" ]
-
-[[bin]]
-name = "ch32v208wbu6"
-required-features = [ "ch32v208wbu6" ]
-
-[[bin]]
-name = "ch32v003"
-required-features = [ "ch32v003" ]
-
-[[bin]]
-name = "bl702"
-required-features = [ "bl702" ]

@@ -1,6 +1,5 @@
 #![allow(unused)]
 
-use regex::Regex;
 use std::{
     env,
     fs::{self, File, read_dir, write},
@@ -118,34 +117,6 @@ fn main() {
     //     }
     // }
 
-    // Read bin main contents
-    let file = format!(
-        "src/bin/{}.rs",
-        features.get(0).expect("No features provided")
-    );
-    let source_path = Path::new(&file);
-    let contents = std::fs::read_to_string(source_path).expect("Could not read source file");
-
-    // Capture applications in bin main content
-    let re = Regex::new(r"orbit_main!\((\w+(?:,\s*\w+)*)?\);").unwrap();
-    if let Some(caps) = re.captures(&contents) {
-        let args = caps.get(1).map_or("", |m| m.as_str());
-        if !args.is_empty() {
-            let names = args
-                .split(",")
-                .map(|s| s.trim().to_string().to_lowercase())
-                .collect::<Vec<String>>();
-            p!("Apps: {:?}", names);
-            for name in names {
-                // write_linker_script(app_out, name.clone());
-            }
-        } else {
-            p!("Apps empty: []");
-        }
-    } else {
-        println!("cargo:warning=orbit_main! macro not found");
-    }
-
     // Add linker scripts of memory and kernel
     println!("cargo:rustc-link-arg={}", "-Tmemory.x");
     println!("cargo:rustc-link-arg={}", "-Tkernel.x");
@@ -169,6 +140,7 @@ fn main() {
         .into_iter()
         .filter(|(key, _)| key.starts_with("DEP") && !key.contains("COMPILER"))
     {
+        p!("asdasdasdasd");
         p!("{}", dep.0);
         let delim_pos = dep.1.find('=').expect("Incorrect metadata format");
         let (key, out_dir) = dep.1.split_at(delim_pos + 1);
@@ -196,6 +168,7 @@ fn main() {
         }
     }
 
+    p!("Hello");
     // Add final linker scripts
     println!("cargo:rustc-link-arg={}", "-Tlink.x");
 

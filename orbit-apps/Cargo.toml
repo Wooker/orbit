@@ -10,7 +10,12 @@ members = [
     "orbit-app-common",
     "orbit-app-proc-macro",
     "reade",
+    "reade_3",
     "spi_app",
 ]
-exclude = ["test_app","reade_4_2","eink_lib_4_2"]
+exclude = [
+    "test_app",
+    "reade_4_2",
+    "eink_lib_4_2",
+]
 resolver = "2"

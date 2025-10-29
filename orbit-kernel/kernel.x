@@ -13,7 +13,7 @@ SECTIONS
 
     .kernel.rodata : ALIGN(4)
     {
-        *(.kernel.rodata);
+        *orbit_kernel*.o(.rodata .rodata.*);
     } >FLASH
 
     .kernel.data : ALIGN(4)

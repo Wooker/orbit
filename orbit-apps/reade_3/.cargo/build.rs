@@ -16,14 +16,15 @@ fn main() {
 
     let out = &PathBuf::from(env::var_os("OUT_DIR").unwrap());
 
-    let linker_script_path = Path::new(&out).join("ch32x035_spi_driver.x");
+    let linker_script_path = Path::new(&out).join(format!("{}.x", &pkg));
     let linker_script_contents = r"
 SECTIONS
 {
-	.libos.ch32x035_spi_driver : ALIGN(4)
+	.app.reade_3 : ALIGN(4)
 	{
-		*ch32x035_spi_driver*.o(.text .text.*);
-		*ch32x035_spi_driver*.o(.rodata .rodata.*);
+		*reade_3*.o(.text .text.*);
+		*reade_3*.o(.rodata .rodata.*);
+
 	} >FLASH
 }
         ";
@@ -51,6 +52,9 @@ SECTIONS
             .collect::<Vec<&str>>()
             .join("_")
             .to_lowercase();
+
+        // println!("cargo:rustc-link-search={}", out_dir);
+        // println!("cargo:rustc-link-arg=-T{}.x", name);
 
         let libos_path = Path::new(&out_dir).join(format!("{}.x", name));
         copy(libos_path, out.join(format!("{}.x", name))).expect("Could not copy linker file");
