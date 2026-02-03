@@ -78,8 +78,8 @@ impl Reade {
             let arg = &arg[..WIDTH];
             // let trimed = arg.trim_end();
             let len = arg.len();
-            let cmp = if len >= 4 {
-                arg[..4].cmp("show")
+            let cmp = if len >= 5 {
+                arg[..5].cmp("\\show")
             } else {
                 core::cmp::Ordering::Less
             };
@@ -113,7 +113,7 @@ impl Reade {
                     };
                     let bus = LibSpi::new(&mut spi1, Config::default());
                     let mut eink: LibEink<DC_PIN, BUSY_PIN> = LibEink::new(bus, &mut gpioa);
-                    eink.display(config, &self.frame.buf);
+                    eink.display(config, &self.frame.buf.as_slice());
                     self.letters.flush();
                     self.frame.flush();
                     Output([0])

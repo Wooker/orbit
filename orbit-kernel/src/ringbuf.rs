@@ -43,6 +43,15 @@ impl<const SIZE: usize, T: Terminate> RingBuf<SIZE, T> {
 
     #[rustc_align(4)]
     #[inline(never)]
+    pub fn push_at(&mut self, pos: usize, value: T) {
+        if self.end < SIZE {
+            self.buf[pos] = value;
+            self.end += 1;
+        }
+    }
+
+    #[rustc_align(4)]
+    #[inline(never)]
     pub fn read(&mut self) -> Option<&[T]> {
         if self.end == SIZE {
             // if self.end != self.start && self.buf[self.end - 1] == self.termination {
@@ -72,6 +81,16 @@ impl<const SIZE: usize, T: Terminate> RingBuf<SIZE, T> {
         self.end = 0;
         for i in self.buf.iter_mut() {
             *i = self.termination;
+        }
+    }
+
+    #[rustc_align(4)]
+    #[inline(never)]
+    pub fn flush_with(&mut self, v: T) {
+        self.start = 0;
+        self.end = 0;
+        for i in self.buf.iter_mut() {
+            *i = v;
         }
     }
 

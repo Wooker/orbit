@@ -17,6 +17,18 @@ impl AsBytes for () {
     }
 }
 
+impl AsBytes for u8 {
+    type Output = Self;
+    fn as_bytes(&self) -> &[u8] {
+        unsafe {
+            core::slice::from_raw_parts(
+                (self as *const Self) as *const u8,
+                core::mem::size_of::<Self>(),
+            )
+        }
+    }
+}
+
 #[macro_export]
 macro_rules! app_stack {
     ($size:expr) => {

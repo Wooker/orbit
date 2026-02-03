@@ -4,6 +4,7 @@ use ch32x035_spi_driver::Spi;
 use orbit_kernel::arch::delay;
 use orbit_kernel::chip::pac::GPIOA;
 
+#[repr(u8)]
 #[derive(Copy, Clone)]
 pub enum Direction {
     XuYdXd = 0b000,
@@ -77,7 +78,7 @@ impl<'app, const DC_PIN: u8, const BUSY_PIN: u8, const FRAME: usize>
     }
 
     #[inline(never)]
-    pub fn display(&mut self, config: &Config, frame: &[u8; FRAME]) {
+    pub fn display(&mut self, config: &Config, frame: &[u8]) {
         self.gpioa.bshr().write(|w| unsafe { w.bits(1 << 16) });
         delay(10000);
         self.gpioa.bshr().write(|w| unsafe { w.bits(1 << 0) });
@@ -119,14 +120,23 @@ impl<'app, const DC_PIN: u8, const BUSY_PIN: u8, const FRAME: usize>
         // RAM X address start end
         self.cmd(0x44);
         self.data((config.pos.x >> 3) as u8);
-        self.data(((config.pos.x >> 3) + (config.size.width >> 3) - 1) as u8);
+        if config.dir as u8 & 0b1 == 0 {
+            self.data(((config.pos.x >> 3) + 1 - (config.size.width >> 3)) as u8);
+        } else {
+            self.data(((config.pos.x >> 3) + (config.size.width >> 3) - 1) as u8);
+        }
 
         // RAM Y address start end
         self.cmd(0x45);
         self.data(config.pos.y as u8);
         self.data((config.pos.y >> 8) as u8);
-        self.data((config.pos.y + (config.size.height) - 1) as u8);
-        self.data(((config.pos.y >> 8) + (config.size.height) - 1) as u8);
+        if config.dir as u8 & 0b10 == 0 {
+            self.data((config.pos.y + 1 - (config.size.height)) as u8);
+            self.data(((config.pos.y >> 8) + 1 - (config.size.height)) as u8);
+        } else {
+            self.data((config.pos.y + (config.size.height) - 1) as u8);
+            self.data(((config.pos.y >> 8) + (config.size.height) - 1) as u8);
+        }
 
         // RAM X address counter
         self.cmd(0x4e);
@@ -140,8 +150,14 @@ impl<'app, const DC_PIN: u8, const BUSY_PIN: u8, const FRAME: usize>
         self.cmd(0x24);
 
         // For orbit bitmap
-        for p in 0..((config.size.width >> 3) * config.size.height) {
-            self.data(0xff - frame[p]);
+        if config.dir as u8 & 0b10 == 0 {
+            for p in 0..((config.size.width >> 3) * config.size.height) {
+                self.data(0xff - frame[p]);
+            }
+        } else {
+            for p in 0..((config.size.width >> 3) * config.size.height) {
+                self.data(0xff - frame[p]);
+            }
         }
 
         self.cmd(0x22);

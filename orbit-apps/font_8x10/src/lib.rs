@@ -6,6 +6,13 @@ pub fn version() -> usize {
     1
 }
 
+pub struct Rotated(Letter);
+impl Rotated {
+    pub fn new(l: Letter) -> Self {
+        Self(l)
+    }
+}
+
 pub type Letter = [u8; 10];
 
 pub const ASCII: [Letter; 128] = [

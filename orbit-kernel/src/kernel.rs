@@ -454,6 +454,31 @@ impl<'k> Kernel<'k> {
                     )
                 }
             }
+            SysCall::Invoke => {
+                let app_cont = unsafe { app.assume_init_mut() };
+                let app_buf = app_cont.buf();
+                let ind = app_buf.read().unwrap().get(0).unwrap().clone() as usize;
+                app_buf.flush();
+
+                let claim_spot = self.claims.get_mut(ind).unwrap();
+                if *claim_spot == false {
+                    app_buf.flush();
+                    app_buf.push(1);
+                    *claim_spot = true;
+                } else {
+                    app_buf.push(0);
+                }
+                app_buf.fill();
+                unsafe {
+                    asm!(
+                        "",
+                        in("a0") self_addr,
+                        in("a1") app_cont.struct_addr() as usize,
+                        in("a2") app_cont.main_addr() as usize,
+                        in("a3") app_cont.interrupt_addr() as usize,
+                    )
+                }
+            }
             _ => {
                 let app_cont = unsafe { app.assume_init_mut() };
                 for port in self

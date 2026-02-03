@@ -4,6 +4,8 @@ use ch32x035_spi_driver::Spi;
 use orbit_kernel::arch::delay;
 use orbit_kernel::chip::pac::GPIOA;
 
+// mod command;
+
 pub enum Direction {
     XuYdXd = 0b000,
     XuYdXi = 0b001,
@@ -57,7 +59,7 @@ impl<'app, const DC_PIN: u8, const BUSY_PIN: u8> Eink<'app, DC_PIN, BUSY_PIN> {
     }
 
     #[inline(never)]
-    pub fn display(&mut self, config: Config, frame: &[u8; 5000]) {
+    pub fn display(&mut self, config: Config, frame: &[u8]) {
         self.gpioa.bshr().write(|w| unsafe { w.bits(1 << 16) });
         delay(10000);
         self.gpioa.bshr().write(|w| unsafe { w.bits(1 << 0) });

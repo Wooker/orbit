@@ -6,12 +6,12 @@ use proc_macro::TokenStream;
 use proc_macro2::Span;
 use quote::{format_ident, quote};
 use syn::{
-    Field, Fields, Ident, ItemFn, ItemImpl, ItemStruct, Lifetime, LifetimeDef, ReturnType, Token,
-    Type,
     parse::{Parse, ParseStream},
     parse_macro_input,
     punctuated::Punctuated,
     token::Comma,
+    Field, Fields, Ident, ItemFn, ItemImpl, ItemStruct, Lifetime, LifetimeDef, ReturnType, Token,
+    Type,
 };
 
 struct OrbitAppArgs {
@@ -257,7 +257,7 @@ pub fn orbit_app(attr: TokenStream, item: TokenStream) -> TokenStream {
                 output.as_bytes()
                     .iter()
                     .for_each(|byte| self.ringbuf.push(*byte));
-                self.ringbuf.push(self.ringbuf.termination);
+                // self.ringbuf.push(self.ringbuf.termination);
                 unsafe { asm!("li a0, 1;li a1, 0;") };
             }
 
