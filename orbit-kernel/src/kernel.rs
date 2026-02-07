@@ -18,20 +18,20 @@ use core::{
 
 // use chip::pac::Peripherals;
 use orbit_arch::{Core, PMP};
+use spaceport::{constants::PROTOCOL_VERSION, message::Message, packet::Packet, types::Flags};
 
 use crate::{
-    RINGBUF_SIZE, RingbufType,
+    RINGBUF_SIZE,
     application_container::{AppContainer, RunApplication},
     claim::KernelPeripherals,
     clock::Clocks,
     context::Context,
     kernel::port_handler::handle_invoke,
-    message::Message,
     port::{
         Port,
         port_kind::{PORT_INTERRUPTS, PORT_NUM},
     },
-    ringbuf::{RingBuf, Terminate},
+    ringbuf::RingBuf,
     syscall::SysCall,
 };
 
@@ -147,22 +147,32 @@ impl<'k> Kernel<'k> {
             .filter_map(|port| port.awaiting.then(|| port))
             .count();
         let port = &mut self.ports[i];
-        if let Some(mut action) = port.handle()
-            && port.msg == 0
-        {
-            port.msg += 1;
 
-            let msg = unsafe { action.rbuf.read().unwrap_unchecked() };
-            // port.write_str(b"Got");
-            // port.write_str(msg);
-            match action.message {
-                Message::Invoke => handle_invoke(port, msg, &mut self.apps, &mut self.running),
+        if let Some(packet) = port.handle() {
+            match packet.msg_type {
+                Message::Invoke => {
+                    // handle_invoke(packet.payload, &mut self.apps, &mut self.running),
+                    let mut out = [0u8; 64];
+                    let pkt = Packet {
+                        version: PROTOCOL_VERSION,
+                        flags: packet.flags,
+                        packet_id: packet.packet_id + 1,
+                        src: 0,
+                        dst: 0,
+                        ttl: 0,
+                        msg_type: Message::Reply,
+                        payload: b"Hello, world!",
+                    };
+                    if let Ok(size) = pkt.encode(&mut out) {
+                        port.send(&out[..size]);
+                    } else {
+                        port.write_byte(b'b');
+                    }
+                    RunApplication::None
+                }
                 Message::Reply => {
                     if let Some(app_index) = self.running {
-                        port.awaiting = false;
-                        port.msg = 0;
-
-                        let info = unsafe { action.rbuf.read().unwrap_unchecked() };
+                        let info = packet.payload;
 
                         let app =
                             unsafe { self.apps.get_unchecked_mut(app_index).assume_init_mut() };
@@ -179,11 +189,10 @@ impl<'k> Kernel<'k> {
                             return RunApplication::Jumped;
                         }
                     } else {
-                        let mut resp: RingBuf<RINGBUF_SIZE, RingbufType> = RingBuf::default();
+                        let mut resp: RingBuf<RINGBUF_SIZE> = RingBuf::default();
                         resp.push(Message::Unknown.into());
                         resp.push(Message::Reply.into());
-                        port.write_str(&resp.buf);
-                        port.msg -= 1;
+                        port.write(&resp.buf);
                     }
                     RunApplication::None
                 }
@@ -191,11 +200,10 @@ impl<'k> Kernel<'k> {
                     if let Some(_) = self.running {
                         // return RunApplication::Abort;
                     }
-                    port.msg -= 1;
                     RunApplication::None
                 }
                 Message::Append => {
-                    let info = unsafe { action.rbuf.read().unwrap_unchecked() };
+                    let info = packet.payload;
                     let delimiter = info.iter().take_while(|e| **e != b' ').count();
                     let (name, arg) = info.split_at(delimiter);
 
@@ -214,18 +222,14 @@ impl<'k> Kernel<'k> {
                         for ch in arg.iter().skip(1) {
                             app.buf().push(*ch);
                         }
-                        port.msg -= 1;
                         RunApplication::None
                     } else {
-                        port.write_str(&[Message::Unknown.into(), Message::Append.into(), 0]);
-                        port.msg -= 1;
+                        port.write(&[Message::Unknown.into(), Message::Append.into(), 0]);
                         RunApplication::None
                     }
                 }
-                Message::Unknown => {
-                    port.msg = 0;
-                    RunApplication::None
-                }
+                Message::Error => RunApplication::None,
+                Message::Unknown => RunApplication::None,
             }
         } else {
             RunApplication::None
@@ -314,9 +318,7 @@ impl<'k> Kernel<'k> {
                     .nth(0)
                 {
                     app_cont.buf().fill();
-                    if let Some(output) = app_cont.buf().read() {
-                        port.write_str(output);
-                    }
+                    port.write(app_cont.buf().read());
                 }
                 self.ports.iter_mut().for_each(|port| {
                     port.msg = 0;
@@ -350,15 +352,14 @@ impl<'k> Kernel<'k> {
             }
             SysCall::SendAll => {
                 let app_cont = unsafe { app.assume_init_mut() };
-                if let Some(info) = app_cont.buf().read() {
-                    for port in self
-                        .ports
-                        .iter_mut()
-                        .filter_map(|port| port.msg.eq(&0usize).then(|| port))
-                    {
-                        port.write_str(info);
-                        port.awaiting = true;
-                    }
+
+                for port in self
+                    .ports
+                    .iter_mut()
+                    .filter_map(|port| port.msg.eq(&0usize).then(|| port))
+                {
+                    port.write(app_cont.buf().read());
+                    port.awaiting = true;
                 }
                 unsafe {
                     asm!(
@@ -388,7 +389,7 @@ impl<'k> Kernel<'k> {
                 //     let port = unsafe { p.assume_init_mut() };
                 //     port.msg.eq(&0usize).then(|| port)
                 // }) {
-                //     port.write_str(info);
+                //     port.write(info);
                 //     port.awaiting = true;
                 // }
                 // app_cont.buf().push(awaiting_num as u8);
@@ -396,7 +397,7 @@ impl<'k> Kernel<'k> {
             }
             SysCall::MemAlloc => {
                 let app_cont = unsafe { app.assume_init_mut() };
-                let output = if let Ok(byte_arr) = app_cont.buf().read().unwrap().try_into() {
+                let output = if let Ok(byte_arr) = app_cont.buf().read().try_into() {
                     let heap = app_cont.heap();
                     let alloc_size = usize::from_le_bytes(byte_arr);
                     if let Some((i, space)) =
@@ -432,7 +433,7 @@ impl<'k> Kernel<'k> {
             SysCall::ClaimPeripheral => {
                 let app_cont = unsafe { app.assume_init_mut() };
                 let app_buf = app_cont.buf();
-                let ind = app_buf.read().unwrap().get(0).unwrap().clone() as usize;
+                let ind = app_buf.read().get(0).unwrap().clone() as usize;
                 app_buf.flush();
 
                 let claim_spot = self.claims.get_mut(ind).unwrap();
@@ -457,7 +458,7 @@ impl<'k> Kernel<'k> {
             SysCall::Invoke => {
                 let app_cont = unsafe { app.assume_init_mut() };
                 let app_buf = app_cont.buf();
-                let ind = app_buf.read().unwrap().get(0).unwrap().clone() as usize;
+                let ind = app_buf.read().get(0).unwrap().clone() as usize;
                 app_buf.flush();
 
                 let claim_spot = self.claims.get_mut(ind).unwrap();
@@ -486,7 +487,7 @@ impl<'k> Kernel<'k> {
                     .iter_mut()
                     .filter_map(|port| port.msg.eq(&0usize).then(|| port))
                 {
-                    port.write_str(&[syscall.discriminant() as u8]);
+                    port.write(&[syscall.discriminant() as u8]);
                     unsafe {
                         asm!(
                             "",
@@ -535,7 +536,7 @@ impl<'k> Kernel<'k> {
         for port in self.ports.iter_mut() {
             let msg = panic_info.message().as_str().unwrap();
             for chunk in msg.as_bytes().chunks(32) {
-                port.write_str(chunk);
+                port.write(chunk);
             }
         }
     }

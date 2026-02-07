@@ -4,14 +4,23 @@ use chip::PortPeripheral;
 
 use orbit_arch::interface::timer::Timer;
 use orbit_common::{feature_mod_use, feature_mod_use_mutual};
+use spaceport::{
+    constants::{self, EOF},
+    message::Message,
+    packet::{HEADER_LEN, Packet},
+    transport::Transport,
+};
 
-use crate::action::Action;
-use crate::message::Message;
-use crate::ringbuf::{RingBuf, Terminate};
+use crate::ringbuf::RingBuf;
 use crate::{RINGBUF_SIZE, RingbufType};
 
 pub mod port_kind;
 pub(crate) use port_kind::PortKinds;
+
+pub enum UartError {
+    Config,
+    BufTooSmall,
+}
 
 feature_mod_use_mutual!(uart_v208, "ch32v208wbu6", "ch32v003");
 feature_mod_use_mutual!(uart_x035, "ch32x035");
@@ -27,12 +36,19 @@ pub trait ConfigureGPIO {
     fn configure(&self);
 }
 
+#[derive(Debug)]
+pub enum PortError {
+    Send,
+}
+
 pub(crate) struct Port<'p> {
     pub awaiting: bool,
     pub msg: usize,
     role: Role,
     peripheral: Uart<'p>,
-    pub rbuf: RingBuf<RINGBUF_SIZE, RingbufType>,
+    payload_buf: [u8; RINGBUF_SIZE - HEADER_LEN],
+    buf: [u8; RINGBUF_SIZE],
+    pub rbuf: RingBuf<RINGBUF_SIZE>,
 }
 
 impl<'p> Port<'p> {
@@ -44,6 +60,8 @@ impl<'p> Port<'p> {
             msg: 0,
             peripheral: Uart::new(peripheral, kind, Config::default()),
             role: Role::Candidate,
+            payload_buf: [0; RINGBUF_SIZE - HEADER_LEN],
+            buf: [0; RINGBUF_SIZE],
             rbuf: RingBuf::default(),
         }
     }
@@ -51,50 +69,39 @@ impl<'p> Port<'p> {
     #[inline(never)]
     #[unsafe(link_section = ".kernel.text")]
     pub(crate) fn push(&mut self) {
-        self.rbuf.push(self.peripheral.read());
-    }
-
-    // #[inline(never)]
-    // #[unsafe(link_section = ".kernel.text")]
-    // pub(crate) fn read_buf(&mut self, index: usize) -> RingbufType {
-    //     self.rbuf.at(index)
-    // }
-
-    #[inline(never)]
-    #[unsafe(link_section = ".kernel.text")]
-    pub(crate) fn write(&mut self, ch: RingbufType) {
-        self.peripheral.blocking_write_char(ch);
-        for i in 5..=9 {
-            self.peripheral.clear_int(i);
-        }
-        orbit_arch::delay(300);
+        self.rbuf.push(self.peripheral.read_byte());
     }
 
     #[inline(never)]
     #[unsafe(link_section = ".kernel.text")]
-    pub(crate) fn write_str<'a>(&'a mut self, buf: &[RingbufType]) {
-        buf.iter().for_each(|ch| self.rbuf.push(*ch));
-        self.rbuf.fill();
-        self.write_self();
-        self.rbuf.flush();
+    pub(crate) fn write_byte(&mut self, b: u8) {
+        self.peripheral.blocking_write_byte(b);
     }
 
     #[inline(never)]
     #[unsafe(link_section = ".kernel.text")]
-    pub(crate) fn write_self<'a>(&'a mut self) {
-        for ch in self.rbuf.buf.into_iter() {
-            self.write(ch);
-        }
-        self.rbuf.flush();
+    pub(crate) fn write<'a>(&'a mut self, buf: &[u8]) {
+        buf.iter().for_each(|ch| self.write_byte(*ch));
     }
 
     #[inline(never)]
     #[unsafe(link_section = ".kernel.text")]
-    pub(crate) fn handle(&mut self) -> Option<Action> {
-        let b = self.peripheral.read();
-        self.rbuf.push(b);
-        if let Some(slice) = self.rbuf.read() {
-            Some(slice.into())
+    pub(crate) fn send<'a>(&'a mut self, buf: &[u8]) -> Result<usize, PortError> {
+        self.peripheral.write(buf).map_err(|_| PortError::Send);
+        Ok(buf.len())
+    }
+
+    #[inline(never)]
+    #[unsafe(link_section = ".kernel.text")]
+    pub(crate) fn handle(&mut self) -> Option<Packet<'_>> {
+        if let Ok(size) = self.peripheral.read(&mut self.buf)
+            && size > 0
+        {
+            if let Ok(p) = Packet::decode(&self.buf[..size], &mut self.payload_buf) {
+                Some(p)
+            } else {
+                None
+            }
         } else {
             None
         }

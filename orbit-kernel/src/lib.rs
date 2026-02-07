@@ -10,17 +10,17 @@
 #![feature(slice_split_once)]
 #![feature(iter_array_chunks)]
 
-pub mod action;
 pub mod application;
 pub mod application_container;
 pub mod claim;
 pub mod clock;
 pub mod context;
-pub mod message;
 pub mod ringbuf;
 pub mod syscall;
 pub mod task;
 pub mod usizebuf;
+
+pub use spaceport;
 
 #[cfg(feature = "rt")]
 pub mod kernel;

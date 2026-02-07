@@ -163,12 +163,12 @@ pub fn orbit_app(attr: TokenStream, item: TokenStream) -> TokenStream {
             marker::PhantomData,
         };
         use orbit_kernel::{
+            spaceport::message::Message,
             application::Application,
             context::Context,
             claim::{Claim, Claimed, KernelPeripherals},
-            {PMP, RINGBUF_SIZE, RingbufType},
+            {PMP, RINGBUF_SIZE},
             ringbuf::RingBuf,
-            message::Message,
             syscall::SysCall,
         };
         use orbit_common::const_assert;
@@ -184,7 +184,7 @@ pub fn orbit_app(attr: TokenStream, item: TokenStream) -> TokenStream {
         #(#attributes)*
         pub struct #struct_name #ty_generics {
             context: Context,
-            ringbuf: RingBuf<RINGBUF_SIZE, RingbufType>,
+            ringbuf: RingBuf<RINGBUF_SIZE>,
             #existing_fields
             peripherals: Peripherals<'app>,
             pub heap: [usize; HEAP_SIZE],
@@ -274,7 +274,7 @@ pub fn orbit_app(attr: TokenStream, item: TokenStream) -> TokenStream {
 
             #[inline(always)]
             fn buf(&mut self) -> usize {
-                &self.ringbuf as *const RingBuf<RINGBUF_SIZE, RingbufType> as usize
+                &self.ringbuf as *const RingBuf<RINGBUF_SIZE> as usize
             }
 
             #[inline(always)]

@@ -1,22 +1,17 @@
 use core::mem::MaybeUninit;
 
 use crate::{
-    RingbufType,
     application_container::AppContainer,
-    kernel::{APPS, Message, RunApplication, Terminate},
-    port::Port,
+    kernel::{APPS, RunApplication},
 };
 
 #[inline(never)]
 pub(super) fn handle_invoke(
-    port: &mut Port,
     msg: &[u8],
     apps: &mut [MaybeUninit<AppContainer>; APPS],
     running: &mut Option<usize>,
 ) -> RunApplication {
-    let (name, arg) = if let Some((name, arg)) =
-        msg.split_once(|p| *p == <RingbufType as Terminate>::termination())
-    {
+    let (name, arg) = if let Some((name, arg)) = msg.split_once(|p| *p == b' ') {
         (name, Some(arg))
     } else {
         (msg, None)
@@ -45,8 +40,6 @@ pub(super) fn handle_invoke(
             RunApplication::Main
         }
     } else {
-        port.write_str(&[Message::Unknown.into(), Message::Invoke.into()]);
-        port.msg -= 1;
         RunApplication::None
     }
 }

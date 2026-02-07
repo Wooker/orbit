@@ -1,11 +1,11 @@
 use core::ops::Add;
 
 use crate::{
+    RINGBUF_SIZE,
     // claim::KernelPeripherals,
     context::Context,
     // pmp_entry::PmpEntry,
     ringbuf::RingBuf,
-    {RINGBUF_SIZE, RingbufType},
 };
 
 #[derive(Clone, Copy)]
@@ -80,10 +80,10 @@ impl<'a> AppContainer<'a> {
         }
     }
 
-    pub fn buf(&mut self) -> &mut RingBuf<RINGBUF_SIZE, RingbufType> {
+    pub fn buf(&mut self) -> &mut RingBuf<RINGBUF_SIZE> {
         unsafe {
             &mut *(self.struct_addr.add(core::mem::size_of::<Context>())
-                as *mut RingBuf<RINGBUF_SIZE, RingbufType>)
+                as *mut RingBuf<RINGBUF_SIZE>)
         }
     }
 

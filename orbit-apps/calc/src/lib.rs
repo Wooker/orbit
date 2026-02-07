@@ -63,14 +63,7 @@ impl Calc {
     #[app_main]
     pub fn main(&mut self) -> Output {
         let mut argument = [0u8; 3];
-        for (i, b) in unsafe {
-            self.ringbuf
-                .read()
-                .unwrap_unchecked()
-                .iter()
-                .enumerate()
-                .take(3)
-        } {
+        for (i, b) in unsafe { self.ringbuf.read().iter().enumerate().take(3) } {
             argument[i] = *b;
         }
         Output([Self::calc_expr(argument)])

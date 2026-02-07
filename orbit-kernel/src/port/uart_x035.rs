@@ -4,6 +4,7 @@
 // Default UART is UART4()
 use chip::PortPeripheral;
 use core::sync::atomic::{Ordering, compiler_fence};
+use spaceport::{constants::EOF, transport::Transport};
 
 use super::{ConfigureGPIO, PortKinds};
 
@@ -52,6 +53,7 @@ impl Default for Config {
 #[derive(Clone, Copy)]
 pub struct Uart<'a> {
     uart: &'a PortPeripheral,
+    count: usize,
 }
 
 impl<'a> Uart<'a> {
@@ -59,9 +61,10 @@ impl<'a> Uart<'a> {
     #[inline(never)]
     #[unsafe(link_section = ".kernel.text")]
     pub fn new(uart: &'a PortPeripheral, kind: impl ConfigureGPIO, config: Config) -> Self {
+        // Configure GPIO for UART alt-function
         kind.configure();
 
-        // uart.modify(|p| p.statr.write(|w| unsafe { w.bits(0) }));
+        // Configure UART peripheral
         uart.ctlr1().write(|w| unsafe {
             // Data bits and parity configuratoin
             let mut ctlr1 = 0_u32;
@@ -88,6 +91,7 @@ impl<'a> Uart<'a> {
             w.bits(ctlr3)
         });
 
+        // To calculate div, use the following
         // let clock = unsafe { KERNEL.clock() };
         // let div_m = 25 * clock / (4 * config.baudrate);
         // let mut tmpreg = (div_m / 100) << 4;
@@ -98,7 +102,7 @@ impl<'a> Uart<'a> {
         // value of uart_div is 69
         uart.brr().write(|w| unsafe { w.bits(69) });
 
-        Self { uart }
+        Self { uart, count: 0 }
     }
 
     #[rustc_align(4)]
@@ -106,33 +110,25 @@ impl<'a> Uart<'a> {
     #[unsafe(link_section = ".kernel.text")]
     pub fn blocking_write(&mut self, buf: &[u8]) {
         for c in buf {
-            // Read TC
-            // while self.uart.read(|p| p.statr.read().bits() & (1 << 6)) == 0 {} // wait tx complete
-            self.uart.datar().write(|w| unsafe { w.bits(*c as u32) });
-        }
-
-        // self.uart.modify(|p| {
-        //     p.statr
-        //         .modify(|r, w| unsafe { w.bits(r.bits() & !(1 << 6)) })
-        // });
-    }
-
-    #[rustc_align(4)]
-    #[inline(never)]
-    #[unsafe(link_section = ".kernel.text")]
-    pub fn blocking_write_char(&mut self, c: u8) {
-        // Read TC
-        // while (self.uart.statr.read().bits() & (1 << 6)) == 0 {} // wait tx complete
-        self.uart.datar().write(|w| unsafe { w.bits(c as u32) });
-        for i in 5..=9 {
-            self.clear_int(i);
+            self.blocking_write_byte(*c);
         }
     }
 
     #[rustc_align(4)]
     #[inline(never)]
     #[unsafe(link_section = ".kernel.text")]
-    pub fn read(&mut self) -> u8 {
+    pub fn blocking_write_byte(&mut self, b: u8) {
+        self.uart.datar().write(|w| unsafe { w.bits(b as u32) });
+        while (self.uart.statr().read().bits() & (1 << 6)) == 0 {} // wait tx complete
+        self.uart
+            .statr()
+            .modify(|r, w| unsafe { w.bits(r.bits() & !(0b11111 << 5)) });
+    }
+
+    #[rustc_align(4)]
+    #[inline(never)]
+    #[unsafe(link_section = ".kernel.text")]
+    pub fn read_byte(&mut self) -> u8 {
         let val = self.uart.datar().read().dr().bits() as u8;
         for i in 5..=9 {
             self.clear_int(i);
@@ -154,5 +150,33 @@ impl<'a> Uart<'a> {
         self.uart
             .statr()
             .modify(|r, w| unsafe { w.bits(r.bits() & !(1 << bit)) });
+    }
+}
+
+impl<'a> Transport for Uart<'a> {
+    type Error = super::UartError;
+
+    #[inline(never)]
+    fn write(&mut self, data: &[u8]) -> Result<(), Self::Error> {
+        self.blocking_write(data);
+        Ok(())
+    }
+
+    #[inline(never)]
+    fn read(&mut self, buf: &mut [u8]) -> Result<usize, Self::Error> {
+        if buf.len() < self.count + 1 {
+            Err(Self::Error::BufTooSmall)
+        } else {
+            let b = self.read_byte();
+            buf[self.count] = b;
+            if b != EOF {
+                self.count += 1;
+                Ok(0)
+            } else {
+                let count = self.count + 1;
+                self.count = 0;
+                Ok(count)
+            }
+        }
     }
 }

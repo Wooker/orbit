@@ -1,40 +1,25 @@
-pub trait Terminate
-where
-    Self: Sized + Default + Copy + PartialEq,
-{
-    fn termination() -> Self;
-}
-impl Terminate for u8 {
-    fn termination() -> Self {
-        32
-    }
-}
-
 #[derive(Clone, Copy)]
 #[repr(C)]
-pub struct RingBuf<const SIZE: usize, T: Terminate> {
+pub struct RingBuf<const SIZE: usize> {
     pub start: usize,
     pub end: usize,
-    pub buf: [T; SIZE],
-    pub termination: T,
+    pub buf: [u8; SIZE],
 }
 
-impl<const SIZE: usize, T: Terminate> RingBuf<SIZE, T> {
+impl<const SIZE: usize> RingBuf<SIZE> {
     #[rustc_align(4)]
     #[inline(never)]
-    pub fn new(termination: T) -> Self {
-        let buf = [termination; SIZE];
+    pub fn new() -> Self {
         Self {
             start: 0,
             end: 0,
-            buf,
-            termination,
+            buf: [0; SIZE],
         }
     }
 
     #[rustc_align(4)]
     #[inline(never)]
-    pub fn push(&mut self, value: T) {
+    pub fn push(&mut self, value: u8) {
         if self.end < SIZE {
             self.buf[self.end] = value;
             self.end += 1;
@@ -43,33 +28,18 @@ impl<const SIZE: usize, T: Terminate> RingBuf<SIZE, T> {
 
     #[rustc_align(4)]
     #[inline(never)]
-    pub fn push_at(&mut self, pos: usize, value: T) {
-        if self.end < SIZE {
-            self.buf[pos] = value;
-            self.end += 1;
-        }
-    }
-
-    #[rustc_align(4)]
-    #[inline(never)]
-    pub fn read(&mut self) -> Option<&[T]> {
-        if self.end == SIZE {
-            // if self.end != self.start && self.buf[self.end - 1] == self.termination {
-            // let out = Some(&self.buf[self.start..self.end]);
-            let out = Some(&self.buf[..]);
-            self.start = 0;
-            self.end = 0;
-            out
-        } else {
-            None
-        }
+    pub fn read(&mut self) -> &[u8] {
+        let out = &self.buf[self.start..self.end];
+        self.start = 0;
+        self.end = 0;
+        out
     }
 
     #[rustc_align(4)]
     #[inline(never)]
     pub fn fill(&mut self) {
         while self.end != SIZE {
-            self.buf[self.end] = T::termination();
+            self.buf[self.end] = 0;
             self.end += 1;
         }
     }
@@ -80,35 +50,17 @@ impl<const SIZE: usize, T: Terminate> RingBuf<SIZE, T> {
         self.start = 0;
         self.end = 0;
         for i in self.buf.iter_mut() {
-            *i = self.termination;
+            *i = 0;
         }
-    }
-
-    #[rustc_align(4)]
-    #[inline(never)]
-    pub fn flush_with(&mut self, v: T) {
-        self.start = 0;
-        self.end = 0;
-        for i in self.buf.iter_mut() {
-            *i = v;
-        }
-    }
-
-    #[allow(unused)]
-    #[rustc_align(4)]
-    #[inline(never)]
-    pub fn at(&self, index: usize) -> Option<&T> {
-        self.buf.get(index)
     }
 }
 
-impl<const SIZE: usize, T: Terminate> Default for RingBuf<SIZE, T> {
+impl<const SIZE: usize> Default for RingBuf<SIZE> {
     fn default() -> Self {
         Self {
             start: 0,
             end: 0,
-            buf: [T::termination(); SIZE],
-            termination: T::termination(),
+            buf: [0; SIZE],
         }
     }
 }

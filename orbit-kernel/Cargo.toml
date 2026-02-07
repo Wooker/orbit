@@ -10,6 +10,7 @@ orbit-arch = { path = "../orbit-arch", optional = true }
 chip = { path = "../chip", optional = true }
 orbit-common = { path = "../orbit-common" }
 orbit-common-proc-macro = { path = "../orbit-common-proc-macro" }
+spaceport = { path = "../../spaceport" }
 
 [features]
 rt = ["orbit-arch", "chip/rt"]
