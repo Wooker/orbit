@@ -147,28 +147,41 @@ impl<'k> Kernel<'k> {
             .filter_map(|port| port.awaiting.then(|| port))
             .count();
         let port = &mut self.ports[i];
-
+        port.msg += 1;
         if let Some(packet) = port.handle() {
             match packet.msg_type {
                 Message::Invoke => {
-                    // handle_invoke(packet.payload, &mut self.apps, &mut self.running),
-                    let mut out = [0u8; 64];
-                    let pkt = Packet {
-                        version: PROTOCOL_VERSION,
-                        flags: packet.flags,
-                        packet_id: packet.packet_id + 1,
-                        src: 0,
-                        dst: 0,
-                        ttl: 0,
-                        msg_type: Message::Reply,
-                        payload: b"Hello, world!",
-                    };
-                    if let Ok(size) = pkt.encode(&mut out) {
-                        port.send(&out[..size]);
+                    if let Ok(t) = handle_invoke(packet.payload, &mut self.apps, &mut self.running)
+                    {
+                        t
                     } else {
-                        port.write_byte(b'b');
+                        let mut available = [0u8; 32];
+                        let mut count = 0;
+                        self.apps.iter().map(|a| {
+                            let app = unsafe { a.assume_init() };
+                            let name = app.name();
+                            available[count..count + name.len()].copy_from_slice(&name.as_bytes());
+                            count += name.len();
+                        });
+
+                        let mut out = [0u8; 64];
+                        let pkt = Packet {
+                            version: PROTOCOL_VERSION,
+                            flags: packet.flags,
+                            packet_id: packet.packet_id + 1,
+                            src: 0,
+                            dst: 0,
+                            ttl: 0,
+                            msg_type: Message::Unknown,
+                            payload: &available[..count],
+                        };
+                        if let Ok(size) = pkt.encode(&mut out) {
+                            port.send(&out[..size]);
+                        } else {
+                            port.write(b"No output");
+                        }
+                        RunApplication::None
                     }
-                    RunApplication::None
                 }
                 Message::Reply => {
                     if let Some(app_index) = self.running {
@@ -317,8 +330,23 @@ impl<'k> Kernel<'k> {
                     .filter_map(|port| port.msg.ne(&0usize).then(|| port))
                     .nth(0)
                 {
-                    app_cont.buf().fill();
-                    port.write(app_cont.buf().read());
+                    let mut out = [0u8; 96];
+                    let b = b"abcdefg";
+                    let pkt = Packet {
+                        version: PROTOCOL_VERSION,
+                        flags: Flags::empty(),
+                        packet_id: 1,
+                        src: 0,
+                        dst: 0,
+                        ttl: 0,
+                        msg_type: Message::Reply,
+                        payload: app_cont.buf().read(),
+                    };
+                    if let Ok(size) = pkt.encode(&mut out) {
+                        port.send(&out[..size]);
+                    } else {
+                        port.write(b"No output");
+                    }
                 }
                 self.ports.iter_mut().for_each(|port| {
                     port.msg = 0;

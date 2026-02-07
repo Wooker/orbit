@@ -1,16 +1,22 @@
-use core::mem::MaybeUninit;
+use core::{error::Error, mem::MaybeUninit};
+
+use spaceport::types::Flags;
 
 use crate::{
     application_container::AppContainer,
     kernel::{APPS, RunApplication},
 };
 
+pub enum InvokeError {
+    UnknownName,
+}
+
 #[inline(never)]
 pub(super) fn handle_invoke(
     msg: &[u8],
     apps: &mut [MaybeUninit<AppContainer>; APPS],
     running: &mut Option<usize>,
-) -> RunApplication {
+) -> Result<RunApplication, InvokeError> {
     let (name, arg) = if let Some((name, arg)) = msg.split_once(|p| *p == b' ') {
         (name, Some(arg))
     } else {
@@ -34,12 +40,12 @@ pub(super) fn handle_invoke(
             app_buf.fill();
 
             *running = Some(app_index);
-            RunApplication::Main
+            Ok(RunApplication::Main)
         } else {
             *running = Some(app_index);
-            RunApplication::Main
+            Ok(RunApplication::Main)
         }
     } else {
-        RunApplication::None
+        Err(InvokeError::UnknownName)
     }
 }
