@@ -16,6 +16,7 @@ use core::{
     panic::PanicInfo,
 };
 
+use alloc::vec::Vec;
 // use chip::pac::Peripherals;
 use orbit_arch::{Core, PMP};
 use spaceport::{
@@ -62,6 +63,7 @@ pub struct Kernel<'k> {
     claims: [bool; KernelPeripherals::MAX as usize],
     pub core: Core<PMP>,
     pub clock: Clocks,
+    tasks: Vec<usize>,
 }
 
 impl<'k> Kernel<'k> {
@@ -80,6 +82,7 @@ impl<'k> Kernel<'k> {
             }
             Port::new(unsafe { &*ptr }, kind)
         });
+        let v = Vec::new();
 
         // Save trap handler
         unsafe {
@@ -98,6 +101,7 @@ impl<'k> Kernel<'k> {
             claims: [false; KernelPeripherals::MAX as usize],
             clock,
             running: None,
+            tasks: v,
         };
 
         unsafe {
@@ -161,6 +165,7 @@ impl<'k> Kernel<'k> {
                     {
                         t
                     } else {
+                        self.tasks.push(2);
                         let mut out = [0u8; 64];
                         let pkt = Packet {
                             version: PROTOCOL_VERSION,
@@ -170,7 +175,7 @@ impl<'k> Kernel<'k> {
                             dst: 0,
                             ttl: 0,
                             msg_type: Message::Unknown,
-                            payload: &[],
+                            payload: &self.tasks.len().to_le_bytes(),
                         };
                         if let Ok(size) = pkt.encode(&mut out) {
                             let _ = port.send(&out[..size]);

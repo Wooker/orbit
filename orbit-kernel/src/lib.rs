@@ -9,6 +9,7 @@
 #![feature(naked_functions_rustic_abi)]
 #![feature(slice_split_once)]
 #![feature(iter_array_chunks)]
+#![feature(slice_shift)]
 
 pub mod application;
 pub mod application_container;
@@ -22,6 +23,9 @@ pub mod usizebuf;
 
 pub use spaceport;
 
+extern crate alloc;
+#[cfg(feature = "rt")]
+mod allocator;
 #[cfg(feature = "rt")]
 pub mod kernel;
 #[cfg(feature = "rt")]
@@ -39,7 +43,7 @@ pub const PMP: usize = 4;
 pub const RINGBUF_SIZE: usize = 64;
 pub type RingbufType = u8;
 
-#[cfg(feature = "rt")]
+// #[cfg(feature = "rt")]
 #[panic_handler]
 pub fn panic_handler<'a, 'b>(_info: &'a core::panic::PanicInfo<'b>) -> ! {
     // unsafe { save_context() };

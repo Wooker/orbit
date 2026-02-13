@@ -18,7 +18,7 @@ SECTIONS
     .data : ALIGN(4)
     {
         *(.data.*);
-    } >RAM AT>FLASH
+    } >FLASH
 
     .bss : ALIGN(4)
     {
@@ -26,7 +26,12 @@ SECTIONS
         *(.sbss .sbss.*);
     } >RAM AT>FLASH
 
-    .kernel.stack ORIGIN(RAM) + LENGTH(RAM) : ALIGN(4)
+    .eh_frame :
+    {
+        *(.eh_frame);
+    } > RAM AT>FLASH
+
+    .kernel.stack ORIGIN(RAM) + LENGTH(RAM) - 24-40 : ALIGN(4)
     {
         PROVIDE( _stack_top = .);
     } >RAM
