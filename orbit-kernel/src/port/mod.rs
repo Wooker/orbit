@@ -5,10 +5,11 @@ use chip::PortPeripheral;
 use orbit_arch::interface::timer::Timer;
 use orbit_common::{feature_mod_use, feature_mod_use_mutual};
 use spaceport::{
-    constants::{self, EOF},
+    constants::{self, EOF, PROTOCOL_VERSION},
     message::Message,
     packet::{HEADER_LEN, Packet},
     transport::Transport,
+    types::Flags,
 };
 
 use crate::ringbuf::RingBuf;
@@ -46,7 +47,6 @@ pub(crate) struct Port<'p> {
     pub msg: usize,
     role: Role,
     peripheral: Uart<'p>,
-    payload_buf: [u8; RINGBUF_SIZE - HEADER_LEN],
     buf: [u8; RINGBUF_SIZE],
     pub rbuf: RingBuf<RINGBUF_SIZE>,
 }
@@ -60,9 +60,8 @@ impl<'p> Port<'p> {
             msg: 0,
             peripheral: Uart::new(peripheral, kind, Config::default()),
             role: Role::Candidate,
-            payload_buf: [0; RINGBUF_SIZE - HEADER_LEN],
             buf: [0; RINGBUF_SIZE],
-            rbuf: RingBuf::default(),
+            rbuf: RingBuf::new(),
         }
     }
 
@@ -93,11 +92,30 @@ impl<'p> Port<'p> {
 
     #[inline(never)]
     #[unsafe(link_section = ".kernel.text")]
-    pub(crate) fn handle(&mut self) -> Option<Packet<'_>> {
+    pub(crate) fn handle<'a>(&mut self, payload_buf: &'a mut [u8]) -> Option<Packet<'a>> {
         if let Ok(size) = self.peripheral.read(&mut self.buf)
             && size > 0
         {
-            if let Ok(p) = Packet::decode(&self.buf[..size], &mut self.payload_buf) {
+            if let Ok(p) = Packet::decode(&self.buf[..size], payload_buf) {
+                // Reply ACK if the flag is present
+                if p.flags.contains(Flags::ACK_REQUIRED) {
+                    let mut buf = [0; 32];
+                    let reply_pkt = Packet {
+                        version: PROTOCOL_VERSION,
+                        flags: Flags::IS_ACK,
+                        packet_id: p.packet_id + 1,
+                        src: p.dst,
+                        dst: p.src,
+                        ttl: p.ttl,
+                        msg_type: Message::Reply,
+                        payload: &[],
+                    };
+                    if let Ok(size) = reply_pkt.encode(&mut buf) {
+                        let _ = self.send(&buf[..size]);
+                    } else {
+                    }
+                }
+
                 Some(p)
             } else {
                 None

@@ -1,19 +1,30 @@
 #[repr(usize)]
 #[derive(Clone, PartialEq, Eq, Copy)]
 pub enum SysCall {
+    /// Only used during driver initialization
     ReturnInit,
+    /// Only used after application execution
     ReturnMain,
+    /// Only used after driver interrupt handling
     ReturnInterrupt,
+    /// Request delay from kernel
     Delay,
+    /// Request the number of kernel ports
     NumPorts,
+    /// Send a packet via specific kernel port
     Send,
+    /// Send a packet via all kernel ports
     SendAll,
+    /// Await the reply to a packet sent earlier via specific kernel portt
     Await,
-    ReceiveAll,
+    /// Await all replies to packets sent earlier via all kernel ports
+    AwaitAll,
+    /// Allocate some memory on the application heap
     MemAlloc,
+    /// Only used during driver initialization to claim specific peripheral
     ClaimPeripheral,
+    /// Invoke application locally
     Invoke,
-    Unknown = 0xff,
 }
 
 impl SysCall {

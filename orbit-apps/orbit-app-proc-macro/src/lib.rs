@@ -118,9 +118,7 @@ pub fn orbit_app(attr: TokenStream, item: TokenStream) -> TokenStream {
         quote! {
             // fn #fn_name(&mut self) -> orbit_kernel::chip::pac::#i {
                 self.ringbuf.push(KernelPeripherals::#i as u8);
-                self.ringbuf.fill();
                 syscall!(SysCall::ClaimPeripheral);
-                self.ringbuf.flush();
                 self.peripherals.#lower.write(unsafe { orbit_kernel::chip::pac::#i::steal() });
             // }
         }

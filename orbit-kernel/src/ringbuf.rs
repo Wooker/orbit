@@ -34,25 +34,6 @@ impl<const SIZE: usize> RingBuf<SIZE> {
         self.end = 0;
         out
     }
-
-    #[rustc_align(4)]
-    #[inline(never)]
-    pub fn fill(&mut self) {
-        while self.end != SIZE {
-            self.buf[self.end] = 0;
-            self.end += 1;
-        }
-    }
-
-    #[rustc_align(4)]
-    #[inline(never)]
-    pub fn flush(&mut self) {
-        self.start = 0;
-        self.end = 0;
-        for i in self.buf.iter_mut() {
-            *i = 0;
-        }
-    }
 }
 
 impl<const SIZE: usize> Default for RingBuf<SIZE> {
