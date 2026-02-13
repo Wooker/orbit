@@ -16,7 +16,7 @@ use core::{
     panic::PanicInfo,
 };
 
-use alloc::vec::Vec;
+use alloc::{collections::linked_list::LinkedList, vec::Vec};
 // use chip::pac::Peripherals;
 use orbit_arch::{Core, PMP};
 use spaceport::{
@@ -63,7 +63,7 @@ pub struct Kernel<'k> {
     claims: [bool; KernelPeripherals::MAX as usize],
     pub core: Core<PMP>,
     pub clock: Clocks,
-    tasks: Vec<usize>,
+    tasks: LinkedList<usize>,
 }
 
 impl<'k> Kernel<'k> {
@@ -82,7 +82,7 @@ impl<'k> Kernel<'k> {
             }
             Port::new(unsafe { &*ptr }, kind)
         });
-        let v = Vec::new();
+        let ll: LinkedList<usize> = LinkedList::new();
 
         // Save trap handler
         unsafe {
@@ -101,7 +101,7 @@ impl<'k> Kernel<'k> {
             claims: [false; KernelPeripherals::MAX as usize],
             clock,
             running: None,
-            tasks: v,
+            tasks: ll,
         };
 
         unsafe {
@@ -163,9 +163,9 @@ impl<'k> Kernel<'k> {
                 Message::Invoke => {
                     if let Ok(t) = handle_invoke(packet.payload, &mut self.apps, &mut self.running)
                     {
+                        self.tasks.push_back(packet.packet_id as usize);
                         t
                     } else {
-                        self.tasks.push(2);
                         let mut out = [0u8; 64];
                         let pkt = Packet {
                             version: PROTOCOL_VERSION,
@@ -332,7 +332,6 @@ impl<'k> Kernel<'k> {
                     .nth(0)
                 {
                     let mut out = [0u8; 96];
-                    let b = b"abcdefg";
                     let pkt = Packet {
                         version: PROTOCOL_VERSION,
                         flags: Flags::empty(),
@@ -344,11 +343,12 @@ impl<'k> Kernel<'k> {
                         payload: app_cont.buf().read(),
                     };
                     if let Ok(size) = pkt.encode(&mut out) {
-                        port.send(&out[..size]);
+                        let _ = port.send(&out[..size]);
                     } else {
                         port.write(b"No output");
                     }
                 }
+                self.tasks.pop_back();
                 self.ports.iter_mut().for_each(|port| {
                     port.msg = 0;
                 });

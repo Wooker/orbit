@@ -4,34 +4,57 @@ use core::{
     ptr::null_mut,
 };
 
-const ARENA_SIZE: usize = 1024 * 20;
+const ARENA_SIZE: usize = 1024 * 10;
+const MAX_LAYOUT_SIZE: usize = 1024;
 pub(crate) struct SimpleAllocator {
     arena: UnsafeCell<[u8; ARENA_SIZE]>,
-    remaining: usize,
+    remaining: UnsafeCell<usize>,
 }
 
 unsafe impl Sync for SimpleAllocator {}
 unsafe impl GlobalAlloc for SimpleAllocator {
+    #[inline(never)]
     unsafe fn alloc(&self, layout: Layout) -> *mut u8 {
         let size = layout.size();
         let align = layout.align();
 
-        // `Layout` contract forbids making a `Layout` with align=0, or align not power of 2.
-        // So we can safely use a mask to ensure alignment without worrying about UB.
-        let align_mask_to_round_down = !(align - 1);
-
-        if align != 4 {
+        if align > MAX_LAYOUT_SIZE || size == 0 {
             return null_mut();
         }
 
-        let allocated = (self.remaining - size) & align_mask_to_round_down;
-        unsafe { self.arena.get().cast::<u8>().add(allocated) }
+        let remaining = &mut *self.remaining.get();
+
+        if size > *remaining {
+            return null_mut();
+        }
+
+        let new_remaining = (*remaining - size) & !(align - 1);
+
+        *remaining = new_remaining;
+
+        self.arena.get().cast::<u8>().add(new_remaining)
     }
-    unsafe fn dealloc(&self, _ptr: *mut u8, _layout: Layout) {}
+
+    #[inline(never)]
+    unsafe fn dealloc(&self, ptr: *mut u8, layout: Layout) {
+        let size = layout.size();
+        let remaining = &mut *self.remaining.get();
+
+        let arena_start = self.arena.get().cast::<u8>() as usize;
+        let arena_end = arena_start + ARENA_SIZE;
+        let ptr = ptr as usize;
+
+        // Only free if it's the last allocation (LIFO)
+        if ptr >= arena_start && ptr < arena_end {
+            if ptr == arena_start + *remaining {
+                *remaining += size;
+            }
+        }
+    }
 }
 
 #[global_allocator]
 static ALLOCATOR: SimpleAllocator = SimpleAllocator {
     arena: UnsafeCell::new([0x55; ARENA_SIZE]),
-    remaining: ARENA_SIZE,
+    remaining: UnsafeCell::new(ARENA_SIZE),
 };
