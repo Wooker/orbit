@@ -35,5 +35,8 @@ SECTIONS
     {
         PROVIDE( _stack_top = .);
     } >RAM
+
+    /DISCARD/ : { *(.comment); }
+    /DISCARD/ : { *(.riscv.attributes); }
 }
 
