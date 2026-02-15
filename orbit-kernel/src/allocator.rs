@@ -24,15 +24,20 @@ unsafe impl GlobalAlloc for SimpleAllocator {
 
         let remaining = &mut *self.remaining.get();
 
-        if size > *remaining {
+        let arena_start = self.arena.get().cast::<u8>() as usize;
+
+        let current_top = arena_start + *remaining;
+
+        let new_top = current_top.checked_sub(size).unwrap();
+        let aligned_top = new_top & !(align - 1);
+
+        if aligned_top < arena_start {
             return null_mut();
         }
 
-        let new_remaining = (*remaining - size) & !(align - 1);
+        *remaining = aligned_top - arena_start;
 
-        *remaining = new_remaining;
-
-        self.arena.get().cast::<u8>().add(new_remaining)
+        aligned_top as *mut u8
     }
 
     #[inline(never)]
@@ -55,6 +60,6 @@ unsafe impl GlobalAlloc for SimpleAllocator {
 
 #[global_allocator]
 static ALLOCATOR: SimpleAllocator = SimpleAllocator {
-    arena: UnsafeCell::new([0x55; ARENA_SIZE]),
+    arena: UnsafeCell::new([0xff; ARENA_SIZE]),
     remaining: UnsafeCell::new(ARENA_SIZE),
 };

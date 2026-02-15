@@ -31,7 +31,7 @@ SECTIONS
         *(.eh_frame);
     } > RAM AT>FLASH
 
-    .kernel.stack ORIGIN(RAM) + LENGTH(RAM) - 24-40 : ALIGN(4)
+    .kernel.stack ORIGIN(RAM) + LENGTH(RAM) : ALIGN(4)
     {
         PROVIDE( _stack_top = .);
     } >RAM

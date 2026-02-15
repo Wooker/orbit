@@ -13,7 +13,7 @@ use spaceport::{
 };
 
 use crate::ringbuf::RingBuf;
-use crate::{RINGBUF_SIZE, RingbufType};
+use crate::{RINGBUF_SIZE, RingbufType, kernel::PACKET_ID};
 
 pub mod port_kind;
 pub(crate) use port_kind::PortKinds;
@@ -103,7 +103,7 @@ impl<'p> Port<'p> {
                     let reply_pkt = Packet {
                         version: PROTOCOL_VERSION,
                         flags: Flags::IS_ACK,
-                        packet_id: p.packet_id + 1,
+                        packet_id: unsafe { PACKET_ID } as u16,
                         src: p.dst,
                         dst: p.src,
                         ttl: p.ttl,
@@ -112,6 +112,7 @@ impl<'p> Port<'p> {
                     };
                     if let Ok(size) = reply_pkt.encode(&mut buf) {
                         let _ = self.send(&buf[..size]);
+                        unsafe { PACKET_ID += 1 };
                     } else {
                     }
                 }
