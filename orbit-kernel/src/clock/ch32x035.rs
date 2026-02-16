@@ -1,12 +1,3 @@
-// While compiling with  rustc 1.91.0-nightly (54c581243 2025-08-25)
-// cargo produces:
-// ```
-// warning: `#[unsafe(link_section)]` attribute cannot be used on inherent methods
-// ```
-// If such behavior is no longer observable on newer versions of rustc,
-// remove this attribute
-#![allow(unused_attributes)]
-
 #[derive(Copy, Clone, Eq, PartialEq)]
 pub struct Clocks {
     pub hclk: usize,

@@ -1,12 +1,3 @@
-// While compiling with  rustc 1.91.0-nightly (54c581243 2025-08-25)
-// cargo produces:
-// ```
-// warning: `#[link_section]` attribute cannot be used on inherent methods
-// ```
-// If such behavior is no longer observable on newer versions of rustc,
-// remove this attribute
-#![allow(unused_attributes)]
-
 use orbit_common::{app_heap, app_stack};
 use orbit_common_proc_macro::{app_init, app_interrupt, app_main, orbit_app, orbit_impl};
 use orbit_kernel::syscall::SysCall;
