@@ -168,7 +168,6 @@ fn main() {
         }
     }
 
-    p!("Hello");
     // Add final linker scripts
     println!("cargo:rustc-link-arg={}", "-Tlink.x");
 

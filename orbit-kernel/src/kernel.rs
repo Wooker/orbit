@@ -1,28 +1,14 @@
 pub mod asm;
 mod port_handler;
 
-use core::{
-    arch::{asm, naked_asm},
-    mem::MaybeUninit,
-    panic::PanicInfo,
-};
-
-use alloc::{collections::linked_list::LinkedList, vec::Vec};
-// use chip::pac::Peripherals;
-use orbit_arch::{Core, PMP};
-use spaceport::{
-    constants::PROTOCOL_VERSION,
-    message::Message,
-    packet::{HEADER_LEN, Packet},
-    types::Flags,
-};
-
 use crate::{
     RINGBUF_SIZE,
+    allocator::{ALLOCATOR, ARENA_SIZE, SimpleAllocator},
     application_container::{AppContainer, RunApplication},
     claim::KernelPeripherals,
     clock::Clocks,
     context::Context,
+    id::ID,
     kernel::port_handler::handle_invoke,
     port::{
         Port,
@@ -30,20 +16,27 @@ use crate::{
     },
     ringbuf::RingBuf,
     syscall::SysCall,
+    task::{TASK_ID, Task, TaskMeta},
+};
+use alloc::{boxed::Box, slice, vec::Vec};
+use core::{
+    arch::{asm, naked_asm},
+    cell::UnsafeCell,
+    mem::{MaybeUninit, transmute},
+    panic::PanicInfo,
+    pin::Pin,
+};
+use orbit_arch::{Core, PMP};
+use spaceport::{
+    constants::{MAX_TTL, PROTOCOL_VERSION},
+    message::Message,
+    packet::{HEADER_LEN, Packet},
+    types::Flags,
 };
 
 pub const APPS: usize = 5;
-pub(crate) static mut PACKET_ID: usize = 0;
-pub(crate) static mut TASK_ID: usize = 0;
-
-#[used]
-#[unsafe(no_mangle)]
-#[unsafe(link_section = ".kernel.rodata")]
+pub(crate) static PACKET_ID: ID<u16> = ID::new(0);
 pub static KERNEL_MAJOR: u8 = 0;
-
-#[used]
-#[unsafe(no_mangle)]
-#[unsafe(link_section = ".kernel.rodata")]
 pub static KERNEL_MINOR: u8 = 1;
 
 #[repr(C, align(4))]
@@ -52,11 +45,37 @@ pub struct Kernel<'k> {
     running: Option<usize>,
     apps: [MaybeUninit<AppContainer<'k>>; APPS],
     ports: [Port<'k>; PORT_NUM],
-    // pub peripherals: Peripherals,
     claims: [bool; KernelPeripherals::MAX as usize],
     pub core: Core<PMP>,
     pub clock: Clocks,
-    tasks: Vec<usize>,
+    t: Vec<TaskMeta>,
+}
+
+unsafe extern "C" {
+    static mut _sidata: u32;
+    static mut _sdata: u32;
+    static mut _edata: u32;
+    static mut _sbss: u32;
+    static mut _ebss: u32;
+}
+
+unsafe fn init_memory() {
+    // Copy .data
+    let mut src = &raw const _sidata as *const u32;
+    let mut dst = &raw mut _sdata as *mut u32;
+
+    while dst < &raw mut _edata {
+        *dst = *src;
+        dst = dst.add(1);
+        src = src.add(1);
+    }
+
+    // Zero .bss
+    let mut bss = &raw mut _sbss as *mut u32;
+    while bss < &raw mut _ebss {
+        *bss = 0;
+        bss = bss.add(1);
+    }
 }
 
 impl<'k> Kernel<'k> {
@@ -66,6 +85,7 @@ impl<'k> Kernel<'k> {
         // Enable clocks
         let mut clock = Clocks::default();
         clock.freeze();
+        unsafe { init_memory() };
 
         // Initialize ports
         let ports: [Port; PORT_NUM] = core::array::from_fn(|i| {
@@ -75,7 +95,6 @@ impl<'k> Kernel<'k> {
             }
             Port::new(unsafe { &*ptr }, kind)
         });
-        let ll: Vec<usize> = Vec::new();
 
         // Save trap handler
         unsafe {
@@ -87,19 +106,19 @@ impl<'k> Kernel<'k> {
 
         let mut kernel = Self {
             context: Context::new(),
-            // peripherals: unsafe { Peripherals::steal() },
             core: Core::new(),
             ports,
             apps: [MaybeUninit::uninit(); APPS],
             claims: [false; KernelPeripherals::MAX as usize],
             clock,
             running: None,
-            tasks: ll,
+            t: Vec::new(),
         };
 
+        PACKET_ID.set(0);
+        TASK_ID.set(0);
+
         unsafe {
-            PACKET_ID = 0;
-            TASK_ID = 0;
             asm!("mv {0}, sp", out(reg) kernel.context.sp);
         }
 
@@ -158,9 +177,27 @@ impl<'k> Kernel<'k> {
                 Message::Invoke => {
                     if let Ok(t) = handle_invoke(packet.payload, &mut self.apps, &mut self.running)
                     {
-                        unsafe {
-                            self.tasks.push(TASK_ID);
-                            TASK_ID += 1;
+                        let payload = if let Some(task) = Task::new(packet.payload) {
+                            let bytes = task.as_ref().get_ref() as *const Task as usize;
+                            self.t.push(TaskMeta::new(task, 1));
+                            &bytes.to_le_bytes()
+                        } else {
+                            &[0, 0, 0, 0]
+                        };
+                        let bytes = 0usize.to_le_bytes();
+                        let mut out = [0u8; 64];
+                        let pkt = Packet {
+                            version: PROTOCOL_VERSION,
+                            flags: Flags::empty(),
+                            packet_id: PACKET_ID.get_id(),
+                            src: packet.dst,
+                            dst: packet.src,
+                            ttl: MAX_TTL,
+                            msg_type: Message::Unknown,
+                            payload,
+                        };
+                        if let Ok(size) = pkt.encode(&mut out) {
+                            let _ = port.send(&out[..size]);
                         }
                         t
                     } else {
@@ -168,16 +205,15 @@ impl<'k> Kernel<'k> {
                         let pkt = Packet {
                             version: PROTOCOL_VERSION,
                             flags: Flags::empty(),
-                            packet_id: unsafe { PACKET_ID } as u16,
+                            packet_id: PACKET_ID.get_id(),
                             src: 0,
                             dst: 0,
                             ttl: 0,
                             msg_type: Message::Unknown,
-                            payload: &self.tasks.len().to_le_bytes(),
+                            payload: unsafe { &(*ALLOCATOR.remaining.get()).to_le_bytes() },
                         };
                         if let Ok(size) = pkt.encode(&mut out) {
                             let _ = port.send(&out[..size]);
-                            unsafe { PACKET_ID += 1 };
                         } else {
                             port.write(b"No output");
                         }
@@ -214,34 +250,27 @@ impl<'k> Kernel<'k> {
                     }
                     RunApplication::None
                 }
-                Message::Append => {
-                    let info = packet.payload;
-                    let delimiter = info.iter().take_while(|e| **e != b' ').count();
-                    let (name, arg) = info.split_at(delimiter);
-
-                    // Find app by name
-                    if let Some((app_index, _)) =
-                        self.apps.iter().enumerate().find(|(_, app)| unsafe {
-                            app.assume_init_read().name().as_bytes().eq(name)
-                        })
-                    {
-                        // Get the app container
-                        let app =
-                            unsafe { self.apps.get_unchecked_mut(app_index).assume_init_mut() };
-
-                        // Write command arguments after the space to
-                        // the application buffer
-                        for ch in arg.iter().skip(1) {
-                            app.buf().push(*ch);
-                        }
-                        RunApplication::None
-                    } else {
-                        port.write(&[Message::Unknown.into(), Message::Append.into(), 0]);
-                        RunApplication::None
-                    }
-                }
                 Message::Error => RunApplication::None,
+                Message::KernelVersion => {
+                    let mut out = [0u8; 64];
+                    let pkt = Packet {
+                        version: PROTOCOL_VERSION,
+                        flags: Flags::empty(),
+                        packet_id: PACKET_ID.get_id(),
+                        src: packet.dst,
+                        dst: packet.src,
+                        ttl: MAX_TTL,
+                        msg_type: Message::Reply,
+                        payload: &[KERNEL_MAJOR, KERNEL_MINOR],
+                    };
+                    if let Ok(size) = pkt.encode(&mut out) {
+                        let _ = port.send(&out[..size]);
+                    }
+
+                    RunApplication::None
+                }
                 Message::Unknown => RunApplication::None,
+                _ => RunApplication::None,
             };
             ra
         } else {
@@ -331,10 +360,10 @@ impl<'k> Kernel<'k> {
                     .nth(0)
                 {
                     let mut out = [0u8; 96];
-                    let pkt = Packet {
+                    let mut pkt = Packet {
                         version: PROTOCOL_VERSION,
                         flags: Flags::empty(),
-                        packet_id: unsafe { PACKET_ID } as u16,
+                        packet_id: PACKET_ID.get_id(),
                         src: 0,
                         dst: 0,
                         ttl: 0,
@@ -343,12 +372,29 @@ impl<'k> Kernel<'k> {
                     };
                     if let Ok(size) = pkt.encode(&mut out) {
                         let _ = port.send(&out[..size]);
-                        unsafe { PACKET_ID += 1 };
                     } else {
                         port.write(b"No output");
                     }
+                    let payload = if let Some(p) = self.t.pop() {
+                        let task_id = p.pin().task_id;
+                        &task_id.to_le_bytes()
+                    } else {
+                        &[0, 0, 0, 0]
+                    };
+                    pkt = Packet {
+                        version: PROTOCOL_VERSION,
+                        flags: Flags::empty(),
+                        packet_id: PACKET_ID.get_id(),
+                        src: 0,
+                        dst: 0,
+                        ttl: 0,
+                        msg_type: Message::Unknown,
+                        payload,
+                    };
+                    if let Ok(size) = pkt.encode(&mut out) {
+                        let _ = port.send(&out[..size]);
+                    }
                 }
-                self.tasks.pop();
                 self.ports.iter_mut().for_each(|port| {
                     port.msg = 0;
                 });
@@ -554,10 +600,10 @@ impl<'k> Kernel<'k> {
     #[inline(never)]
     pub fn handle_panic(&mut self, panic_info: &PanicInfo) {
         for port in self.ports.iter_mut() {
-            let msg = panic_info.message().as_str().unwrap();
-            for chunk in msg.as_bytes().chunks(32) {
-                port.write(chunk);
-            }
+            // let msg = panic_info.message().as_str().unwrap();
+            // for chunk in msg.as_bytes().chunks(32) {
+            //     port.write(chunk);
+            // }
         }
     }
 

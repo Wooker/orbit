@@ -4,46 +4,49 @@ use core::{
     ptr::null_mut,
 };
 
-const ARENA_SIZE: usize = 1024 * 10;
+pub const ARENA_SIZE: usize = 1024 * 4;
 const MAX_LAYOUT_SIZE: usize = 1024;
+#[repr(C, align(4))]
 pub(crate) struct SimpleAllocator {
-    arena: UnsafeCell<[u8; ARENA_SIZE]>,
-    remaining: UnsafeCell<usize>,
+    pub(crate) arena: UnsafeCell<[u8; ARENA_SIZE]>,
+    pub(crate) remaining: UnsafeCell<usize>,
 }
 
 unsafe impl Sync for SimpleAllocator {}
 unsafe impl GlobalAlloc for SimpleAllocator {
     #[inline(never)]
+    #[unsafe(no_mangle)]
     unsafe fn alloc(&self, layout: Layout) -> *mut u8 {
         let size = layout.size();
         let align = layout.align();
-
-        if align > MAX_LAYOUT_SIZE || size == 0 {
-            return null_mut();
-        }
-
         let remaining = &mut *self.remaining.get();
 
-        let arena_start = self.arena.get().cast::<u8>() as usize;
+        let arena_start = self.arena.get() as usize;
+        let arena_end = arena_start + ARENA_SIZE;
 
-        let current_top = arena_start + *remaining;
+        let mut new_remaining = *remaining;
 
-        let new_top = current_top.checked_sub(size).unwrap();
-        let aligned_top = new_top & !(align - 1);
-
-        if aligned_top < arena_start {
+        if size > new_remaining {
             return null_mut();
         }
 
-        *remaining = aligned_top - arena_start;
+        // subtract first
+        new_remaining -= size;
 
-        aligned_top as *mut u8
+        // align down
+        new_remaining &= !(align - 1);
+
+        let ptr = arena_start + new_remaining;
+
+        *remaining = new_remaining;
+
+        ptr as *mut u8
     }
 
     #[inline(never)]
     unsafe fn dealloc(&self, ptr: *mut u8, layout: Layout) {
         let size = layout.size();
-        let remaining = &mut *self.remaining.get();
+        let remaining = &mut unsafe { *self.remaining.get() };
 
         let arena_start = self.arena.get().cast::<u8>() as usize;
         let arena_end = arena_start + ARENA_SIZE;
@@ -59,7 +62,7 @@ unsafe impl GlobalAlloc for SimpleAllocator {
 }
 
 #[global_allocator]
-static ALLOCATOR: SimpleAllocator = SimpleAllocator {
-    arena: UnsafeCell::new([0xff; ARENA_SIZE]),
+pub(crate) static ALLOCATOR: SimpleAllocator = SimpleAllocator {
+    arena: UnsafeCell::new([0x00; ARENA_SIZE]),
     remaining: UnsafeCell::new(ARENA_SIZE),
 };

@@ -87,6 +87,7 @@ impl<'p> Port<'p> {
     #[unsafe(link_section = ".kernel.text")]
     pub(crate) fn send<'a>(&'a mut self, buf: &[u8]) -> Result<usize, PortError> {
         self.peripheral.write(buf).map_err(|_| PortError::Send);
+        PACKET_ID.set(PACKET_ID.get_id() + 1);
         Ok(buf.len())
     }
 
@@ -103,7 +104,7 @@ impl<'p> Port<'p> {
                     let reply_pkt = Packet {
                         version: PROTOCOL_VERSION,
                         flags: Flags::IS_ACK,
-                        packet_id: unsafe { PACKET_ID } as u16,
+                        packet_id: PACKET_ID.get_id(),
                         src: p.dst,
                         dst: p.src,
                         ttl: p.ttl,
@@ -112,7 +113,6 @@ impl<'p> Port<'p> {
                     };
                     if let Ok(size) = reply_pkt.encode(&mut buf) {
                         let _ = self.send(&buf[..size]);
-                        unsafe { PACKET_ID += 1 };
                     } else {
                     }
                 }

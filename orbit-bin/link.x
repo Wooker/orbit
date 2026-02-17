@@ -12,19 +12,19 @@ SECTIONS
 
     .rodata : ALIGN(4)
     {
-        *(.rodata.*);
+        *(*.rodata.*);
     } >FLASH
 
     .data : ALIGN(4)
     {
-        *(.data.*);
-    } >FLASH
+        *(*.data.*);
+    } >RAM AT>FLASH
 
     .bss : ALIGN(4)
     {
         *(.bss .bss.*);
         *(.sbss .sbss.*);
-    } >RAM AT>FLASH
+    } >RAM
 
     .eh_frame :
     {

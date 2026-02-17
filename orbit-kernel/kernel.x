@@ -16,15 +16,24 @@ SECTIONS
         *orbit_kernel*.o(.rodata .rodata.*);
     } >FLASH
 
+    /* FLASH load address of .data */
+    _sidata = LOADADDR(.kernel.data);
+
+    /* RAM runtime addresses of .data */
+    _sdata = ADDR(.kernel.data);
+    _edata = ADDR(.kernel.data) + SIZEOF(.kernel.data);
+
     .kernel.data : ALIGN(4)
     {
-        *(.kernel.data);
-    } >RAM
+        *orbit_kernel*(.data, .data.*);
+    } >RAM AT>FLASH
 
     .kernel.bss : ALIGN(4)
     {
+        _sbss = .;
         *orbit_arch*.o(.bss .bss.* .sbss.*);
         *chip*.o(.bss .bss* .sbss.*);
         *orbit_kernel*.o(.bss .bss.* .sbss.*);
+        _ebss = .;
     } >RAM
 }

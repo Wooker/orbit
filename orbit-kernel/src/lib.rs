@@ -16,9 +16,9 @@ pub mod application_container;
 pub mod claim;
 pub mod clock;
 pub mod context;
+pub mod id;
 pub mod ringbuf;
 pub mod syscall;
-pub mod task;
 pub mod usizebuf;
 
 pub use spaceport;
@@ -32,6 +32,8 @@ pub mod kernel;
 pub mod pmp_entry;
 #[cfg(feature = "rt")]
 pub mod port;
+#[cfg(feature = "rt")]
+pub mod task;
 #[cfg(feature = "rt")]
 pub use chip;
 #[cfg(feature = "rt")]

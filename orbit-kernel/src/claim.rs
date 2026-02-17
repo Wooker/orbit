@@ -1,12 +1,3 @@
-// While compiling with  rustc 1.91.0-nightly (54c581243 2025-08-25)
-// cargo produces:
-// ```
-// warning: `#[unsafe(link_section)]` attribute cannot be used on inherent methods
-// ```
-// If such behavior is no longer observable on newer versions of rustc,
-// remove this attribute
-#![allow(unused_attributes)]
-
 #[cfg(feature = "rt")]
 use orbit_common::count_idents;
 
@@ -85,7 +76,6 @@ macro_rules! impl_claim {
             #[cfg(all(feature = $chip, feature = "rt"))]
             impl Claimable for $field {}
             #[cfg(all(feature = $chip, feature = "rt"))]
-            #[unsafe(link_section = ".kernel.text")]
             impl<'p> Claim<'p, $field> for chip::pac::$field {
                 #[inline(never)]
                 fn claim(&'p mut self) -> Claimed<'p,$field>{
