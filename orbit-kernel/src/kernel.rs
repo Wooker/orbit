@@ -3,7 +3,7 @@ mod port_handler;
 
 use crate::{
     RINGBUF_SIZE,
-    allocator::{ALLOCATOR, ARENA_SIZE, SimpleAllocator},
+    allocator::{ALLOCATOR, SimpleAllocator},
     application_container::{AppContainer, RunApplication},
     claim::KernelPeripherals,
     clock::Clocks,
@@ -210,7 +210,7 @@ impl<'k> Kernel<'k> {
                             dst: 0,
                             ttl: 0,
                             msg_type: Message::Unknown,
-                            payload: unsafe { &(*ALLOCATOR.remaining.get()).to_le_bytes() },
+                            payload: &[],
                         };
                         if let Ok(size) = pkt.encode(&mut out) {
                             let _ = port.send(&out[..size]);
@@ -382,6 +382,10 @@ impl<'k> Kernel<'k> {
                     } else {
                         &[0, 0, 0, 0]
                     };
+                    if self.t.len() == 4 {
+                        self.t.clear();
+                        self.t.shrink_to_fit();
+                    }
                     pkt = Packet {
                         version: PROTOCOL_VERSION,
                         flags: Flags::empty(),
