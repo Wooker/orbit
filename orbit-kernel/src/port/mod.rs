@@ -113,7 +113,6 @@ impl<'p> Port<'p> {
                     };
                     if let Ok(size) = reply_pkt.encode(&mut buf) {
                         let _ = self.send(&buf[..size]);
-                    } else {
                     }
                 }
 

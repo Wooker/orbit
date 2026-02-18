@@ -112,7 +112,7 @@ impl<'k> Kernel<'k> {
             claims: [false; KernelPeripherals::MAX as usize],
             clock,
             running: None,
-            t: Vec::with_capacity(1),
+            t: Vec::with_capacity(2),
         };
 
         PACKET_ID.set(0);
@@ -179,7 +179,7 @@ impl<'k> Kernel<'k> {
                     {
                         let payload = if let Some(task) = Task::new(packet.payload) {
                             let bytes = task.as_ref().get_ref() as *const Task as usize;
-                            self.t.push(TaskMeta::new(task, 1));
+                            self.t.push(TaskMeta::new(task, 1, packet.packet_id));
                             &bytes.to_le_bytes()
                         } else {
                             &[0, 0, 0, 0]
@@ -375,10 +375,9 @@ impl<'k> Kernel<'k> {
                     } else {
                         port.write(b"No output");
                     }
-                    let payload = if let Some(p) = self.t.pop() {
-                        let pin = p.pin();
+                    let payload = if let Some(p) = self.t.last() {
+                        let pin = p.pin_ref();
                         let task_id = pin.task_id;
-                        drop(pin);
                         &task_id.to_le_bytes()
                     } else {
                         &[0, 0, 0, 0]

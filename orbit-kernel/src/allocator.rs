@@ -12,6 +12,19 @@ pub(crate) struct SimpleAllocator {
     pub(crate) remaining: UnsafeCell<usize>,
 }
 
+impl SimpleAllocator {
+    pub const fn new() -> Self {
+        Self {
+            arena: UnsafeCell::new([0; ARENA_SIZE]),
+            remaining: UnsafeCell::new(ARENA_SIZE),
+        }
+    }
+
+    #[inline]
+    fn arena_start(&self) -> usize {
+        self.arena.get() as usize
+    }
+}
 unsafe impl Sync for SimpleAllocator {}
 unsafe impl GlobalAlloc for SimpleAllocator {
     #[inline(never)]
@@ -19,48 +32,64 @@ unsafe impl GlobalAlloc for SimpleAllocator {
     unsafe fn alloc(&self, layout: Layout) -> *mut u8 {
         let size = layout.size();
         let align = layout.align();
+
+        if size == 0 {
+            return null_mut();
+        }
+
         let remaining = &mut *self.remaining.get();
 
-        let arena_start = self.arena.get() as usize;
-        let arena_end = arena_start + ARENA_SIZE;
-
+        // Compute new aligned position (downward bump)
         let mut new_remaining = *remaining;
 
         if size > new_remaining {
             return null_mut();
         }
 
-        // subtract first
         new_remaining -= size;
 
-        // align down
+        // Align downward
         new_remaining &= !(align - 1);
 
-        let ptr = arena_start + new_remaining;
+        if new_remaining > *remaining {
+            return null_mut();
+        }
 
         *remaining = new_remaining;
 
-        ptr as *mut u8
+        (self.arena_start() + new_remaining) as *mut u8
     }
 
-    #[inline(never)]
     unsafe fn dealloc(&self, ptr: *mut u8, layout: Layout) {
+        if ptr.is_null() {
+            return;
+        }
+
         let size = layout.size();
-        let remaining = &mut unsafe { *self.remaining.get() };
+        let align = layout.align();
 
-        let arena_start = self.arena.get().cast::<u8>() as usize;
-        let arena_end = arena_start + ARENA_SIZE;
-        let ptr = ptr as usize;
+        let remaining = &mut *self.remaining.get();
+        let arena_start = self.arena_start();
+        let ptr_addr = ptr as usize;
+        let arena = &mut *self.arena.get();
 
-        let arena = &mut unsafe { *self.arena.get() };
+        // Only free if LIFO
+        if ptr_addr == arena_start + *remaining {
+            // Recompute the aligned size the same way alloc did
+            let mut new_remaining = *remaining + size;
 
-        // Only free if it's the last allocation (LIFO)
-        if ptr >= arena_start && ptr < arena_end {
-            if ptr == arena_start + *remaining {
-                while *remaining != *remaining + size && *remaining < ARENA_SIZE {
-                    arena[*remaining] = 0xff;
+            // Align upward to undo the downward align
+            let mask = align - 1;
+            if (new_remaining & mask) != 0 {
+                new_remaining = (new_remaining + mask) & !mask;
+            }
+
+            if new_remaining <= ARENA_SIZE {
+                while *remaining < new_remaining {
+                    arena[*remaining] = 0;
                     *remaining += 1;
                 }
+                *remaining = new_remaining;
             }
         }
     }
