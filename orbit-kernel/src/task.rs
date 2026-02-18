@@ -1,6 +1,11 @@
 #![allow(unused)]
 
-use core::{alloc::Layout, cell::UnsafeCell, pin::Pin};
+use core::{
+    alloc::Layout,
+    cell::UnsafeCell,
+    pin::Pin,
+    ptr::{null, null_mut},
+};
 
 use alloc::{boxed::Box, vec::Vec};
 
@@ -14,6 +19,7 @@ pub(crate) struct TaskMeta<'tm> {
     pin: Pin<Box<Task<'tm>>>,
     priority: usize,
     packet_id: u16,
+    next: *mut TaskMeta<'tm>,
 }
 
 impl<'tm> TaskMeta<'tm> {
@@ -22,6 +28,7 @@ impl<'tm> TaskMeta<'tm> {
             pin,
             priority,
             packet_id,
+            next: null_mut(),
         }
     }
 
@@ -46,19 +53,16 @@ impl<'tm> TaskMeta<'tm> {
 pub(crate) struct Task<'t> {
     pub(crate) context: Context,
     pub(crate) task_id: usize,
-    pub(crate) buf: &'t mut [u8],
     pub(crate) stack: [usize; STACK_SIZE],
+    pub(crate) buf: &'t [u8],
     // pmp: [PmpEntry; PMP_REGS],
-    end: [u8; 8],
+    pub(crate) priority: usize,
 }
 
 impl<'t> Task<'t> {
-    pub fn new(payload: &[u8]) -> Option<Pin<Box<Self>>> {
+    pub fn new(payload: &[u8], priority: usize) -> Option<Pin<Box<Self>>> {
         let layout = Layout::new::<Context>()
             .extend(Layout::new::<usize>())
-            .unwrap()
-            .0
-            .extend(Layout::array::<u8>(payload.len()).unwrap())
             .unwrap()
             .0
             .extend(Layout::new::<&[u8]>())
@@ -67,7 +71,10 @@ impl<'t> Task<'t> {
             .extend(Layout::array::<usize>(STACK_SIZE).unwrap())
             .unwrap()
             .0
-            .extend(Layout::array::<u8>(8).unwrap())
+            .extend(Layout::new::<usize>())
+            .unwrap()
+            .0
+            .extend(Layout::array::<u8>(payload.len()).unwrap())
             .unwrap()
             .0
             .pad_to_align();
@@ -92,7 +99,7 @@ impl<'t> Task<'t> {
 
                 buf.copy_from_slice(payload);
                 (*ptr).buf = buf;
-                (*ptr).end = [0, 0, 0, 0, 15, 15, 15, 15];
+                (*ptr).priority = priority;
 
                 Some(Pin::new(Box::from_raw(ptr)))
             }

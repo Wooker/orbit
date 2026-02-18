@@ -38,12 +38,13 @@ impl SimpleAllocator {
 }
 
 unsafe impl GlobalAlloc for SimpleAllocator {
+    #[inline(never)]
     unsafe fn alloc(&self, layout: Layout) -> *mut u8 {
         if (*self.free_list.get()).is_null() {
             self.init();
         }
 
-        let size = layout.size().max(size_of::<BlockHeader>());
+        let size = layout.size();
         let align = layout.align().max(align_of::<BlockHeader>());
 
         let mut prev: *mut BlockHeader = null_mut();
@@ -53,15 +54,21 @@ unsafe impl GlobalAlloc for SimpleAllocator {
             let block_start = current as usize;
             let block_size = (*current).size;
 
-            let aligned_start = (block_start + size_of::<BlockHeader>() + align - 1) & !(align - 1);
+            // Space needed:
+            // header + alignment padding + header back-pointer + user data
+            let header_size = size_of::<BlockHeader>();
+            let backptr_size = size_of::<*mut BlockHeader>();
 
-            let total_needed = aligned_start + size - block_start;
+            let mut user_start = block_start + header_size + backptr_size;
+
+            user_start = (user_start + align - 1) & !(align - 1);
+
+            let total_needed = user_start + size - block_start;
 
             if block_size >= total_needed {
                 let remaining = block_size - total_needed;
 
                 if remaining > size_of::<BlockHeader>() {
-                    // split block
                     let new_block = (block_start + total_needed) as *mut BlockHeader;
 
                     (*new_block).size = remaining;
@@ -73,7 +80,6 @@ unsafe impl GlobalAlloc for SimpleAllocator {
                         (*prev).next = new_block;
                     }
                 } else {
-                    // take whole block
                     if prev.is_null() {
                         *self.free_list.get() = (*current).next;
                     } else {
@@ -83,7 +89,12 @@ unsafe impl GlobalAlloc for SimpleAllocator {
 
                 (*current).size = total_needed;
 
-                return aligned_start as *mut u8;
+                // Store back-pointer to header
+                let backptr_location = (user_start - backptr_size) as *mut *mut BlockHeader;
+
+                *backptr_location = current;
+
+                return user_start as *mut u8;
             }
 
             prev = current;
@@ -93,21 +104,60 @@ unsafe impl GlobalAlloc for SimpleAllocator {
         null_mut()
     }
 
-    unsafe fn dealloc(&self, ptr: *mut u8, layout: Layout) {
+    #[inline(never)]
+    unsafe fn dealloc(&self, ptr: *mut u8, _layout: Layout) {
         if ptr.is_null() {
             return;
         }
 
-        let size = layout.size();
+        let backptr_size = size_of::<*mut BlockHeader>();
 
-        // Zero the user memory
-        ptr::write_bytes(ptr, 0, size);
+        // Recover header
+        let backptr_location = (ptr as usize - backptr_size) as *mut *mut BlockHeader;
 
-        // Then insert block into free list
-        let header = (ptr as usize - core::mem::size_of::<BlockHeader>()) as *mut BlockHeader;
+        let header = *backptr_location;
 
-        (*header).next = *self.free_list.get();
-        *self.free_list.get() = header;
+        // Zero payload
+        let payload_size = (*header).size - ((ptr as usize) - (header as usize));
+
+        ptr::write_bytes(ptr, 0, payload_size);
+
+        let mut prev: *mut BlockHeader = null_mut();
+        let mut current = *self.free_list.get();
+
+        let header_addr = header as usize;
+
+        // Insert in sorted order
+        while !current.is_null() && (current as usize) < header_addr {
+            prev = current;
+            current = (*current).next;
+        }
+
+        (*header).next = current;
+
+        if prev.is_null() {
+            *self.free_list.get() = header;
+        } else {
+            (*prev).next = header;
+        }
+
+        // ---- Coalesce with next ----
+        if !current.is_null() {
+            let header_end = header_addr + (*header).size;
+            if header_end == current as usize {
+                (*header).size += (*current).size;
+                (*header).next = (*current).next;
+            }
+        }
+
+        // ---- Coalesce with previous ----
+        if !prev.is_null() {
+            let prev_end = (prev as usize) + (*prev).size;
+            if prev_end == header_addr {
+                (*prev).size += (*header).size;
+                (*prev).next = (*header).next;
+            }
+        }
     }
 }
 

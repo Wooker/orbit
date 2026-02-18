@@ -18,13 +18,14 @@ use crate::{
     syscall::SysCall,
     task::{TASK_ID, Task, TaskMeta},
 };
-use alloc::{boxed::Box, slice, vec::Vec};
+use alloc::{boxed::Box, collections::linked_list::LinkedList, slice, vec::Vec};
 use core::{
     arch::{asm, naked_asm},
     cell::UnsafeCell,
     mem::{MaybeUninit, transmute},
     panic::PanicInfo,
     pin::Pin,
+    ptr::null,
 };
 use orbit_arch::{Core, PMP};
 use spaceport::{
@@ -48,7 +49,7 @@ pub struct Kernel<'k> {
     claims: [bool; KernelPeripherals::MAX as usize],
     pub core: Core<PMP>,
     pub clock: Clocks,
-    t: Vec<TaskMeta<'k>>,
+    t: LinkedList<Pin<Box<Task<'k>>>>,
 }
 
 unsafe extern "C" {
@@ -104,6 +105,7 @@ impl<'k> Kernel<'k> {
             )
         };
 
+        let mut t = LinkedList::new();
         let mut kernel = Self {
             context: Context::new(),
             core: Core::new(),
@@ -112,7 +114,7 @@ impl<'k> Kernel<'k> {
             claims: [false; KernelPeripherals::MAX as usize],
             clock,
             running: None,
-            t: Vec::with_capacity(2),
+            t,
         };
 
         PACKET_ID.set(0);
@@ -177,12 +179,19 @@ impl<'k> Kernel<'k> {
                 Message::Invoke => {
                     if let Ok(t) = handle_invoke(packet.payload, &mut self.apps, &mut self.running)
                     {
-                        let payload = if let Some(task) = Task::new(packet.payload) {
-                            let bytes = task.as_ref().get_ref() as *const Task as usize;
-                            self.t.push(TaskMeta::new(task, 1, packet.packet_id));
-                            &bytes.to_le_bytes()
+                        let payload = if let Some(mut task) = Task::new(packet.payload, 1) {
+                            if self.t.front().is_none() {
+                                self.t.push_back(task);
+                            } else if let Some(f) = self.t.front()
+                                && task.priority >= f.priority
+                            {
+                                self.t.push_front(task);
+                            } else {
+                                self.t.push_back(task);
+                            }
+                            self.t.front().unwrap().buf
                         } else {
-                            &[0, 0, 0, 0]
+                            &[0]
                         };
                         let bytes = 0usize.to_le_bytes();
                         let mut out = [0u8; 64];
@@ -375,17 +384,13 @@ impl<'k> Kernel<'k> {
                     } else {
                         port.write(b"No output");
                     }
-                    let payload = if let Some(p) = self.t.last() {
-                        let pin = p.pin_ref();
-                        let task_id = pin.task_id;
-                        &task_id.to_le_bytes()
+
+                    let payload = if self.t.front().unwrap().priority != 0 {
+                        let a = self.t.pop_front().unwrap();
+                        &a.task_id.to_le_bytes()
                     } else {
-                        &[0, 0, 0, 0]
+                        &self.t.front().unwrap().task_id.to_le_bytes()
                     };
-                    if self.t.len() == 4 {
-                        self.t.clear();
-                        self.t.shrink_to_fit();
-                    }
                     pkt = Packet {
                         version: PROTOCOL_VERSION,
                         flags: Flags::empty(),
