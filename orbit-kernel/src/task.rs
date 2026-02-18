@@ -10,13 +10,13 @@ pub(crate) static TASK_ID: ID<usize> = ID::new(0);
 const STACK_SIZE: usize = 32;
 
 #[repr(C, align(4))]
-pub(crate) struct TaskMeta {
-    pin: Pin<Box<Task>>,
+pub(crate) struct TaskMeta<'tm> {
+    pin: Pin<Box<Task<'tm>>>,
     priority: usize,
 }
 
-impl TaskMeta {
-    pub fn new(pin: Pin<Box<Task>>, priority: usize) -> Self {
+impl<'tm> TaskMeta<'tm> {
+    pub fn new(pin: Pin<Box<Task<'tm>>>, priority: usize) -> Self {
         Self { pin, priority }
     }
 
@@ -24,23 +24,22 @@ impl TaskMeta {
         self.priority
     }
 
-    pub fn pin(&self) -> &Pin<Box<Task>> {
-        &self.pin
+    pub fn pin(self) -> Pin<Box<Task<'tm>>> {
+        self.pin
     }
 }
 
 #[repr(C, align(4))]
-#[derive(Clone)]
-pub(crate) struct Task {
+pub(crate) struct Task<'t> {
     pub(crate) context: Context,
     pub(crate) task_id: usize,
-    pub(crate) buf: Vec<u8>,
-    pub(crate) stack: [u8; STACK_SIZE],
+    pub(crate) buf: &'t mut [u8],
+    pub(crate) stack: [usize; STACK_SIZE],
     // pmp: [PmpEntry; PMP_REGS],
     end: [u8; 8],
 }
 
-impl Task {
+impl<'t> Task<'t> {
     pub fn new(payload: &[u8]) -> Option<Pin<Box<Self>>> {
         let layout = Layout::new::<Context>()
             .extend(Layout::new::<usize>())
@@ -49,7 +48,13 @@ impl Task {
             .extend(Layout::array::<u8>(payload.len()).unwrap())
             .unwrap()
             .0
-            .extend(Layout::array::<u8>(STACK_SIZE).unwrap())
+            .extend(Layout::new::<&[u8]>())
+            .unwrap()
+            .0
+            .extend(Layout::array::<usize>(STACK_SIZE).unwrap())
+            .unwrap()
+            .0
+            .extend(Layout::array::<u8>(8).unwrap())
             .unwrap()
             .0
             .pad_to_align();
@@ -67,10 +72,13 @@ impl Task {
                 (*ptr).context.ra = 0x12345678;
                 (*ptr).context.mepc = 0x87654321;
 
-                (*ptr).buf = Vec::new();
-                (*ptr).buf.resize(payload.len(), 0);
+                let mut buf = core::slice::from_raw_parts_mut(
+                    (ptr as usize + size_of::<Task>() as usize) as *mut usize as *mut u8,
+                    payload.len(),
+                );
 
-                (*ptr).buf.copy_from_slice(payload);
+                buf.copy_from_slice(payload);
+                (*ptr).buf = buf;
                 (*ptr).end = [0, 0, 0, 0, 15, 15, 15, 15];
 
                 Some(Pin::new(Box::from_raw(ptr)))

@@ -52,10 +52,15 @@ unsafe impl GlobalAlloc for SimpleAllocator {
         let arena_end = arena_start + ARENA_SIZE;
         let ptr = ptr as usize;
 
+        let arena = &mut unsafe { *self.arena.get() };
+
         // Only free if it's the last allocation (LIFO)
         if ptr >= arena_start && ptr < arena_end {
             if ptr == arena_start + *remaining {
-                *remaining += size;
+                while *remaining != *remaining + size && *remaining < ARENA_SIZE {
+                    arena[*remaining] = 0xff;
+                    *remaining += 1;
+                }
             }
         }
     }

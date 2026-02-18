@@ -48,7 +48,7 @@ pub struct Kernel<'k> {
     claims: [bool; KernelPeripherals::MAX as usize],
     pub core: Core<PMP>,
     pub clock: Clocks,
-    t: Vec<TaskMeta>,
+    t: Vec<TaskMeta<'k>>,
 }
 
 unsafe extern "C" {
@@ -112,7 +112,7 @@ impl<'k> Kernel<'k> {
             claims: [false; KernelPeripherals::MAX as usize],
             clock,
             running: None,
-            t: Vec::new(),
+            t: Vec::with_capacity(1),
         };
 
         PACKET_ID.set(0);
@@ -376,7 +376,9 @@ impl<'k> Kernel<'k> {
                         port.write(b"No output");
                     }
                     let payload = if let Some(p) = self.t.pop() {
-                        let task_id = p.pin().task_id;
+                        let pin = p.pin();
+                        let task_id = pin.task_id;
+                        drop(pin);
                         &task_id.to_le_bytes()
                     } else {
                         &[0, 0, 0, 0]
