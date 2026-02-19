@@ -97,7 +97,9 @@ impl<'p> Port<'p> {
         if let Ok(size) = self.peripheral.read(&mut self.buf)
             && size > 0
         {
-            if let Ok(p) = Packet::decode(&self.buf[..size], payload_buf) {
+            let packet = Packet::decode(&self.buf[..size], payload_buf);
+
+            if let Ok(p) = packet {
                 // Reply ACK if the flag is present
                 if p.flags.contains(Flags::ACK_REQUIRED) {
                     let mut buf = [0; 32];

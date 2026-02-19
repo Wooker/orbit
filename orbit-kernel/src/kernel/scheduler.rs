@@ -19,6 +19,10 @@ impl<'s> Scheduler<'s> {
         self.list.front()
     }
 
+    pub(super) fn current_mut(&mut self) -> Option<&mut Pin<Box<Task<'s>>>> {
+        self.list.front_mut()
+    }
+
     pub(super) fn pop(&mut self) -> Option<Pin<Box<Task<'s>>>> {
         self.list.pop_front()
     }

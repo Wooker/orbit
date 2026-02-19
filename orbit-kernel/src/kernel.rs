@@ -198,7 +198,7 @@ impl<'k> Kernel<'k> {
                             arg.iter().skip(1).for_each(|b| app.buf().push(*b));
                         }
 
-                        if let Some(task) = Task::new(packet.payload, 1) {
+                        if let Some(task) = Task::new(packet, 1, app.main_addr()) {
                             self.running = Some(app_index);
                             self.scheduler.add(task);
                             RunApplication::Main
@@ -375,32 +375,24 @@ impl<'k> Kernel<'k> {
                     .nth(0)
                 {
                     let mut out = [0u8; 96];
-                    let mut packet = Packet {
-                        version: PROTOCOL_VERSION,
-                        flags: Flags::empty(),
-                        packet_id: PACKET_ID.get_id(),
-                        src: 0,
-                        dst: 0,
-                        ttl: 0,
-                        msg_type: Message::Reply,
-                        payload: app_cont.buf().read(),
-                    };
-                    if let Ok(size) = packet.encode(&mut out) {
-                        let _ = port.send(&out[..size]);
-                    } else {
-                        port.write(b"No output");
-                    }
-
-                    let payload = if let Some(c) = self.scheduler.pop()
-                        && c.priority != 0
+                    let payload = if let Some(task) = self.scheduler.pop()
+                        && task.priority != 0
                     {
-                        &c.task_id.to_le_bytes()
-                    } else {
-                        &0usize.to_le_bytes()
+                        if let Ok(size) = task.packet.reply(app_cont.buf().read()).encode(&mut out)
+                        {
+                            let _ = port.send(&out[..size]);
+                        } else {
+                            port.write(b"No output");
+                        }
+
+                        if let Ok(size) = task
+                            .packet
+                            .reply(&task.task_id.to_le_bytes())
+                            .encode(&mut out)
+                        {
+                            let _ = port.send(&out[..size]);
+                        }
                     };
-                    if let Ok(size) = packet.reply(payload).encode(&mut out) {
-                        let _ = port.send(&out[..size]);
-                    }
                 }
                 self.ports.iter_mut().for_each(|port| {
                     port.msg = 0;
@@ -585,10 +577,13 @@ impl<'k> Kernel<'k> {
                 .get_unchecked(self.running.unwrap_unchecked())
                 .assume_init_read()
         };
+
+        let task = self.scheduler.current_mut().unwrap();
+        let task_addr = task.as_ref().get_ref() as *const Task as usize;
         // self.set_pmp(&app_cont);
         let addr = match variant {
             RunApplication::Init => app_cont.init_addr(),
-            RunApplication::Main => app_cont.main_addr(),
+            RunApplication::Main => task.context.mepc,
             RunApplication::Interrupt => app_cont.interrupt_addr(),
             RunApplication::Jumped => app_cont.context().mepc,
             _ => 0,
@@ -597,7 +592,7 @@ impl<'k> Kernel<'k> {
             asm!(
                 "",
                 in("a0") self as *const Kernel as usize,
-                in("a1") app_cont.struct_addr(),
+                in("a1") task_addr,
                 in("a2") addr,
             )
         }
