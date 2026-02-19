@@ -1,5 +1,4 @@
 pub mod asm;
-mod port_handler;
 mod scheduler;
 
 use crate::{
@@ -10,7 +9,7 @@ use crate::{
     clock::Clocks,
     context::Context,
     id::ID,
-    kernel::{port_handler::handle_invoke, scheduler::Scheduler},
+    kernel::scheduler::Scheduler,
     port::{
         Port,
         port_kind::{PORT_INTERRUPTS, PORT_NUM},
@@ -177,36 +176,49 @@ impl<'k> Kernel<'k> {
         if let Some(packet) = port.handle(&mut payload_buf) {
             let ra = match packet.msg_type {
                 Message::Invoke => {
-                    if let Ok(t) = handle_invoke(packet.payload, &mut self.apps, &mut self.running)
+                    let divider_index =
+                        packet.payload.iter().enumerate().find(|(i, b)| **b == b' ');
+                    let (name, arg) = divider_index.map_or((packet.payload, None), |index| {
+                        let (a, b) = packet.payload.split_at(index.0);
+                        (a, Some(b))
+                    });
+
+                    let mut out = [0u8; 256];
+                    if let Some((app_index, _maybe_app)) =
+                        self.apps.iter().enumerate().find(|(_, app)| {
+                            let app = unsafe { app.assume_init_read() };
+                            let app_name = app.name();
+                            app_name.as_bytes().eq(name)
+                        })
                     {
-                        let payload = if let Some(mut task) = Task::new(packet.payload, 1) {
-                            self.scheduler.add(task);
-                            if let Some(c) = self.scheduler.current() {
-                                c.buf
-                            } else {
-                                &[0]
-                            }
-                        } else {
-                            &[0]
-                        };
-                        let bytes = 0usize.to_le_bytes();
-                        let mut out = [0u8; 64];
-                        let pkt = Packet {
-                            version: PROTOCOL_VERSION,
-                            flags: Flags::empty(),
-                            packet_id: PACKET_ID.get_id(),
-                            src: packet.dst,
-                            dst: packet.src,
-                            ttl: MAX_TTL,
-                            msg_type: Message::Unknown,
-                            payload,
-                        };
-                        if let Ok(size) = pkt.encode(&mut out) {
-                            let _ = port.send(&out[..size]);
+                        let app =
+                            unsafe { self.apps.get_unchecked_mut(app_index).assume_init_mut() };
+
+                        if let Some(arg) = arg {
+                            arg.iter().skip(1).for_each(|b| app.buf().push(*b));
                         }
-                        t
+
+                        if let Some(task) = Task::new(packet.payload, 1) {
+                            self.running = Some(app_index);
+                            self.scheduler.add(task);
+                            RunApplication::Main
+                        } else {
+                            let pkt = Packet {
+                                version: PROTOCOL_VERSION,
+                                flags: Flags::empty(),
+                                packet_id: PACKET_ID.get_id(),
+                                src: 0,
+                                dst: 0,
+                                ttl: 0,
+                                msg_type: Message::Unknown,
+                                payload: &[],
+                            };
+                            if let Ok(size) = pkt.encode(&mut out) {
+                                let _ = port.send(&out[..size]);
+                            }
+                            RunApplication::None
+                        }
                     } else {
-                        let mut out = [0u8; 64];
                         let pkt = Packet {
                             version: PROTOCOL_VERSION,
                             flags: Flags::empty(),
@@ -219,8 +231,6 @@ impl<'k> Kernel<'k> {
                         };
                         if let Ok(size) = pkt.encode(&mut out) {
                             let _ = port.send(&out[..size]);
-                        } else {
-                            port.write(b"No output");
                         }
                         RunApplication::None
                     }
@@ -365,7 +375,7 @@ impl<'k> Kernel<'k> {
                     .nth(0)
                 {
                     let mut out = [0u8; 96];
-                    let mut pkt = Packet {
+                    let mut packet = Packet {
                         version: PROTOCOL_VERSION,
                         flags: Flags::empty(),
                         packet_id: PACKET_ID.get_id(),
@@ -375,7 +385,7 @@ impl<'k> Kernel<'k> {
                         msg_type: Message::Reply,
                         payload: app_cont.buf().read(),
                     };
-                    if let Ok(size) = pkt.encode(&mut out) {
+                    if let Ok(size) = packet.encode(&mut out) {
                         let _ = port.send(&out[..size]);
                     } else {
                         port.write(b"No output");
@@ -388,17 +398,7 @@ impl<'k> Kernel<'k> {
                     } else {
                         &0usize.to_le_bytes()
                     };
-                    pkt = Packet {
-                        version: PROTOCOL_VERSION,
-                        flags: Flags::empty(),
-                        packet_id: PACKET_ID.get_id(),
-                        src: 0,
-                        dst: 0,
-                        ttl: 0,
-                        msg_type: Message::Unknown,
-                        payload,
-                    };
-                    if let Ok(size) = pkt.encode(&mut out) {
+                    if let Ok(size) = packet.reply(payload).encode(&mut out) {
                         let _ = port.send(&out[..size]);
                     }
                 }
