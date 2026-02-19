@@ -1,5 +1,6 @@
 pub mod asm;
 mod port_handler;
+mod scheduler;
 
 use crate::{
     RINGBUF_SIZE,
@@ -9,14 +10,14 @@ use crate::{
     clock::Clocks,
     context::Context,
     id::ID,
-    kernel::port_handler::handle_invoke,
+    kernel::{port_handler::handle_invoke, scheduler::Scheduler},
     port::{
         Port,
         port_kind::{PORT_INTERRUPTS, PORT_NUM},
     },
     ringbuf::RingBuf,
     syscall::SysCall,
-    task::{TASK_ID, Task, TaskMeta},
+    task::{TASK_ID, Task},
 };
 use alloc::{boxed::Box, collections::linked_list::LinkedList, slice, vec::Vec};
 use core::{
@@ -49,7 +50,7 @@ pub struct Kernel<'k> {
     claims: [bool; KernelPeripherals::MAX as usize],
     pub core: Core<PMP>,
     pub clock: Clocks,
-    t: LinkedList<Pin<Box<Task<'k>>>>,
+    scheduler: Scheduler<'k>,
 }
 
 unsafe extern "C" {
@@ -105,7 +106,6 @@ impl<'k> Kernel<'k> {
             )
         };
 
-        let mut t = LinkedList::new();
         let mut kernel = Self {
             context: Context::new(),
             core: Core::new(),
@@ -114,7 +114,7 @@ impl<'k> Kernel<'k> {
             claims: [false; KernelPeripherals::MAX as usize],
             clock,
             running: None,
-            t,
+            scheduler: Scheduler::new(),
         };
 
         PACKET_ID.set(0);
@@ -180,16 +180,12 @@ impl<'k> Kernel<'k> {
                     if let Ok(t) = handle_invoke(packet.payload, &mut self.apps, &mut self.running)
                     {
                         let payload = if let Some(mut task) = Task::new(packet.payload, 1) {
-                            if self.t.front().is_none() {
-                                self.t.push_back(task);
-                            } else if let Some(f) = self.t.front()
-                                && task.priority >= f.priority
-                            {
-                                self.t.push_front(task);
+                            self.scheduler.add(task);
+                            if let Some(c) = self.scheduler.current() {
+                                c.buf
                             } else {
-                                self.t.push_back(task);
+                                &[0]
                             }
-                            self.t.front().unwrap().buf
                         } else {
                             &[0]
                         };
@@ -385,11 +381,12 @@ impl<'k> Kernel<'k> {
                         port.write(b"No output");
                     }
 
-                    let payload = if self.t.front().unwrap().priority != 0 {
-                        let a = self.t.pop_front().unwrap();
-                        &a.task_id.to_le_bytes()
+                    let payload = if let Some(c) = self.scheduler.pop()
+                        && c.priority != 0
+                    {
+                        &c.task_id.to_le_bytes()
                     } else {
-                        &self.t.front().unwrap().task_id.to_le_bytes()
+                        &0usize.to_le_bytes()
                     };
                     pkt = Packet {
                         version: PROTOCOL_VERSION,

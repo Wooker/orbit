@@ -15,41 +15,6 @@ pub(crate) static TASK_ID: ID<usize> = ID::new(0);
 const STACK_SIZE: usize = 32;
 
 #[repr(C, align(4))]
-pub(crate) struct TaskMeta<'tm> {
-    pin: Pin<Box<Task<'tm>>>,
-    priority: usize,
-    packet_id: u16,
-    next: *mut TaskMeta<'tm>,
-}
-
-impl<'tm> TaskMeta<'tm> {
-    pub fn new(pin: Pin<Box<Task<'tm>>>, priority: usize, packet_id: u16) -> Self {
-        Self {
-            pin,
-            priority,
-            packet_id,
-            next: null_mut(),
-        }
-    }
-
-    pub fn priority(&self) -> usize {
-        self.priority
-    }
-
-    pub fn pin(self) -> Pin<Box<Task<'tm>>> {
-        self.pin
-    }
-
-    pub fn pin_ref(&self) -> &Pin<Box<Task<'tm>>> {
-        &self.pin
-    }
-
-    pub fn packet_id(self) -> u16 {
-        self.packet_id
-    }
-}
-
-#[repr(C, align(4))]
 pub(crate) struct Task<'t> {
     pub(crate) context: Context,
     pub(crate) task_id: usize,

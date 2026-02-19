@@ -10,6 +10,7 @@
 #![feature(slice_split_once)]
 #![feature(iter_array_chunks)]
 #![feature(slice_shift)]
+#![feature(linked_list_cursors)]
 
 pub mod application;
 pub mod application_container;
@@ -24,7 +25,6 @@ pub mod usizebuf;
 pub use spaceport;
 
 extern crate alloc;
-#[cfg(feature = "rt")]
 mod allocator;
 #[cfg(feature = "rt")]
 pub mod kernel;
