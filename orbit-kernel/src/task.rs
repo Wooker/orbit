@@ -55,11 +55,12 @@ impl<'t> Task<'t> {
                 // alloc::alloc::handle_alloc_error(layout);
                 None
             } else {
+                (*ptr).context.mepc = addr;
+                (*ptr).context.gp = ptr as usize;
+                (*ptr).context.sp = &(*ptr).stack as *const [usize; STACK_SIZE] as usize;
+
                 (*ptr).task_id = TASK_ID.get_id();
                 TASK_ID.set((*ptr).task_id + 1);
-
-                (*ptr).context.ra = 0x12345678;
-                (*ptr).context.mepc = addr;
 
                 let mut buf = core::slice::from_raw_parts_mut(
                     (ptr as usize + size_of::<Task>() as usize) as *mut usize as *mut u8,

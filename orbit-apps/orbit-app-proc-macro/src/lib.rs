@@ -256,7 +256,7 @@ pub fn orbit_app(attr: TokenStream, item: TokenStream) -> TokenStream {
                     .iter()
                     .for_each(|byte| self.ringbuf.push(*byte));
                 // self.ringbuf.push(self.ringbuf.termination);
-                unsafe { asm!("li a0, 1;li a1, 0;") };
+                unsafe { asm!("li a0, 1;li a1, 0; ecall;") };
             }
 
             #[inline(never)]

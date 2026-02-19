@@ -27,6 +27,10 @@ impl<'s> Scheduler<'s> {
         self.list.pop_front()
     }
 
+    pub(super) fn list(&self) -> &LinkedList<Pin<Box<Task<'s>>>> {
+        &self.list
+    }
+
     pub(super) fn add(&mut self, task: Pin<Box<Task<'s>>>) {
         let mut front = self.list.cursor_front_mut();
 

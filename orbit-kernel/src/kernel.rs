@@ -143,7 +143,7 @@ impl<'k> Kernel<'k> {
             asm!("sw ra, 0x0(gp);");
             // asm!("sw sp, 0x4(gp);");
         }
-        self.setup_event_loop(RunApplication::Init);
+        // self.setup_event_loop(RunApplication::Init);
     }
 
     // #[inline(never)]
@@ -164,7 +164,7 @@ impl<'k> Kernel<'k> {
 
     #[inline(never)]
     #[unsafe(no_mangle)]
-    fn port_handler(&mut self, i: usize) -> RunApplication {
+    fn port_handler(&mut self, i: usize) {
         let awaiting = self
             .ports
             .iter()
@@ -174,7 +174,7 @@ impl<'k> Kernel<'k> {
         port.msg += 1;
         let mut payload_buf = [0; RINGBUF_SIZE - HEADER_LEN];
         if let Some(packet) = port.handle(&mut payload_buf) {
-            let ra = match packet.msg_type {
+            match packet.msg_type {
                 Message::Invoke => {
                     let divider_index =
                         packet.payload.iter().enumerate().find(|(i, b)| **b == b' ');
@@ -201,7 +201,6 @@ impl<'k> Kernel<'k> {
                         if let Some(task) = Task::new(packet, 1, app.main_addr()) {
                             self.running = Some(app_index);
                             self.scheduler.add(task);
-                            RunApplication::Main
                         } else {
                             let pkt = Packet {
                                 version: PROTOCOL_VERSION,
@@ -211,28 +210,16 @@ impl<'k> Kernel<'k> {
                                 dst: 0,
                                 ttl: 0,
                                 msg_type: Message::Unknown,
-                                payload: &[],
+                                payload: b"Error",
                             };
                             if let Ok(size) = pkt.encode(&mut out) {
                                 let _ = port.send(&out[..size]);
                             }
-                            RunApplication::None
                         }
                     } else {
-                        let pkt = Packet {
-                            version: PROTOCOL_VERSION,
-                            flags: Flags::empty(),
-                            packet_id: PACKET_ID.get_id(),
-                            src: 0,
-                            dst: 0,
-                            ttl: 0,
-                            msg_type: Message::Unknown,
-                            payload: &[],
-                        };
-                        if let Ok(size) = pkt.encode(&mut out) {
+                        if let Ok(size) = packet.reply(&[]).encode(&mut out) {
                             let _ = port.send(&out[..size]);
                         }
-                        RunApplication::None
                     }
                 }
                 Message::Reply => {
@@ -248,24 +235,14 @@ impl<'k> Kernel<'k> {
                             app.buf().push(*ch);
                         }
 
-                        if awaiting - 1 == 0 {
-                            return RunApplication::Jumped;
-                        }
+                        if awaiting - 1 == 0 {}
                     } else {
                         let mut resp: RingBuf<RINGBUF_SIZE> = RingBuf::new();
                         resp.push(Message::Unknown.into());
                         resp.push(Message::Reply.into());
                         port.write(&resp.buf);
                     }
-                    RunApplication::None
                 }
-                Message::Busy => {
-                    if let Some(_) = self.running {
-                        // return RunApplication::Abort;
-                    }
-                    RunApplication::None
-                }
-                Message::Error => RunApplication::None,
                 Message::KernelVersion => {
                     let mut out = [0u8; 64];
                     let pkt = Packet {
@@ -281,21 +258,15 @@ impl<'k> Kernel<'k> {
                     if let Ok(size) = pkt.encode(&mut out) {
                         let _ = port.send(&out[..size]);
                     }
-
-                    RunApplication::None
                 }
-                Message::Unknown => RunApplication::None,
-                _ => RunApplication::None,
+                _ => {}
             };
-            ra
-        } else {
-            RunApplication::None
         }
     }
 
     #[inline(never)]
     #[unsafe(no_mangle)]
-    fn interrupt_handler(&mut self) -> RunApplication {
+    fn interrupt_handler(&mut self) {
         let code = orbit_arch::riscv::register::mcause::read().code();
 
         // Check if it's a port interrupt
@@ -307,10 +278,9 @@ impl<'k> Kernel<'k> {
         {
             // Returns bool to indicate if an application
             // is invoked
-            self.port_handler(index)
+            self.port_handler(index);
         } else {
             // TODO: invoke app interrupt
-            RunApplication::None
         }
     }
 
@@ -320,12 +290,10 @@ impl<'k> Kernel<'k> {
         let self_addr = self as *const Kernel as usize;
         let app = unsafe { self.apps.get_unchecked_mut(self.running.unwrap_unchecked()) };
 
-        let mut maybe_syscall: MaybeUninit<SysCall> = MaybeUninit::uninit();
-
-        maybe_syscall.write(SysCall::from_usize(
-            unsafe { app.assume_init_mut() }.context().a0,
-        ));
-        let syscall = unsafe { maybe_syscall.assume_init() };
+        let syscall = SysCall::from_usize(self.scheduler.current().unwrap().context.a0);
+        let task_addr =
+            self.scheduler.current().unwrap().as_ref().get_ref() as *const Task as usize;
+        let task_return = self.scheduler.current().unwrap().context.a0;
 
         match syscall {
             SysCall::ReturnInit => {
@@ -375,21 +343,21 @@ impl<'k> Kernel<'k> {
                     .nth(0)
                 {
                     let mut out = [0u8; 96];
-                    let payload = if let Some(task) = self.scheduler.pop()
-                        && task.priority != 0
-                    {
-                        if let Ok(size) = task.packet.reply(app_cont.buf().read()).encode(&mut out)
-                        {
-                            let _ = port.send(&out[..size]);
-                        } else {
-                            port.write(b"No output");
-                        }
-
-                        if let Ok(size) = task
-                            .packet
-                            .reply(&task.task_id.to_le_bytes())
-                            .encode(&mut out)
-                        {
+                    let payload = if let Some(task) = self.scheduler.pop() {
+                        // task
+                        // .packet
+                        // .reply(&task.task_id.to_le_bytes())
+                        let packet = Packet {
+                            version: task.packet.version,
+                            flags: Flags::empty(),
+                            packet_id: task.packet.packet_id,
+                            src: task.packet.src,
+                            dst: task.packet.dst,
+                            ttl: task.packet.ttl,
+                            msg_type: task.packet.msg_type,
+                            payload: &task.task_id.to_le_bytes(),
+                        };
+                        if let Ok(size) = packet.encode(&mut out) {
                             let _ = port.send(&out[..size]);
                         }
                     };
@@ -401,8 +369,8 @@ impl<'k> Kernel<'k> {
                     asm!(
                         "",
                         in("a0") self_addr,
-                        in("a1") app_cont.struct_addr() as usize,
-                        in("a2") app_cont.main_addr() as usize,
+                        in("a1") task_addr,
+                        in("a2") task_return,
                         in("a3") app_cont.interrupt_addr() as usize,
                     )
                 }
@@ -571,32 +539,15 @@ impl<'k> Kernel<'k> {
 
     #[unsafe(no_mangle)]
     #[inline(never)]
-    fn setup_event_loop(&mut self, variant: RunApplication) {
-        let app_cont = unsafe {
-            self.apps
-                .get_unchecked(self.running.unwrap_unchecked())
-                .assume_init_read()
-        };
-
-        let task = self.scheduler.current_mut().unwrap();
-        let task_addr = task.as_ref().get_ref() as *const Task as usize;
-        // self.set_pmp(&app_cont);
-        let addr = match variant {
-            RunApplication::Init => app_cont.init_addr(),
-            RunApplication::Main => task.context.mepc,
-            RunApplication::Interrupt => app_cont.interrupt_addr(),
-            RunApplication::Jumped => app_cont.context().mepc,
-            _ => 0,
-        };
-        unsafe {
-            asm!(
-                "",
-                in("a0") self as *const Kernel as usize,
-                in("a1") task_addr,
-                in("a2") addr,
-            )
+    fn setup_event_loop(&mut self) {
+        if let Some(task) = self.scheduler.current() {
+            let task_addr = task.as_ref().get_ref() as *const Task as usize;
+            let addr = task.context.mepc;
+            // self.set_pmp(&app_cont);
+            asm::context_switch(self as *const Kernel as usize, task_addr, addr);
+        } else {
+            asm::wait(self as *const Kernel as usize);
         }
-        asm::context_switch(self as *const Kernel as usize, app_cont.struct_addr(), addr);
     }
     #[unsafe(no_mangle)]
     #[inline(never)]

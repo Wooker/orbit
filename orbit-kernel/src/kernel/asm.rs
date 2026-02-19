@@ -21,10 +21,8 @@ pub(super) unsafe extern "C" fn interrupt_handler_exit() {
 #[unsafe(naked)]
 #[unsafe(no_mangle)]
 pub(super) unsafe extern "C" fn call_app() {
-    // a0 = RunApplication variant
     naked_asm!(
         "
-            mv a1, a0;
             la t0, setup_event_loop;
             sw ra, 0x0(gp);
             mv a0, gp;
@@ -40,7 +38,7 @@ pub(super) unsafe extern "C" fn syscall_handler_exit() {
         "
 
             beqz a1, syscall_handler_return_from_init;
-            lw t0, 0x24(a1);
+            mv t0, a2;
             li t1, 5;
             beq t0, t1, syscall_handler_await;
             li t1, 1;
