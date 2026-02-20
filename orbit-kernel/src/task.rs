@@ -64,7 +64,7 @@ impl<'t> Task<'t> {
                     msg_type: packet.msg_type,
                     payload: buf,
                 };
-                (*ptr).context.a0 = buf.as_ptr() as usize;
+                (*ptr).context.a1 = buf.as_ptr() as usize;
 
                 (*ptr).priority = priority;
 

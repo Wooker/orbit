@@ -7,7 +7,7 @@ members = [
     "my_app",
     "my_lib",
     "my_lib2",
-    "orbit-app-common",
+    "orbit-app-common", "orbit-app-new-proc-macro",
     "orbit-app-proc-macro",
     "reade",
     "reade_3",

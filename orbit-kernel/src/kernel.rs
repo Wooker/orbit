@@ -204,13 +204,6 @@ impl<'k> Kernel<'k> {
                             let task_id = task.task_id;
                             self.running = Some(app_index);
                             self.scheduler.add(task);
-                            packet
-                                .reply(&task_id.to_le_bytes())
-                                .encode(&mut out)
-                                .and_then(|size| {
-                                    port.send(&out[..size])
-                                        .map_err(|e| EncodeError::BufferTooSmall)
-                                });
                         } else {
                             packet
                                 .reply(b"Could not create task")
@@ -353,7 +346,7 @@ impl<'k> Kernel<'k> {
                     let mut out = [0u8; 96];
                     if let Some(task) = self.scheduler.pop() {
                         task.packet
-                            .reply(&task.task_id.to_le_bytes())
+                            .reply(&task.context.a1.to_le_bytes())
                             .encode(&mut out)
                             .and_then(|size| {
                                 port.send(&out[..size])
