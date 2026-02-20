@@ -30,19 +30,7 @@ impl<'t> Task<'t> {
     where
         't: 'p,
     {
-        let layout = Layout::new::<Context>()
-            .extend(Layout::new::<usize>())
-            .unwrap()
-            .0
-            .extend(Layout::array::<usize>(STACK_SIZE).unwrap())
-            .unwrap()
-            .0
-            .extend(Layout::new::<Packet>())
-            .unwrap()
-            .0
-            .extend(Layout::new::<usize>())
-            .unwrap()
-            .0
+        let layout = Layout::new::<Task>()
             .extend(Layout::array::<u8>(packet.payload.len()).unwrap())
             .unwrap()
             .0
@@ -57,17 +45,15 @@ impl<'t> Task<'t> {
             } else {
                 (*ptr).context.mepc = addr;
                 (*ptr).context.gp = ptr as usize;
-                (*ptr).context.sp = &(*ptr).stack as *const [usize; STACK_SIZE] as usize;
-
-                (*ptr).task_id = TASK_ID.get_id();
-                TASK_ID.set((*ptr).task_id + 1);
+                (*ptr).context.sp =
+                    &(*ptr).stack as *const [usize; STACK_SIZE] as usize + STACK_SIZE;
 
                 let mut buf = core::slice::from_raw_parts_mut(
                     (ptr as usize + size_of::<Task>() as usize) as *mut usize as *mut u8,
                     packet.payload.len(),
                 );
-
                 buf.copy_from_slice(packet.payload);
+
                 (*ptr).packet = Packet {
                     version: packet.version,
                     flags: packet.flags,
@@ -78,7 +64,13 @@ impl<'t> Task<'t> {
                     msg_type: packet.msg_type,
                     payload: buf,
                 };
+                (*ptr).context.a0 = buf.as_ptr() as usize;
+
                 (*ptr).priority = priority;
+
+                let task_id = TASK_ID.get_id();
+                (*ptr).task_id = task_id;
+                TASK_ID.set(task_id + 1);
 
                 Some(Pin::new(Box::from_raw(ptr)))
             }
@@ -88,20 +80,8 @@ impl<'t> Task<'t> {
 
 impl<'t> Drop for Task<'t> {
     fn drop(&mut self) {
-        let layout = Layout::new::<Context>()
-            .extend(Layout::new::<usize>())
-            .unwrap()
-            .0
+        let layout = Layout::new::<Task>()
             .extend(Layout::array::<u8>(self.packet.payload.len()).unwrap())
-            .unwrap()
-            .0
-            .extend(Layout::new::<&[u8]>())
-            .unwrap()
-            .0
-            .extend(Layout::array::<usize>(STACK_SIZE).unwrap())
-            .unwrap()
-            .0
-            .extend(Layout::array::<u8>(8).unwrap())
             .unwrap()
             .0
             .pad_to_align();

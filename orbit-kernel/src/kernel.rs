@@ -16,7 +16,7 @@ use crate::{
     },
     ringbuf::RingBuf,
     syscall::SysCall,
-    task::{TASK_ID, Task},
+    task::Task,
 };
 use alloc::{boxed::Box, collections::linked_list::LinkedList, slice, vec::Vec};
 use core::{
@@ -30,10 +30,15 @@ use core::{
 use orbit_arch::{Core, PMP};
 use spaceport::{
     constants::{MAX_TTL, PROTOCOL_VERSION},
+    error::EncodeError,
     message::Message,
     packet::{HEADER_LEN, Packet},
     types::Flags,
 };
+
+unsafe extern "C" {
+    static KEEP_LIBOS: extern "C" fn() -> !;
+}
 
 pub const APPS: usize = 5;
 pub(crate) static PACKET_ID: ID<u16> = ID::new(0);
@@ -116,9 +121,6 @@ impl<'k> Kernel<'k> {
             scheduler: Scheduler::new(),
         };
 
-        PACKET_ID.set(0);
-        TASK_ID.set(0);
-
         unsafe {
             asm!("mv {0}, sp", out(reg) kernel.context.sp);
         }
@@ -136,9 +138,9 @@ impl<'k> Kernel<'k> {
     pub fn add_application(&mut self, index: usize, app_cont: AppContainer<'k>, sp: usize) {
         let app_i = unsafe { self.apps.get_unchecked_mut(index) };
         app_i.write(app_cont);
-        self.running = Some(index);
-        app_cont.context().sp = sp;
-        app_cont.context().gp = app_cont.context() as *const Context as usize;
+        // self.running = Some(index);
+        // app_cont.context().sp = sp;
+        // app_cont.context().gp = app_cont.context() as *const Context as usize;
         unsafe {
             asm!("sw ra, 0x0(gp);");
             // asm!("sw sp, 0x4(gp);");
@@ -198,28 +200,34 @@ impl<'k> Kernel<'k> {
                             arg.iter().skip(1).for_each(|b| app.buf().push(*b));
                         }
 
-                        if let Some(task) = Task::new(packet, 1, app.main_addr()) {
+                        if let Some(task) = Task::new(packet, 1, unsafe { KEEP_LIBOS as usize }) {
+                            let task_id = task.task_id;
                             self.running = Some(app_index);
                             self.scheduler.add(task);
+                            packet
+                                .reply(&task_id.to_le_bytes())
+                                .encode(&mut out)
+                                .and_then(|size| {
+                                    port.send(&out[..size])
+                                        .map_err(|e| EncodeError::BufferTooSmall)
+                                });
                         } else {
-                            let pkt = Packet {
-                                version: PROTOCOL_VERSION,
-                                flags: Flags::empty(),
-                                packet_id: PACKET_ID.get_id(),
-                                src: 0,
-                                dst: 0,
-                                ttl: 0,
-                                msg_type: Message::Unknown,
-                                payload: b"Error",
-                            };
-                            if let Ok(size) = pkt.encode(&mut out) {
-                                let _ = port.send(&out[..size]);
-                            }
+                            packet
+                                .reply(b"Could not create task")
+                                .encode(&mut out)
+                                .and_then(|size| {
+                                    port.send(&out[..size])
+                                        .map_err(|e| EncodeError::BufferTooSmall)
+                                });
                         }
                     } else {
-                        if let Ok(size) = packet.reply(&[]).encode(&mut out) {
-                            let _ = port.send(&out[..size]);
-                        }
+                        packet
+                            .reply(b"Unknown name")
+                            .encode(&mut out)
+                            .and_then(|size| {
+                                port.send(&out[..size])
+                                    .map_err(|e| EncodeError::BufferTooSmall)
+                            });
                     }
                 }
                 Message::Reply => {
@@ -343,24 +351,30 @@ impl<'k> Kernel<'k> {
                     .nth(0)
                 {
                     let mut out = [0u8; 96];
-                    let payload = if let Some(task) = self.scheduler.pop() {
-                        // task
-                        // .packet
-                        // .reply(&task.task_id.to_le_bytes())
-                        let packet = Packet {
-                            version: task.packet.version,
+                    if let Some(task) = self.scheduler.pop() {
+                        task.packet
+                            .reply(&task.task_id.to_le_bytes())
+                            .encode(&mut out)
+                            .and_then(|size| {
+                                port.send(&out[..size])
+                                    .map_err(|_| EncodeError::BufferTooSmall)
+                            });
+                    } else {
+                        let pkt = Packet {
+                            version: PROTOCOL_VERSION,
                             flags: Flags::empty(),
-                            packet_id: task.packet.packet_id,
-                            src: task.packet.src,
-                            dst: task.packet.dst,
-                            ttl: task.packet.ttl,
-                            msg_type: task.packet.msg_type,
-                            payload: &task.task_id.to_le_bytes(),
+                            packet_id: PACKET_ID.get_id(),
+                            src: 0,
+                            dst: 0,
+                            ttl: MAX_TTL,
+                            msg_type: Message::Reply,
+                            payload: &[KERNEL_MAJOR, KERNEL_MINOR],
                         };
-                        if let Ok(size) = packet.encode(&mut out) {
-                            let _ = port.send(&out[..size]);
-                        }
-                    };
+                        pkt.encode(&mut out).and_then(|size| {
+                            port.send(&out[..size])
+                                .map_err(|_| EncodeError::BufferTooSmall)
+                        });
+                    }
                 }
                 self.ports.iter_mut().for_each(|port| {
                     port.msg = 0;
@@ -539,14 +553,14 @@ impl<'k> Kernel<'k> {
 
     #[unsafe(no_mangle)]
     #[inline(never)]
-    fn setup_event_loop(&mut self) {
+    fn setup_event_loop(&mut self) -> ! {
         if let Some(task) = self.scheduler.current() {
             let task_addr = task.as_ref().get_ref() as *const Task as usize;
             let addr = task.context.mepc;
             // self.set_pmp(&app_cont);
-            asm::context_switch(self as *const Kernel as usize, task_addr, addr);
+            unsafe { asm::context_switch(self as *const Kernel as usize, task_addr, addr) }
         } else {
-            asm::wait(self as *const Kernel as usize);
+            unsafe { asm::interrupt_handler_exit() }
         }
     }
     #[unsafe(no_mangle)]

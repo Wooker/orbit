@@ -1,16 +1,13 @@
 use core::arch::{asm, naked_asm};
 
-// TODO: Handle RunApplication enum values
-// and call app differently
 #[unsafe(naked)]
 #[unsafe(no_mangle)]
-pub(super) unsafe extern "C" fn interrupt_handler_exit() {
+pub(super) unsafe extern "C" fn interrupt_handler_exit() -> ! {
     naked_asm!(
         // a0 is 0 or 1
         // 1 - call app
         // 0 - don't
         "
-            bnez a0, call_app;
             la t0, wait;
             csrw mepc, t0;
             mret;
@@ -219,73 +216,70 @@ pub unsafe extern "C" fn save_context() {
     );
 }
 
-#[inline(never)]
+#[unsafe(naked)]
 #[unsafe(no_mangle)]
-pub(super) fn context_switch(_kernel: usize, _struct_addr: usize, _addr: usize) {
-    unsafe {
-        asm!(
-            "
-                li t0, 0x80;
-                csrw mstatus, t0;
-                ",
-            "csrw mepc, a2;",
-            "
-                j load_context;
-                ",
-        );
+pub(super) unsafe fn context_switch(_kernel: usize, _struct_addr: usize, _addr: usize) -> ! {
+    naked_asm!(
+        "
+        li t0, 0x80;
+        csrw mstatus, t0;
+        csrw mepc, a2;
+        j load_context;
+        ",
+    );
 
-        #[unsafe(naked)]
-        #[unsafe(no_mangle)]
-        pub(super) unsafe extern "C" fn load_check() {
-            naked_asm!(
-                "
+    #[unsafe(naked)]
+    #[unsafe(no_mangle)]
+    pub(super) unsafe extern "C" fn load_check() {
+        naked_asm!(
+            "
                     csrr t0, mscratch;
                     ",
-                "
+            "
                     beq t0, gp, load_for_app;
                     bne t0, gp, load_for_kernel;
                     "
-            )
-        }
+        )
+    }
 
-        #[unsafe(naked)]
-        #[unsafe(no_mangle)]
-        pub(super) unsafe extern "C" fn load_for_app() {
-            naked_asm!(
-                // Save app context to gp
-                "mv gp, a1;",
-                // Return to load_context
-                "ret;"
-            )
-        }
+    #[unsafe(naked)]
+    #[unsafe(no_mangle)]
+    pub(super) unsafe extern "C" fn load_for_app() {
+        naked_asm!(
+            // Save app context to gp
+            "mv gp, a1;",
+            // Return to load_context
+            "ret;"
+        )
+    }
 
-        #[unsafe(naked)]
-        #[unsafe(no_mangle)]
-        pub(super) unsafe extern "C" fn load_for_kernel() {
-            naked_asm!(
-                // Save kernel context to gp
-                "csrr gp, mscratch;",
-                // Return to load_context
-                "ret;"
-            )
-        }
+    #[unsafe(naked)]
+    #[unsafe(no_mangle)]
+    pub(super) unsafe extern "C" fn load_for_kernel() {
+        naked_asm!(
+            // Save kernel context to gp
+            "csrr gp, mscratch;",
+            // Return to load_context
+            "ret;"
+        )
+    }
 
-        // Load registers if not _e_ extension
-        #[cfg(target_feature = "e")]
-        #[unsafe(naked)]
-        #[unsafe(no_mangle)]
-        pub(super) unsafe extern "C" fn load_context() {
-            naked_asm!(
-                "
+    // Load registers if not _e_ extension
+    #[cfg(target_feature = "e")]
+    #[unsafe(naked)]
+    #[unsafe(no_mangle)]
+    pub(super) unsafe extern "C" fn load_context() {
+        naked_asm!(
+            "
                     call load_check;
                     ",
-                // Load mepc
-                "
+            // Load mepc
+            "
                     lw t0, 0x7c(gp);
                     csrw mepc, t0;
                     ",
-                // Load registers
-                "
+            // Load registers
+            "
                     lw ra, 0x0(gp);
                     lw gp, 0x8(gp);
                     lw tp, 0xc(gp);
@@ -301,22 +295,22 @@ pub(super) fn context_switch(_kernel: usize, _struct_addr: usize, _addr: usize) 
                     lw a4, 0x34(gp);
                     lw a5, 0x38(gp);
                     ",
-                "j load_finish"
-            );
-        }
+            "j load_finish"
+        );
+    }
 
-        // Load registers if not _e_ extension
-        #[cfg(not(target_feature = "e"))]
-        #[unsafe(naked)]
-        #[unsafe(no_mangle)]
-        pub(super) unsafe extern "C" fn load_context() {
-            naked_asm!(
-                "
+    // Load registers if not _e_ extension
+    #[cfg(not(target_feature = "e"))]
+    #[unsafe(naked)]
+    #[unsafe(no_mangle)]
+    pub(super) unsafe extern "C" fn load_context() {
+        naked_asm!(
+            "
                     call load_check;
                     ",
-                // Load registers
-                // except sp
-                "
+            // Load registers
+            // except sp
+            "
                     lw ra, 0x0(gp);
                     lw gp, 0x8(gp);
                     lw tp, 0xc(gp);
@@ -347,94 +341,93 @@ pub(super) fn context_switch(_kernel: usize, _struct_addr: usize, _addr: usize) 
                     lw t5, 0x74(gp);
                     lw t6, 0x78(gp);
                     ",
-                "j load_finish"
-            );
-        }
+            "j load_finish"
+        );
+    }
 
-        #[unsafe(naked)]
-        #[unsafe(no_mangle)]
-        pub(super) unsafe extern "C" fn load_finish() {
-            naked_asm!(
-                // Save t0 on stack
-                "
+    #[unsafe(naked)]
+    #[unsafe(no_mangle)]
+    pub(super) unsafe extern "C" fn load_finish() {
+        naked_asm!(
+            // Save t0 on stack
+            "
                     addi sp, sp, -0x4;
                     sw t0, 0x0(sp);
                     ",
-                // Use t0 for mscratch
-                "
+            // Use t0 for mscratch
+            "
                     csrr t0, mscratch;
                     ",
-                // Jump to a load finishing function
-                "
+            // Jump to a load finishing function
+            "
                     bne t0, gp, load_finish_for_app;
                     beq t0, gp, load_finish_for_kernel;
                     "
-            )
-        }
+        )
+    }
 
-        #[unsafe(naked)]
-        #[unsafe(no_mangle)]
-        pub(super) unsafe extern "C" fn load_finish_for_app() {
-            naked_asm!(
-                "
+    #[unsafe(naked)]
+    #[unsafe(no_mangle)]
+    pub(super) unsafe extern "C" fn load_finish_for_app() {
+        naked_asm!(
+            "
                     j load_finish_for_app_to_main;
                     "
-            )
-        }
+        )
+    }
 
-        #[unsafe(naked)]
-        #[unsafe(no_mangle)]
-        pub(super) unsafe extern "C" fn load_finish_for_app_to_main() {
-            naked_asm!(
-                // Restore t0
-                "
+    #[unsafe(naked)]
+    #[unsafe(no_mangle)]
+    pub(super) unsafe extern "C" fn load_finish_for_app_to_main() {
+        naked_asm!(
+            // Restore t0
+            "
                     lw t0, 0x0(sp);
                     addi sp, sp, 0x4;
                     ",
-                // Load sp
-                "
+            // Load sp
+            "
                     lw sp, 0x4(gp);
                     ",
-                "
+            "
                     mv a0, gp;
                     ",
-                "mret;"
-            )
-        }
+            "mret;"
+        )
+    }
 
-        #[unsafe(naked)]
-        #[unsafe(no_mangle)]
-        pub(super) unsafe extern "C" fn load_finish_for_app_from_interrupt() {
-            naked_asm!(
-                // Restore t0
-                "
+    #[unsafe(naked)]
+    #[unsafe(no_mangle)]
+    pub(super) unsafe extern "C" fn load_finish_for_app_from_interrupt() {
+        naked_asm!(
+            // Restore t0
+            "
                     lw t0, 0x0(sp);
                     addi sp, sp, 0x4;
                     ",
-                // Load sp
-                "
+            // Load sp
+            "
                     lw sp, 0x4(gp);
                     ",
-                "mret;"
-            )
-        }
+            "mret;"
+        )
+    }
 
-        #[unsafe(naked)]
-        #[unsafe(no_mangle)]
-        pub(super) unsafe extern "C" fn load_finish_for_kernel() {
-            naked_asm!(
-                // Restore t0
-                "
+    #[unsafe(naked)]
+    #[unsafe(no_mangle)]
+    pub(super) unsafe extern "C" fn load_finish_for_kernel() {
+        naked_asm!(
+            // Restore t0
+            "
                     lw t0, 0x0(sp);
                     addi sp, sp, 0x4;
                     ",
-                // Load sp
-                "
+            // Load sp
+            "
                     lw sp, 0x4(gp);
                     ",
-                "j handle_mcause;"
-            )
-        }
+            "j handle_mcause;"
+        )
     }
 }
 
@@ -503,7 +496,7 @@ pub(super) unsafe extern "C" fn handle_mcause() {
             //
             "
                 csrr a0, mscratch;
-                la ra, interrupt_handler_exit;
+                la ra, call_app;
                 j interrupt_handler;
                 ",
         );
