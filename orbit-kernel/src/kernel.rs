@@ -32,7 +32,7 @@ use spaceport::{
     constants::{MAX_TTL, PROTOCOL_VERSION},
     error::EncodeError,
     message::Message,
-    packet::{HEADER_LEN, Packet},
+    packet::{HEADER_LEN, MAX_BUFFER_LENGTH, Packet},
     types::Flags,
 };
 
@@ -174,8 +174,7 @@ impl<'k> Kernel<'k> {
             .count();
         let port = &mut self.ports[i];
         port.msg += 1;
-        let mut payload_buf = [0; RINGBUF_SIZE - HEADER_LEN];
-        if let Some(packet) = port.handle(&mut payload_buf) {
+        if let Some(packet) = port.handle() {
             match packet.msg_type {
                 Message::Invoke => {
                     let divider_index =
@@ -185,7 +184,7 @@ impl<'k> Kernel<'k> {
                         (a, Some(b))
                     });
 
-                    let mut out = [0u8; 256];
+                    let mut out = [0u8; MAX_BUFFER_LENGTH];
                     if let Some((app_index, _maybe_app)) =
                         self.apps.iter().enumerate().find(|(_, app)| {
                             let app = unsafe { app.assume_init_read() };
@@ -245,7 +244,7 @@ impl<'k> Kernel<'k> {
                     }
                 }
                 Message::KernelVersion => {
-                    let mut out = [0u8; 64];
+                    let mut out = [0u8; MAX_BUFFER_LENGTH];
                     let pkt = Packet {
                         version: PROTOCOL_VERSION,
                         flags: Flags::empty(),
@@ -343,7 +342,7 @@ impl<'k> Kernel<'k> {
                     .filter_map(|port| port.msg.ne(&0usize).then(|| port))
                     .nth(0)
                 {
-                    let mut out = [0u8; 96];
+                    let mut out = [0u8; MAX_BUFFER_LENGTH];
                     if let Some(task) = self.scheduler.pop() {
                         task.packet
                             .reply(&task.context.a1.to_le_bytes())

@@ -38,12 +38,12 @@ pub mod task;
 pub use chip;
 #[cfg(feature = "rt")]
 pub use orbit_arch as arch;
+use spaceport::packet::{MAX_BUFFER_LENGTH, MAX_PACKET_LENGTH};
 
 // TODO: make use of PMP internal. Application code should
 // not rely on this const. to_container does rely at the moment
 pub const PMP: usize = 4;
-pub const RINGBUF_SIZE: usize = 64;
-pub type RingbufType = u8;
+pub const RINGBUF_SIZE: usize = MAX_BUFFER_LENGTH;
 
 // #[cfg(feature = "rt")]
 #[panic_handler]

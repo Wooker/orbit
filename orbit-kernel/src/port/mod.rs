@@ -7,13 +7,13 @@ use orbit_common::{feature_mod_use, feature_mod_use_mutual};
 use spaceport::{
     constants::{self, EOF, PROTOCOL_VERSION},
     message::Message,
-    packet::{HEADER_LEN, Packet},
+    packet::{HEADER_LEN, MAX_BUFFER_LENGTH, MAX_PACKET_LENGTH, Packet},
     transport::Transport,
     types::Flags,
 };
 
 use crate::ringbuf::RingBuf;
-use crate::{RINGBUF_SIZE, RingbufType, kernel::PACKET_ID};
+use crate::{RINGBUF_SIZE, kernel::PACKET_ID};
 
 pub mod port_kind;
 pub(crate) use port_kind::PortKinds;
@@ -47,7 +47,8 @@ pub(crate) struct Port<'p> {
     pub msg: usize,
     role: Role,
     peripheral: Uart<'p>,
-    buf: [u8; RINGBUF_SIZE],
+    buf: [u8; MAX_BUFFER_LENGTH],
+    packet_buf: [u8; MAX_PACKET_LENGTH],
     pub rbuf: RingBuf<RINGBUF_SIZE>,
 }
 
@@ -61,6 +62,7 @@ impl<'p> Port<'p> {
             peripheral: Uart::new(peripheral, kind, Config::default()),
             role: Role::Candidate,
             buf: [0; RINGBUF_SIZE],
+            packet_buf: [0; MAX_PACKET_LENGTH],
             rbuf: RingBuf::new(),
         }
     }
@@ -93,28 +95,21 @@ impl<'p> Port<'p> {
 
     #[inline(never)]
     #[unsafe(link_section = ".kernel.text")]
-    pub(crate) fn handle<'a>(&mut self, payload_buf: &'a mut [u8]) -> Option<Packet<'a>> {
+    pub(crate) fn handle(&mut self) -> Option<Packet> {
         if let Ok(size) = self.peripheral.read(&mut self.buf)
             && size > 0
         {
-            let packet = Packet::decode(&self.buf[..size], payload_buf);
+            let packet = Packet::decode(&self.buf[..size], &mut self.packet_buf);
 
             if let Ok(p) = packet {
                 // Reply ACK if the flag is present
                 if p.flags.contains(Flags::ACK_REQUIRED) {
-                    let mut buf = [0; 32];
-                    let reply_pkt = Packet {
-                        version: PROTOCOL_VERSION,
-                        flags: Flags::IS_ACK,
-                        packet_id: PACKET_ID.get_id(),
-                        src: p.dst,
-                        dst: p.src,
-                        ttl: p.ttl,
-                        msg_type: Message::Reply,
-                        payload: &[],
-                    };
-                    if let Ok(size) = reply_pkt.encode(&mut buf) {
-                        let _ = self.send(&buf[..size]);
+                    let mut buf = [0; MAX_BUFFER_LENGTH];
+                    if let Ok(size) = p.ack(&[]).encode(&mut buf) {
+                        self.peripheral
+                            .write(&mut buf[..size])
+                            .map_err(|_| PortError::Send);
+                        PACKET_ID.set(PACKET_ID.get_id() + 1);
                     }
                 }
 
