@@ -1,5 +1,6 @@
 #![allow(unused)]
 
+use alloc::vec::Vec;
 use chip::PortPeripheral;
 
 use orbit_arch::interface::timer::Timer;
@@ -7,7 +8,7 @@ use orbit_common::{feature_mod_use, feature_mod_use_mutual};
 use spaceport::{
     constants::{self, EOF, PROTOCOL_VERSION},
     message::Message,
-    packet::{HEADER_LEN, MAX_BUFFER_LENGTH, MAX_PACKET_LENGTH, Packet},
+    packet::{HEADER_LEN, MAX_BUFFER_LENGTH, MAX_PACKET_LENGTH, MAX_PAYLOAD_LENGTH, Packet},
     transport::Transport,
     types::Flags,
 };
@@ -49,6 +50,7 @@ pub(crate) struct Port<'p> {
     peripheral: Uart<'p>,
     buf: [u8; MAX_BUFFER_LENGTH],
     packet_buf: [u8; MAX_PACKET_LENGTH],
+    pub fragments: Vec<u8>,
     pub rbuf: RingBuf<RINGBUF_SIZE>,
 }
 
@@ -63,6 +65,7 @@ impl<'p> Port<'p> {
             role: Role::Candidate,
             buf: [0; RINGBUF_SIZE],
             packet_buf: [0; MAX_PACKET_LENGTH],
+            fragments: Vec::with_capacity(MAX_PAYLOAD_LENGTH),
             rbuf: RingBuf::new(),
         }
     }
@@ -101,7 +104,7 @@ impl<'p> Port<'p> {
         {
             let packet = Packet::decode(&self.buf[..size], &mut self.packet_buf);
 
-            if let Ok(p) = packet {
+            if let Ok(mut p) = packet {
                 // Reply ACK if the flag is present
                 if p.flags.contains(Flags::ACK_REQUIRED) {
                     let mut buf = [0; MAX_BUFFER_LENGTH];
@@ -113,7 +116,18 @@ impl<'p> Port<'p> {
                     }
                 }
 
-                Some(p)
+                if p.flags.contains(Flags::FRAGMENTED) {
+                    self.fragments.append(&mut p.payload.to_vec());
+                    None
+                } else {
+                    if self.fragments.is_empty() {
+                        Some(p)
+                    } else {
+                        self.fragments.append(&mut p.payload.to_vec());
+                        p.payload = &self.fragments;
+                        Some(p)
+                    }
+                }
             } else {
                 None
             }
