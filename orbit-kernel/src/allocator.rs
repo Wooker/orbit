@@ -5,12 +5,13 @@ use core::ptr::{self, NonNull, null_mut};
 
 const ARENA_SIZE: usize = 16 * 1024;
 
-#[repr(C)]
+#[repr(C, align(4))]
 struct BlockHeader {
     size: usize,
     next: *mut BlockHeader,
 }
 
+#[repr(C, align(4))]
 pub struct SimpleAllocator {
     arena: UnsafeCell<[u8; ARENA_SIZE]>,
     free_list: UnsafeCell<*mut BlockHeader>,
@@ -45,41 +46,81 @@ unsafe impl GlobalAlloc for SimpleAllocator {
         }
 
         let size = layout.size();
-        let align = layout.align().max(align_of::<BlockHeader>());
+        if size == 0 {
+            return core::ptr::null_mut();
+        }
 
-        let mut prev: *mut BlockHeader = null_mut();
+        let header_align = core::mem::align_of::<BlockHeader>();
+        let header_size = core::mem::size_of::<BlockHeader>();
+        let backptr_size = core::mem::size_of::<*mut BlockHeader>();
+
+        let requested_align = layout.align();
+
+        // Final alignment must satisfy:
+        // - user alignment
+        // - pointer alignment (for backptr)
+        // - header alignment safety
+        let align = requested_align
+            .max(core::mem::align_of::<*mut BlockHeader>())
+            .max(header_align);
+
+        let mut prev: *mut BlockHeader = core::ptr::null_mut();
         let mut current = *self.free_list.get();
 
         while !current.is_null() {
             let block_start = current as usize;
             let block_size = (*current).size;
 
-            // Space needed:
-            // header + alignment padding + header back-pointer + user data
-            let header_size = size_of::<BlockHeader>();
-            let backptr_size = size_of::<*mut BlockHeader>();
+            // Layout:
+            // | BlockHeader | padding | backptr | user data |
 
+            // Minimum position user data could start
             let mut user_start = block_start + header_size + backptr_size;
 
+            // Align user_start properly
             user_start = (user_start + align - 1) & !(align - 1);
 
-            let total_needed = user_start + size - block_start;
+            // Total space needed inside this block
+            let total_needed = (user_start - block_start) + size;
 
             if block_size >= total_needed {
                 let remaining = block_size - total_needed;
 
-                if remaining > size_of::<BlockHeader>() {
-                    let new_block = (block_start + total_needed) as *mut BlockHeader;
+                // If remaining space is large enough to hold a new header
+                if remaining >= header_size {
+                    let new_block_addr = block_start + total_needed;
 
-                    (*new_block).size = remaining;
-                    (*new_block).next = (*current).next;
+                    // Ensure new block header is properly aligned
+                    let new_block_addr = (new_block_addr + header_align - 1) & !(header_align - 1);
 
-                    if prev.is_null() {
-                        *self.free_list.get() = new_block;
+                    let adjusted_remaining = block_size - (new_block_addr - block_start);
+
+                    if adjusted_remaining >= header_size {
+                        let new_block = new_block_addr as *mut BlockHeader;
+
+                        // Alignment safety check (debug)
+                        debug_assert_eq!((new_block as usize) % header_align, 0);
+
+                        (*new_block).size = adjusted_remaining;
+                        (*new_block).next = (*current).next;
+
+                        if prev.is_null() {
+                            *self.free_list.get() = new_block;
+                        } else {
+                            (*prev).next = new_block;
+                        }
+
+                        (*current).size = new_block_addr - block_start;
                     } else {
-                        (*prev).next = new_block;
+                        // Not enough space after alignment — consume whole block
+                        if prev.is_null() {
+                            *self.free_list.get() = (*current).next;
+                        } else {
+                            (*prev).next = (*current).next;
+                        }
                     }
                 } else {
+                    // No room for new header — consume whole block
                     if prev.is_null() {
                         *self.free_list.get() = (*current).next;
                     } else {
@@ -87,10 +128,13 @@ unsafe impl GlobalAlloc for SimpleAllocator {
                     }
                 }
 
-                (*current).size = total_needed;
-
-                // Store back-pointer to header
+                // Store back-pointer
                 let backptr_location = (user_start - backptr_size) as *mut *mut BlockHeader;
+
+                debug_assert_eq!(
+                    (backptr_location as usize) % core::mem::align_of::<*mut BlockHeader>(),
+                    0
+                );
 
                 *backptr_location = current;
 
@@ -101,7 +145,7 @@ unsafe impl GlobalAlloc for SimpleAllocator {
             current = (*current).next;
         }
 
-        null_mut()
+        core::ptr::null_mut()
     }
 
     #[inline(never)]
