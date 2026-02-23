@@ -1,3 +1,4 @@
+#![allow(unused)]
 pub mod asm;
 mod scheduler;
 
@@ -32,7 +33,7 @@ use spaceport::{
     constants::{MAX_TTL, PROTOCOL_VERSION},
     error::EncodeError,
     message::Message,
-    packet::{HEADER_LEN, MAX_BUFFER_LENGTH, Packet},
+    packet::{HEADER_LEN, MAX_BUFFER_LENGTH, MAX_PAYLOAD_LENGTH, Packet},
     types::Flags,
 };
 
@@ -167,14 +168,13 @@ impl<'k> Kernel<'k> {
     #[inline(never)]
     #[unsafe(no_mangle)]
     fn port_handler(&mut self, i: usize) {
-        let awaiting = self
-            .ports
-            .iter()
-            .filter_map(|port| port.awaiting.then(|| port))
-            .count();
-        let port = &mut self.ports[i];
-        port.msg += 1;
-        if let Some(packet) = port.handle() {
+        let packet = {
+            let port = &mut self.ports[i];
+            port.msg += 1;
+            port.handle()
+        };
+
+        let response = if let Some(packet) = packet {
             match packet.msg_type {
                 Message::Invoke => {
                     let divider_index =
@@ -203,64 +203,38 @@ impl<'k> Kernel<'k> {
                             let task_id = task.task_id;
                             self.running = Some(app_index);
                             self.scheduler.add(task);
+                            self.ports[i].fragments.fill(0);
+                            self.ports[i].fragments.clear();
+                            self.ports[i].fragments.shrink_to(MAX_PAYLOAD_LENGTH);
+                            None
+                            // Some(packet.reply(b"Ok"))
                         } else {
-                            packet
-                                .reply(b"Could not create task")
-                                .encode(&mut out)
-                                .and_then(|size| {
-                                    port.send(&out[..size])
-                                        .map_err(|e| EncodeError::BufferTooSmall)
-                                });
+                            Some(packet.reply(b"Could not create task"))
                         }
                     } else {
-                        packet
-                            .reply(b"Unknown name")
-                            .encode(&mut out)
-                            .and_then(|size| {
-                                port.send(&out[..size])
-                                    .map_err(|e| EncodeError::BufferTooSmall)
-                            });
-                    }
-                }
-                Message::Reply => {
-                    if let Some(app_index) = self.running {
-                        let info = packet.payload;
-
-                        let app =
-                            unsafe { self.apps.get_unchecked_mut(app_index).assume_init_mut() };
-
-                        // Write command arguments after the space to
-                        // the application buffer
-                        for ch in info.iter() {
-                            app.buf().push(*ch);
-                        }
-
-                        if awaiting - 1 == 0 {}
-                    } else {
-                        let mut resp: RingBuf<RINGBUF_SIZE> = RingBuf::new();
-                        resp.push(Message::Unknown.into());
-                        resp.push(Message::Reply.into());
-                        port.write(&resp.buf);
+                        Some(packet.reply(b"Unknown name"))
                     }
                 }
                 Message::KernelVersion => {
                     let mut out = [0u8; MAX_BUFFER_LENGTH];
-                    let pkt = Packet {
-                        version: PROTOCOL_VERSION,
-                        flags: Flags::empty(),
-                        packet_id: PACKET_ID.get_id(),
-                        src: packet.dst,
-                        dst: packet.src,
-                        ttl: MAX_TTL,
-                        msg_type: Message::Reply,
-                        payload: &[KERNEL_MAJOR, KERNEL_MINOR],
-                    };
-                    if let Ok(size) = pkt.encode(&mut out) {
-                        let _ = port.send(&out[..size]);
-                    }
+                    Some(packet.reply(&[0, 1]))
                 }
-                _ => {}
-            };
+                _ => None,
+            }
+        } else {
+            None
+        };
+
+        if let Some(response) = response {
+            let mut out = [0u8; MAX_BUFFER_LENGTH];
+            response
+                .encode(&mut out)
+                .and_then(|size| {
+                    let port = &mut self.ports[i];
+                    port.send(&out[..size])
+                        .map_err(|e| EncodeError::BufferTooSmall)
+                })
+                .unwrap_or(0);
         }
     }
 
@@ -345,27 +319,13 @@ impl<'k> Kernel<'k> {
                     let mut out = [0u8; MAX_BUFFER_LENGTH];
                     if let Some(task) = self.scheduler.pop() {
                         task.packet
-                            .reply(&task.context.a1.to_le_bytes())
+                            .reply(&task.packet.payload.len().to_le_bytes())
                             .encode(&mut out)
                             .and_then(|size| {
                                 port.send(&out[..size])
                                     .map_err(|_| EncodeError::BufferTooSmall)
-                            });
-                    } else {
-                        let pkt = Packet {
-                            version: PROTOCOL_VERSION,
-                            flags: Flags::empty(),
-                            packet_id: PACKET_ID.get_id(),
-                            src: 0,
-                            dst: 0,
-                            ttl: MAX_TTL,
-                            msg_type: Message::Reply,
-                            payload: &[KERNEL_MAJOR, KERNEL_MINOR],
-                        };
-                        pkt.encode(&mut out).and_then(|size| {
-                            port.send(&out[..size])
-                                .map_err(|_| EncodeError::BufferTooSmall)
-                        });
+                            })
+                            .unwrap_or(0);
                     }
                 }
                 self.ports.iter_mut().for_each(|port| {
