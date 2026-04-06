@@ -16,6 +16,12 @@ SECTIONS
         *orbit_kernel*.o(.rodata .rodata.*);
     } >FLASH
 
+    _stack_size = 0x1500;
+    .kernel.stack ORIGIN(RAM) + _stack_size : ALIGN(4)
+    {
+        PROVIDE(_stack_top = .);
+    } > RAM
+
     /* FLASH load address of .data */
     _sidata = LOADADDR(.kernel.data);
 
@@ -34,6 +40,6 @@ SECTIONS
         *orbit_arch*.o(.bss .bss.* .sbss.*);
         *chip*.o(.bss .bss* .sbss.*);
         *orbit_kernel*.o(.bss .bss.* .sbss.*);
-        _ebss = .;
+        _ebss = ORIGIN(RAM)+LENGTH(RAM);
     } >RAM
 }

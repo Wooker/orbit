@@ -7,6 +7,7 @@ use orbit_arch::interface::timer::Timer;
 use orbit_common::{feature_mod_use, feature_mod_use_mutual};
 use spaceport::{
     constants::{self, EOF, PROTOCOL_VERSION},
+    error::EncodeError,
     message::Message,
     packet::{HEADER_LEN, MAX_BUFFER_LENGTH, MAX_PACKET_LENGTH, MAX_PAYLOAD_LENGTH, Packet},
     transport::Transport,
@@ -41,6 +42,7 @@ pub trait ConfigureGPIO {
 #[derive(Debug)]
 pub enum PortError {
     Send,
+    Allocation,
 }
 
 pub(crate) struct Port<'p> {
@@ -51,7 +53,6 @@ pub(crate) struct Port<'p> {
     buf: [u8; MAX_BUFFER_LENGTH],
     packet_buf: [u8; MAX_PACKET_LENGTH],
     pub fragments: Vec<u8>,
-    pub rbuf: RingBuf<RINGBUF_SIZE>,
 }
 
 impl<'p> Port<'p> {
@@ -63,17 +64,10 @@ impl<'p> Port<'p> {
             msg: 0,
             peripheral: Uart::new(peripheral, kind, Config::default()),
             role: Role::Candidate,
-            buf: [0; RINGBUF_SIZE],
+            buf: [0; MAX_BUFFER_LENGTH],
             packet_buf: [0; MAX_PACKET_LENGTH],
-            fragments: Vec::with_capacity(MAX_PAYLOAD_LENGTH),
-            rbuf: RingBuf::new(),
+            fragments: Vec::new(),
         }
-    }
-
-    #[inline(never)]
-    #[unsafe(link_section = ".kernel.text")]
-    pub(crate) fn push(&mut self) {
-        self.rbuf.push(self.peripheral.read_byte());
     }
 
     #[inline(never)]
@@ -96,9 +90,34 @@ impl<'p> Port<'p> {
         Ok(buf.len())
     }
 
+    fn try_append_fragment(fragments: &mut Vec<u8>, payload: &[u8]) -> Result<(), PortError> {
+        if fragments
+            .try_reserve_exact(fragments.len() + payload.len())
+            .is_err()
+        {
+            *fragments = Vec::new();
+            return Err(PortError::Allocation);
+        }
+
+        fragments.append(&mut payload.to_vec());
+        Ok(())
+    }
+
+    fn send_allocation_error(peripheral: &mut Uart, fragments: &mut Vec<u8>, p: &Packet) {
+        let mut buf = [0; MAX_BUFFER_LENGTH];
+
+        if let Ok(size) = p
+            .reply_with_flags(Flags::ERROR, b"Could not allocate more memory")
+            .encode(&mut buf)
+        {
+            let _ = peripheral.write(&mut buf[..size]);
+            PACKET_ID.set(PACKET_ID.get_id() + 1);
+        }
+    }
+
     #[inline(never)]
     #[unsafe(link_section = ".kernel.text")]
-    pub(crate) fn handle(&mut self) -> Option<Packet> {
+    pub(crate) fn handle<'h>(&'h mut self) -> Option<Packet<'h>> {
         if let Ok(size) = self.peripheral.read(&mut self.buf)
             && size > 0
         {
@@ -117,15 +136,25 @@ impl<'p> Port<'p> {
                 }
 
                 if p.flags.contains(Flags::FRAGMENTED) {
-                    self.fragments.append(&mut p.payload.to_vec());
+                    if Self::try_append_fragment(&mut self.fragments, p.payload).is_err() {
+                        Self::send_allocation_error(&mut self.peripheral, &mut self.fragments, &p);
+                    }
                     None
                 } else {
                     if self.fragments.is_empty() {
                         Some(p)
                     } else {
-                        self.fragments.append(&mut p.payload.to_vec());
-                        p.payload = &self.fragments;
-                        Some(p)
+                        if Self::try_append_fragment(&mut self.fragments, p.payload).is_ok() {
+                            p.payload = &self.fragments;
+                            Some(p)
+                        } else {
+                            Self::send_allocation_error(
+                                &mut self.peripheral,
+                                &mut self.fragments,
+                                &p,
+                            );
+                            None
+                        }
                     }
                 }
             } else {
@@ -136,7 +165,16 @@ impl<'p> Port<'p> {
         }
     }
 
-    pub(crate) fn respond(&mut self) {}
+    pub(crate) fn respond<'r>(&'r mut self, packet: Packet<'r>) {
+        let mut out = [0u8; MAX_BUFFER_LENGTH];
+        packet
+            .encode(&mut out)
+            .and_then(|size| {
+                self.send(&out[..size])
+                    .map_err(|e| EncodeError::BufferTooSmall)
+            })
+            .unwrap_or(0);
+    }
 }
 
 // use orbit_common::feature_mod_use;

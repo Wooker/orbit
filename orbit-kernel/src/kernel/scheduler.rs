@@ -31,15 +31,19 @@ impl<'s> Scheduler<'s> {
         &self.list
     }
 
+    pub(super) fn list_mut(&mut self) -> &mut LinkedList<Pin<Box<Task<'s>>>> {
+        &mut self.list
+    }
+
     pub(super) fn add(&mut self, task: Pin<Box<Task<'s>>>) {
         let mut front = self.list.cursor_front_mut();
 
         if let Some(current) = front.current()
-            && current.priority > task.priority
+            && current.header.priority > task.header.priority
         {
             let mut cursor = self.list.cursor_front_mut();
             while let Some(current) = cursor.current()
-                && task.priority <= current.priority
+                && task.header.priority <= current.header.priority
             {
                 cursor.move_next();
             }

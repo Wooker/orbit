@@ -13,16 +13,29 @@ use spaceport::packet::Packet;
 use crate::{context::Context, id::ID};
 
 pub(crate) static TASK_ID: ID<usize> = ID::new(0);
-const STACK_SIZE: usize = 32;
+const STACK_SIZE: usize = 512;
 
 #[repr(C, align(4))]
-pub(crate) struct Task<'t> {
+pub(crate) struct TaskHeader<'t> {
     pub(crate) context: Context,
     pub(crate) task_id: usize,
     pub(crate) stack: [usize; STACK_SIZE],
     pub(crate) packet: Packet<'t>,
-    // pmp: [PmpEntry; PMP_REGS],
     pub(crate) priority: usize,
+    pub(crate) state: TaskState,
+}
+
+#[derive(PartialEq)]
+pub(crate) enum TaskState {
+    Ready,
+    Waiting,
+    Blocked(usize),
+}
+
+#[repr(C, align(4))]
+pub(crate) struct Task<'t> {
+    pub(crate) header: TaskHeader<'t>,
+    payload: [u8],
 }
 
 impl<'t> Task<'t> {
@@ -30,61 +43,63 @@ impl<'t> Task<'t> {
     where
         't: 'p,
     {
-        let layout = Layout::new::<Task>()
-            .extend(Layout::array::<u8>(packet.payload.len()).unwrap())
-            .unwrap()
-            .0
-            .pad_to_align();
+        let payload_len = packet.payload.len();
+
+        // layout = header + payload
+        let (layout, payload_offset) = Layout::new::<TaskHeader>()
+            .extend(Layout::array::<u8>(payload_len).ok()?)
+            .ok()?;
+
+        let layout = layout.pad_to_align();
 
         unsafe {
-            let ptr = alloc::alloc::alloc(layout) as *mut Task;
-
-            if ptr.is_null() {
-                // alloc::alloc::handle_alloc_error(layout);
-                None
-            } else {
-                (*ptr).context.mepc = addr;
-                (*ptr).context.gp = ptr as usize;
-                (*ptr).context.sp =
-                    &(*ptr).stack as *const [usize; STACK_SIZE] as usize + STACK_SIZE;
-
-                let mut buf = core::slice::from_raw_parts_mut(
-                    (ptr as usize + size_of::<Task>() as usize) as *mut usize as *mut u8,
-                    packet.payload.len(),
-                );
-                buf.copy_from_slice(packet.payload);
-
-                (*ptr).packet = Packet {
-                    version: packet.version,
-                    flags: packet.flags,
-                    packet_id: packet.packet_id,
-                    src: packet.src,
-                    dst: packet.dst,
-                    ttl: packet.ttl,
-                    msg_type: packet.msg_type,
-                    payload: buf,
-                };
-                (*ptr).context.a1 = buf.as_ptr() as usize;
-
-                (*ptr).priority = priority;
-
-                let task_id = TASK_ID.get_id();
-                (*ptr).task_id = task_id;
-                TASK_ID.set(task_id + 1);
-
-                Some(Pin::new(Box::from_raw(ptr)))
+            let raw = alloc::alloc::alloc(layout);
+            if raw.is_null() {
+                return None;
             }
+
+            let header_ptr = raw as *mut TaskHeader;
+            let task_id = TASK_ID.get_id();
+
+            // initialize header
+            core::ptr::write(
+                header_ptr,
+                TaskHeader {
+                    context: Context::new(),
+                    task_id: TASK_ID.get_id(),
+                    stack: [0; STACK_SIZE],
+                    packet: packet,
+                    priority,
+                    state: TaskState::Waiting,
+                },
+            );
+            TASK_ID.set(task_id + 1);
+
+            // payload pointer (correctly aligned!)
+            let payload_ptr = raw.add(payload_offset);
+
+            core::ptr::copy_nonoverlapping(packet.payload.as_ptr(), payload_ptr, payload_len);
+
+            (*header_ptr).packet.payload =
+                core::slice::from_raw_parts_mut(payload_ptr, payload_len);
+
+            (*header_ptr).context.mepc = addr;
+            (*header_ptr).context.gp = raw as usize;
+            (*header_ptr).context.sp =
+                &(*header_ptr).stack as *const [usize; STACK_SIZE] as usize + STACK_SIZE;
+            (*header_ptr).context.a0 = payload_ptr as usize;
+            (*header_ptr).context.a1 = payload_len;
+
+            // construct fat pointer properly
+            let task_ptr = core::ptr::from_raw_parts_mut(raw as *mut (), payload_len) as *mut Task;
+
+            Some(Pin::new_unchecked(Box::from_raw(task_ptr)))
         }
     }
-}
 
-impl<'t> Drop for Task<'t> {
-    fn drop(&mut self) {
-        let layout = Layout::new::<Task>()
-            .extend(Layout::array::<u8>(self.packet.payload.len()).unwrap())
-            .unwrap()
-            .0
-            .pad_to_align();
-        unsafe { alloc::alloc::dealloc(self as *mut Task as *mut u8, layout) }
+    pub fn for_driver<'p>(self: &mut Pin<Box<Self>>, driver_addr: usize) {
+        self.header.context.a2 = self.header.context.a1;
+        self.header.context.a1 = self.header.context.a0;
+        self.header.context.a0 = driver_addr;
     }
 }

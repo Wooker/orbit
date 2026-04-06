@@ -26,17 +26,8 @@ SECTIONS
         *(.sbss .sbss.*);
     } >RAM
 
-    .eh_frame :
-    {
-        *(.eh_frame);
-    } > RAM AT>FLASH
-
-    .kernel.stack ORIGIN(RAM) + LENGTH(RAM) : ALIGN(4)
-    {
-        PROVIDE( _stack_top = .);
-    } >RAM
-
     /DISCARD/ : { *(.comment); }
+    /DISCARD/ : { *(.eh_frame); }
     /DISCARD/ : { *(.riscv.attributes); }
 }
 

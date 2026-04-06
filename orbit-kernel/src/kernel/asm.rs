@@ -2,7 +2,7 @@ use core::arch::{asm, naked_asm};
 
 #[unsafe(naked)]
 #[unsafe(no_mangle)]
-pub(super) unsafe extern "C" fn interrupt_handler_exit() -> ! {
+pub(super) unsafe extern "C" fn exit_to_loop() -> ! {
     naked_asm!(
         // a0 is 0 or 1
         // 1 - call app
@@ -33,85 +33,8 @@ pub(super) unsafe extern "C" fn call_app() {
 pub(super) unsafe extern "C" fn syscall_handler_exit() {
     naked_asm!(
         "
-
-            beqz a1, syscall_handler_return_from_init;
-            mv t0, a2;
-            li t1, 5;
-            beq t0, t1, syscall_handler_await;
-            li t1, 1;
-            beq t0, t1, syscall_handler_return;
-            li t1, 9;
-            beq t0, t1, syscall_handler_mem_alloc;
-            bnez t0, syscall_handler_return_to_app;
-            beqz t0, syscall_handler_return_from_init;
-            "
-    );
-}
-
-#[unsafe(naked)]
-#[unsafe(no_mangle)]
-pub(super) unsafe extern "C" fn syscall_handler_await() {
-    naked_asm!(
-        "
-            csrr t0, mepc;
-            addi t0, t0, 4;
-            sw t0, 0x7c(a1);
-            ",
-        "
-            la t0, wait;
-            csrw mepc, t0;
-            mret;
-            "
-    );
-}
-
-#[unsafe(naked)]
-#[unsafe(no_mangle)]
-pub(super) unsafe extern "C" fn syscall_handler_mem_alloc() {
-    naked_asm!(
-        "
-            lw t0, 0x08(a1);
-            csrr t1, mepc;
-            addi t1, t1, 4;
-            csrw mepc, t1;
-            j load_context;
-            "
-    );
-}
-
-#[unsafe(naked)]
-#[unsafe(no_mangle)]
-pub(super) unsafe extern "C" fn syscall_handler_return_to_app() {
-    naked_asm!(
-        "
-            lw t0, 0x28(a1);
-            csrr t1, mepc;
-            addi t1, t1, 4;
-            csrw mepc, t1;
-            j load_context;
-            "
-    );
-}
-
-#[unsafe(naked)]
-#[unsafe(no_mangle)]
-pub(super) unsafe extern "C" fn syscall_handler_return_from_init() {
-    naked_asm!(
-        "
-            lw ra, 0(gp);
-            ret;
-            "
-    );
-}
-
-#[unsafe(naked)]
-#[unsafe(no_mangle)]
-pub(super) unsafe extern "C" fn syscall_handler_return() {
-    naked_asm!(
-        "
-            la t0, wait;
-            csrw mepc, t0;
-            mret;
+        mv a0, gp;
+            j setup_event_loop;
             "
     );
 }
@@ -120,16 +43,6 @@ pub(super) unsafe extern "C" fn syscall_handler_return() {
 #[inline(never)]
 pub(super) fn wait(_kernel: usize) {
     loop {}
-}
-
-#[unsafe(naked)]
-#[unsafe(no_mangle)]
-pub(super) unsafe fn kernel_main() {
-    naked_asm!(
-        "
-            call setup_event_loop;
-            "
-    )
 }
 
 // Save registers if _e_ extension
@@ -370,36 +283,6 @@ pub(super) unsafe fn context_switch(_kernel: usize, _struct_addr: usize, _addr: 
     #[unsafe(no_mangle)]
     pub(super) unsafe extern "C" fn load_finish_for_app() {
         naked_asm!(
-            "
-                    j load_finish_for_app_to_main;
-                    "
-        )
-    }
-
-    #[unsafe(naked)]
-    #[unsafe(no_mangle)]
-    pub(super) unsafe extern "C" fn load_finish_for_app_to_main() {
-        naked_asm!(
-            // Restore t0
-            "
-                    lw t0, 0x0(sp);
-                    addi sp, sp, 0x4;
-                    ",
-            // Load sp
-            "
-                    lw sp, 0x4(gp);
-                    ",
-            "
-                    mv a0, gp;
-                    ",
-            "mret;"
-        )
-    }
-
-    #[unsafe(naked)]
-    #[unsafe(no_mangle)]
-    pub(super) unsafe extern "C" fn load_finish_for_app_from_interrupt() {
-        naked_asm!(
             // Restore t0
             "
                     lw t0, 0x0(sp);
@@ -496,9 +379,20 @@ pub(super) unsafe extern "C" fn handle_mcause() {
             //
             "
                 csrr a0, mscratch;
-                la ra, call_app;
+                la ra, interrupt_handler_exit;
                 j interrupt_handler;
                 ",
+        );
+    }
+
+    #[unsafe(naked)]
+    #[unsafe(no_mangle)]
+    pub(super) unsafe extern "C" fn interrupt_handler_exit() {
+        naked_asm!(
+            "
+            mv a0, gp;
+            j setup_event_loop;
+            "
         );
     }
 
@@ -525,17 +419,5 @@ pub(super) unsafe extern "C" fn handle_mcause() {
                 j syscall_handler;
                 "
         );
-    }
-
-    #[unsafe(naked)]
-    #[unsafe(no_mangle)]
-    pub(super) unsafe extern "C" fn user_ecall_int() {
-        naked_asm!("call load_context;");
-    }
-
-    #[unsafe(naked)]
-    #[unsafe(no_mangle)]
-    pub(super) unsafe extern "C" fn return_handler() {
-        naked_asm!("ret");
     }
 }

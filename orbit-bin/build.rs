@@ -64,6 +64,14 @@ SECTIONS
     {{
         *(.{0}.rodata)
     }}
+    .apps.{0}.data : ALIGN(4)
+    {{
+        *(.{0}.data)
+    }}
+    .apps.{0}.bss : ALIGN(4)
+    {{
+        *(.{0}.bss)
+    }}
 }}
 ",
             name

@@ -1,22 +1,10 @@
-use core::ops::Add;
-
-use crate::{
-    RINGBUF_SIZE,
-    // claim::KernelPeripherals,
-    context::Context,
-    // pmp_entry::PmpEntry,
-    ringbuf::RingBuf,
-};
-
 #[derive(Clone, Copy)]
 pub struct AppContainer<'a> {
     name: &'a str,
-    struct_addr: usize,
+    driver_struct: Option<usize>,
     init_addr: usize,
     main_addr: usize,
     interrupt_addr: usize,
-    heap_addr: usize,
-    heap_size: usize,
     // pmp: [PmpEntry; PMP_REGS],
     // peripherals: [Option<KernelPeripherals>; PMP_REGS],
 }
@@ -24,12 +12,10 @@ pub struct AppContainer<'a> {
 impl<'a> AppContainer<'a> {
     pub fn new(
         name: &'a str,
-        app_struct: usize,
+        app_struct: Option<usize>,
         app_init_addr: usize,
         app_main_addr: usize,
         app_interrupt_addr: usize,
-        heap_addr: usize,
-        heap_size: usize,
         // pmp: [PmpEntry; PMP_REGS],
         // peripherals: [Option<KernelPeripherals>; PMP_REGS],
     ) -> Self {
@@ -39,12 +25,10 @@ impl<'a> AppContainer<'a> {
         // }
         Self {
             name,
-            struct_addr: app_struct,
+            driver_struct: app_struct,
             init_addr: app_init_addr,
             main_addr: app_main_addr,
             interrupt_addr: app_interrupt_addr,
-            heap_addr,
-            heap_size,
             // pmp,
             // peripherals,
         }
@@ -54,8 +38,8 @@ impl<'a> AppContainer<'a> {
         self.name
     }
 
-    pub fn struct_addr(&self) -> usize {
-        self.struct_addr
+    pub fn driver_struct(&self) -> &Option<usize> {
+        &self.driver_struct
     }
 
     pub fn init_addr(&self) -> usize {
@@ -68,23 +52,6 @@ impl<'a> AppContainer<'a> {
 
     pub fn interrupt_addr(&self) -> usize {
         self.interrupt_addr
-    }
-
-    pub fn context(&self) -> &mut Context {
-        unsafe { &mut *(self.struct_addr as *mut Context) }
-    }
-
-    pub fn heap(&mut self) -> &mut [usize] {
-        unsafe {
-            core::slice::from_raw_parts_mut(&mut self.heap_addr as *mut usize, self.heap_size)
-        }
-    }
-
-    pub fn buf(&mut self) -> &mut RingBuf<RINGBUF_SIZE> {
-        unsafe {
-            &mut *(self.struct_addr.add(core::mem::size_of::<Context>())
-                as *mut RingBuf<RINGBUF_SIZE>)
-        }
     }
 
     // pub fn get_pmp(&self) -> [PmpEntry; PMP_REGS] {

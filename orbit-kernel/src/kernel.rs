@@ -1,23 +1,25 @@
 #![allow(unused)]
 pub mod asm;
+mod message_handlers;
 mod scheduler;
 
 use crate::{
     RINGBUF_SIZE,
     allocator::{ALLOCATOR, SimpleAllocator},
+    application::Application,
     application_container::{AppContainer, RunApplication},
     claim::KernelPeripherals,
     clock::Clocks,
     context::Context,
     id::ID,
-    kernel::scheduler::Scheduler,
+    kernel::{message_handlers::handle_invoke, scheduler::Scheduler},
     port::{
         Port,
         port_kind::{PORT_INTERRUPTS, PORT_NUM},
     },
     ringbuf::RingBuf,
     syscall::SysCall,
-    task::Task,
+    task::{Task, TaskState},
 };
 use alloc::{boxed::Box, collections::linked_list::LinkedList, slice, vec::Vec};
 use core::{
@@ -37,10 +39,6 @@ use spaceport::{
     types::Flags,
 };
 
-unsafe extern "C" {
-    static KEEP_LIBOS: extern "C" fn() -> !;
-}
-
 pub const APPS: usize = 5;
 pub(crate) static PACKET_ID: ID<u16> = ID::new(0);
 pub static KERNEL_MAJOR: u8 = 0;
@@ -49,8 +47,8 @@ pub static KERNEL_MINOR: u8 = 1;
 #[repr(C, align(4))]
 pub struct Kernel<'k> {
     context: Context,
-    running: Option<usize>,
-    apps: [MaybeUninit<AppContainer<'k>>; APPS],
+    apps: Vec<AppContainer<'k>>,
+    drivers: Vec<AppContainer<'k>>,
     ports: [Port<'k>; PORT_NUM],
     claims: [bool; KernelPeripherals::MAX as usize],
     pub core: Core<PMP>,
@@ -66,22 +64,24 @@ unsafe extern "C" {
     static mut _ebss: u32;
 }
 
-unsafe fn init_memory() {
-    // Copy .data
-    let mut src = &raw const _sidata as *const u32;
-    let mut dst = &raw mut _sdata as *mut u32;
+fn init_memory() {
+    unsafe {
+        // Copy .data
+        let mut src = &raw const _sidata as *const u32;
+        let mut dst = &raw mut _sdata as *mut u32;
 
-    while dst < &raw mut _edata {
-        *dst = *src;
-        dst = dst.add(1);
-        src = src.add(1);
-    }
+        while dst < &raw mut _edata {
+            *dst = *src;
+            dst = dst.add(1);
+            src = src.add(1);
+        }
 
-    // Zero .bss
-    let mut bss = &raw mut _sbss as *mut u32;
-    while bss < &raw mut _ebss {
-        *bss = 0;
-        bss = bss.add(1);
+        // Zero .bss
+        let mut bss = &raw mut _sbss as *mut u32;
+        while bss < &raw mut _ebss {
+            *bss = 0;
+            bss = bss.add(1);
+        }
     }
 }
 
@@ -115,10 +115,10 @@ impl<'k> Kernel<'k> {
             context: Context::new(),
             core: Core::new(),
             ports,
-            apps: [MaybeUninit::uninit(); APPS],
+            apps: Vec::new(),
+            drivers: Vec::new(),
             claims: [false; KernelPeripherals::MAX as usize],
             clock,
-            running: None,
             scheduler: Scheduler::new(),
         };
 
@@ -136,17 +136,21 @@ impl<'k> Kernel<'k> {
     }
 
     #[inline(never)]
-    pub fn add_application(&mut self, index: usize, app_cont: AppContainer<'k>, sp: usize) {
-        let app_i = unsafe { self.apps.get_unchecked_mut(index) };
-        app_i.write(app_cont);
-        // self.running = Some(index);
-        // app_cont.context().sp = sp;
-        // app_cont.context().gp = app_cont.context() as *const Context as usize;
-        unsafe {
-            asm!("sw ra, 0x0(gp);");
-            // asm!("sw sp, 0x4(gp);");
+    pub fn add_application(&mut self, app_cont: AppContainer<'k>) {
+        self.apps.push(app_cont);
+    }
+
+    #[inline(never)]
+    pub fn add_driver(&mut self, app_cont: AppContainer<'k>) {
+        if let Some(task) = Task::new(
+            Packet::new(Flags::empty(), 0, 0, 0, Message::Invoke, b"init driver"),
+            1,
+            app_cont.init_addr(),
+        ) {
+            // task.header.context.ra = app_cont.ecall_addr();
+            self.drivers.push(app_cont);
+            self.scheduler.add(task);
         }
-        // self.setup_event_loop(RunApplication::Init);
     }
 
     // #[inline(never)]
@@ -168,73 +172,40 @@ impl<'k> Kernel<'k> {
     #[inline(never)]
     #[unsafe(no_mangle)]
     fn port_handler(&mut self, i: usize) {
-        let packet = {
-            let port = &mut self.ports[i];
-            port.msg += 1;
-            port.handle()
-        };
-
-        let response = if let Some(packet) = packet {
+        if let Some(packet) = self.ports[i].handle() {
             match packet.msg_type {
                 Message::Invoke => {
-                    let divider_index =
-                        packet.payload.iter().enumerate().find(|(i, b)| **b == b' ');
-                    let (name, arg) = divider_index.map_or((packet.payload, None), |index| {
-                        let (a, b) = packet.payload.split_at(index.0);
-                        (a, Some(b))
-                    });
-
-                    let mut out = [0u8; MAX_BUFFER_LENGTH];
-                    if let Some((app_index, _maybe_app)) =
-                        self.apps.iter().enumerate().find(|(_, app)| {
-                            let app = unsafe { app.assume_init_read() };
-                            let app_name = app.name();
-                            app_name.as_bytes().eq(name)
-                        })
-                    {
-                        let app =
-                            unsafe { self.apps.get_unchecked_mut(app_index).assume_init_mut() };
-
-                        if let Some(arg) = arg {
-                            arg.iter().skip(1).for_each(|b| app.buf().push(*b));
-                        }
-
-                        if let Some(task) = Task::new(packet, 1, unsafe { KEEP_LIBOS as usize }) {
-                            let task_id = task.task_id;
-                            self.running = Some(app_index);
-                            self.scheduler.add(task);
-                            self.ports[i].fragments.fill(0);
-                            self.ports[i].fragments.clear();
-                            self.ports[i].fragments.shrink_to(MAX_PAYLOAD_LENGTH);
-                            None
-                            // Some(packet.reply(b"Ok"))
-                        } else {
-                            Some(packet.reply(b"Could not create task"))
-                        }
-                    } else {
-                        Some(packet.reply(b"Unknown name"))
-                    }
+                    let resp = handle_invoke(
+                        &mut self.apps,
+                        &mut self.drivers,
+                        &mut self.scheduler,
+                        packet,
+                    );
+                    self.ports[i].respond(resp);
                 }
                 Message::KernelVersion => {
-                    let mut out = [0u8; MAX_BUFFER_LENGTH];
-                    Some(packet.reply(&[0, 1]))
+                    let (id, src, dst) = (packet.packet_id + 1, packet.dst, packet.src);
+                    self.ports[i].respond(Packet::new(
+                        Flags::empty(),
+                        id,
+                        src,
+                        dst,
+                        Message::Reply,
+                        &[KERNEL_MAJOR, KERNEL_MINOR],
+                    ))
                 }
-                _ => None,
+                _ => self.ports[i].respond(Packet {
+                    version: PROTOCOL_VERSION,
+                    flags: Flags::ERROR,
+                    packet_id: 0,
+                    src: 0,
+                    dst: 0,
+                    ttl: 0,
+                    msg_type: Message::Reply,
+                    payload: b"Not implemented",
+                }),
             }
-        } else {
-            None
-        };
-
-        if let Some(response) = response {
-            let mut out = [0u8; MAX_BUFFER_LENGTH];
-            response
-                .encode(&mut out)
-                .and_then(|size| {
-                    let port = &mut self.ports[i];
-                    port.send(&out[..size])
-                        .map_err(|e| EncodeError::BufferTooSmall)
-                })
-                .unwrap_or(0);
+            self.ports[i].fragments = Vec::new();
         }
     }
 
@@ -244,14 +215,12 @@ impl<'k> Kernel<'k> {
         let code = orbit_arch::riscv::register::mcause::read().code();
 
         // Check if it's a port interrupt
-        if let Some((index, _)) = PORT_INTERRUPTS
+        if let Some((index, port)) = PORT_INTERRUPTS
             .0
             .iter()
             .enumerate()
             .find(|(_, (_, interrupt, _))| *interrupt == code)
         {
-            // Returns bool to indicate if an application
-            // is invoked
             self.port_handler(index);
         } else {
             // TODO: invoke app interrupt
@@ -262,268 +231,148 @@ impl<'k> Kernel<'k> {
     #[unsafe(no_mangle)]
     fn syscall_handler(&mut self) {
         let self_addr = self as *const Kernel as usize;
-        let app = unsafe { self.apps.get_unchecked_mut(self.running.unwrap_unchecked()) };
+        let syscall = {
+            let task = self.scheduler.current_mut().unwrap();
 
-        let syscall = SysCall::from_usize(self.scheduler.current().unwrap().context.a0);
-        let task_addr =
-            self.scheduler.current().unwrap().as_ref().get_ref() as *const Task as usize;
-        let task_return = self.scheduler.current().unwrap().context.a0;
+            task.header.context.mepc = orbit_arch::riscv::register::mepc::read() + 4;
+            let task_addr = &**task as *const Task as *const () as usize;
+            SysCall::from_usize(task.header.context.a0)
+        };
 
         match syscall {
-            SysCall::ReturnInit => {
-                let app_cont = unsafe { app.assume_init_mut() };
-                match app_cont.context().a1 {
-                    0 => {
-                        self.running = None;
-                        unsafe {
-                            asm!(
-                                "",
-                                in("a0") self_addr,
-                                in("a1") app_cont.struct_addr() as usize,
-                                in("a2") app_cont.main_addr() as usize,
-                                in("a3") app_cont.interrupt_addr() as usize,
-                            )
-                        }
-                    }
-                    1 => {
-                        unsafe {
-                            app.assume_init_drop();
-                            self.apps[self.running.unwrap_unchecked()] = MaybeUninit::zeroed();
-                        }
-                        // app.write(unsafe { core::mem::zeroed() });
-                        unsafe {
-                            asm!(
-                                "",
-                                in("a0") self_addr,
-                                in("a1") 0,
-                                in("a2") 0,
-                                in("a3") 0,
-                            )
-                        }
-                    }
-                    _ => {}
-                }
-            }
             SysCall::ReturnMain => {
                 orbit_arch::riscv::register::mepc::write(asm::wait as *const fn() as usize);
                 self.context.a1 = 0;
 
-                let app_cont = unsafe { app.assume_init_mut() };
-                self.running = None;
-                if let Some(port) = self
-                    .ports
-                    .iter_mut()
-                    .filter_map(|port| port.msg.ne(&0usize).then(|| port))
-                    .nth(0)
-                {
-                    let mut out = [0u8; MAX_BUFFER_LENGTH];
-                    if let Some(task) = self.scheduler.pop() {
-                        task.packet
-                            .reply(&task.packet.payload.len().to_le_bytes())
-                            .encode(&mut out)
-                            .and_then(|size| {
-                                port.send(&out[..size])
-                                    .map_err(|_| EncodeError::BufferTooSmall)
-                            })
-                            .unwrap_or(0);
-                    }
-                }
-                self.ports.iter_mut().for_each(|port| {
-                    port.msg = 0;
-                });
-                unsafe {
-                    asm!(
-                        "",
-                        in("a0") self_addr,
-                        in("a1") task_addr,
-                        in("a2") task_return,
-                        in("a3") app_cont.interrupt_addr() as usize,
-                    )
-                }
-            }
-            SysCall::NumPorts => {
-                let app_cont = unsafe { app.assume_init_mut() };
-                usize::to_le_bytes(PORT_NUM)
-                    .iter()
-                    .for_each(|b| app_cont.buf().push(*b));
-                app_cont.buf().push(b'\0');
-                unsafe {
-                    asm!(
-                        "",
-                        in("a0") self_addr,
-                        in("a1") app_cont.struct_addr() as usize,
-                        in("a2") app_cont.main_addr() as usize,
-                        in("a3") app_cont.interrupt_addr() as usize,
-                    )
-                }
-            }
-            SysCall::SendAll => {
-                let app_cont = unsafe { app.assume_init_mut() };
-
-                for port in self
-                    .ports
-                    .iter_mut()
-                    .filter_map(|port| port.msg.eq(&0usize).then(|| port))
-                {
-                    port.write(app_cont.buf().read());
-                    port.awaiting = true;
-                }
-                unsafe {
-                    asm!(
-                        "",
-                        in("a0") self_addr,
-                        in("a1") app_cont.struct_addr() as usize,
-                        in("a2") app_cont.main_addr() as usize,
-                        in("a3") app_cont.interrupt_addr() as usize,
-                    )
-                }
-            }
-            SysCall::Await => {
-                // let app_cont = unsafe { app.assume_init_mut() };
-                // app_cont.buf().flush();
-                // let awaiting_num = self
-                //     .ports
-                //     .iter()
-                //     .filter(|p| unsafe { p.assume_init_read() }.awaiting)
-                //     .count();
-                // app_cont.buf().push(awaiting_num as u8);
-                // app_cont.buf().push(b'\0');
-            }
-            SysCall::AwaitAll => {
-                // let app_cont = unsafe { app.assume_init_mut() };
-                // app_cont.buf().flush();
-                // for port in self.ports.iter_mut().filter_map(|p| {
-                //     let port = unsafe { p.assume_init_mut() };
-                //     port.msg.eq(&0usize).then(|| port)
-                // }) {
-                //     port.write(info);
-                //     port.awaiting = true;
-                // }
-                // app_cont.buf().push(awaiting_num as u8);
-                // app_cont.buf().push(b'\0');
-            }
-            SysCall::MemAlloc => {
-                let app_cont = unsafe { app.assume_init_mut() };
-                let output = if let Ok(byte_arr) = app_cont.buf().read().try_into() {
-                    let heap = app_cont.heap();
-                    let alloc_size = usize::from_le_bytes(byte_arr);
-                    if let Some((i, space)) =
-                        heap.iter().enumerate().skip_while(|(_, p)| **p != 0).next()
+                let mut out = [0u8; MAX_BUFFER_LENGTH];
+                if let Some(task) = self.scheduler.pop() {
+                    if let Some(blocked) = self
+                        .scheduler
+                        .list_mut()
+                        .iter_mut()
+                        .find(|t| t.header.state == TaskState::Blocked(task.header.task_id))
                     {
-                        if heap[i..].len() > alloc_size {
-                            space.to_le_bytes()
-                        } else {
-                            3_usize.to_le_bytes()
-                        }
-                    } else {
-                        2_usize.to_le_bytes()
+                        blocked.header.context.a0 = task.header.context.a1;
+                        blocked.header.state = TaskState::Ready;
                     }
-                } else {
-                    1_usize.to_le_bytes()
-                };
-
-                let app_buf = app_cont.buf();
-                output.iter().for_each(|b| app_buf.push(*b));
-
-                unsafe {
-                    asm!(
-                        "",
-                        in("a0") self_addr,
-                        in("a1") app_cont.struct_addr() as usize,
-                        in("a2") app_cont.main_addr() as usize,
-                        in("a3") app_cont.interrupt_addr() as usize,
-                    )
+                    task.header
+                        .packet
+                        .reply(&task.header.packet.payload.len().to_le_bytes())
+                        .encode(&mut out)
+                        .and_then(|size| {
+                            self.ports[0]
+                                .send(&out[..size])
+                                .map_err(|_| EncodeError::BufferTooSmall)
+                        })
+                        .unwrap_or(0);
                 }
             }
-            SysCall::ClaimPeripheral => {
-                let app_cont = unsafe { app.assume_init_mut() };
-                let app_buf = app_cont.buf();
-                let ind = app_buf.read().get(0).unwrap().clone() as usize;
-
-                let claim_spot = self.claims.get_mut(ind).unwrap();
-                if *claim_spot == false {
-                    app_buf.push(1);
-                    *claim_spot = true;
-                } else {
-                    app_buf.push(0);
+            SysCall::ReturnInit => {
+                if let Some(task) = self.scheduler.pop() {
+                    task.header.packet.reply(b"Hello");
                 }
-                unsafe {
-                    asm!(
-                        "",
-                        in("a0") self_addr,
-                        in("a1") app_cont.struct_addr() as usize,
-                        in("a2") app_cont.main_addr() as usize,
-                        in("a3") app_cont.interrupt_addr() as usize,
+            }
+            SysCall::Send => {
+                let task = self.scheduler.current_mut().unwrap();
+                let buf = unsafe {
+                    core::slice::from_raw_parts(
+                        task.header.context.a1 as *const u8,
+                        task.header.context.a2,
                     )
-                }
+                };
+                let mut out = [0u8; MAX_BUFFER_LENGTH];
+                task.header
+                    .packet
+                    .reply(buf)
+                    .encode(&mut out)
+                    .and_then(|size| {
+                        self.ports[0]
+                            .send(&out[..size])
+                            .map_err(|_| EncodeError::BufferTooSmall)
+                    })
+                    .unwrap_or(0);
             }
             SysCall::Invoke => {
-                let app_cont = unsafe { app.assume_init_mut() };
-                let app_buf = app_cont.buf();
-                let ind = app_buf.read().get(0).unwrap().clone() as usize;
-
-                let claim_spot = self.claims.get_mut(ind).unwrap();
-                if *claim_spot == false {
-                    app_buf.push(1);
-                    *claim_spot = true;
-                } else {
-                    app_buf.push(0);
-                }
-                unsafe {
-                    asm!(
-                        "",
-                        in("a0") self_addr,
-                        in("a1") app_cont.struct_addr() as usize,
-                        in("a2") app_cont.main_addr() as usize,
-                        in("a3") app_cont.interrupt_addr() as usize,
+                let task = self.scheduler.current_mut().unwrap();
+                let name = unsafe {
+                    core::slice::from_raw_parts(
+                        task.header.context.a1 as *const u8,
+                        task.header.context.a2,
                     )
-                }
-            }
-            _ => {
-                let app_cont = unsafe { app.assume_init_mut() };
-                for port in self
-                    .ports
-                    .iter_mut()
-                    .filter_map(|port| port.msg.eq(&0usize).then(|| port))
-                {
-                    port.write(&[syscall.discriminant() as u8]);
-                    unsafe {
-                        asm!(
-                            "",
-                            in("a0") self_addr,
-                            in("a1") app_cont.struct_addr() as usize,
-                            in("a2") app_cont.main_addr() as usize,
-                            in("a3") app_cont.interrupt_addr() as usize,
-                        )
+                };
+                let arg = unsafe {
+                    core::slice::from_raw_parts(
+                        task.header.context.a3 as *const u8,
+                        task.header.context.a4,
+                    )
+                };
+                if let Some(app) = self.apps.iter().find(|a| a.name().as_bytes() == name) {
+                    let packet_id = PACKET_ID.get_id();
+                    PACKET_ID.set(packet_id + 1);
+                    if let Some(t) = Task::new(
+                        Packet::new(
+                            Flags::empty(),
+                            packet_id,
+                            0,
+                            0,
+                            Message::Invoke,
+                            &[name, b" ", arg].concat(),
+                        ),
+                        task.header.priority.saturating_add(1),
+                        app.main_addr(),
+                    ) {
+                        task.header.state = TaskState::Blocked(t.header.task_id);
                     }
+                } else if let Some(driver) =
+                    self.drivers.iter().find(|d| d.name().as_bytes() == name)
+                {
+                    let packet_id = PACKET_ID.get_id();
+                    PACKET_ID.set(packet_id + 1);
+                    if let Some(mut t) = Task::new(
+                        Packet::new(
+                            Flags::empty(),
+                            packet_id,
+                            0,
+                            0,
+                            Message::Invoke,
+                            &[name, b" ", arg].concat(),
+                        ),
+                        task.header.priority.saturating_add(1),
+                        driver.main_addr(),
+                    ) {
+                        task.header.state = TaskState::Blocked(t.header.task_id);
+                        t.for_driver(driver.driver_struct().unwrap());
+                    }
+                } else {
+                    task.header.context.a0 = usize::MAX;
                 }
             }
-        }
-
-        // self.set_pmp(&app_cont);
+            _ => {}
+        };
     }
 
     #[unsafe(no_mangle)]
     #[inline(never)]
-    fn setup_event_loop(&mut self) -> ! {
-        if let Some(task) = self.scheduler.current() {
-            let task_addr = task.as_ref().get_ref() as *const Task as usize;
-            let addr = task.context.mepc;
+    pub fn setup_event_loop(&mut self) -> ! {
+        if let Some(task) = self.scheduler.current_mut() {
+            let task_addr = task.as_ref().get_ref() as *const Task as *const ();
+            let addr = task.header.context.mepc;
+            task.header.state = TaskState::Ready;
             // self.set_pmp(&app_cont);
-            unsafe { asm::context_switch(self as *const Kernel as usize, task_addr, addr) }
+            unsafe { asm::context_switch(self as *const Kernel as usize, task_addr as usize, addr) }
         } else {
-            unsafe { asm::interrupt_handler_exit() }
+            unsafe { asm::exit_to_loop() }
         }
     }
     #[unsafe(no_mangle)]
     #[inline(never)]
     pub fn handle_panic(&mut self, panic_info: &PanicInfo) {
-        for port in self.ports.iter_mut() {
-            // let msg = panic_info.message().as_str().unwrap();
-            // for chunk in msg.as_bytes().chunks(32) {
-            //     port.write(chunk);
-            // }
-        }
+        // for port in self.ports.iter_mut() {
+        //     let msg = panic_info.message().as_str().unwrap();
+        //     for chunk in msg.as_bytes().chunks(32) {
+        //         port.write(chunk);
+        //     }
+        // }
     }
 
     #[unsafe(naked)]

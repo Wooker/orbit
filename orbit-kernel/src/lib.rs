@@ -11,6 +11,7 @@
 #![feature(iter_array_chunks)]
 #![feature(slice_shift)]
 #![feature(linked_list_cursors)]
+#![feature(ptr_metadata)]
 
 pub mod application;
 pub mod application_container;
@@ -25,6 +26,7 @@ pub mod usizebuf;
 pub use spaceport;
 
 extern crate alloc;
+#[cfg(feature = "rt")]
 mod allocator;
 #[cfg(feature = "rt")]
 pub mod kernel;
@@ -38,7 +40,7 @@ pub mod task;
 pub use chip;
 #[cfg(feature = "rt")]
 pub use orbit_arch as arch;
-use spaceport::packet::{MAX_BUFFER_LENGTH, MAX_PACKET_LENGTH};
+use spaceport::packet::MAX_BUFFER_LENGTH;
 
 // TODO: make use of PMP internal. Application code should
 // not rely on this const. to_container does rely at the moment

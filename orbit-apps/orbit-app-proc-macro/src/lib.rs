@@ -117,8 +117,8 @@ pub fn orbit_app(attr: TokenStream, item: TokenStream) -> TokenStream {
         // let fn_name = format_ident!("claim_peripheral_{}", lower);
         quote! {
             // fn #fn_name(&mut self) -> orbit_kernel::chip::pac::#i {
-                self.ringbuf.push(KernelPeripherals::#i as u8);
-                syscall!(SysCall::ClaimPeripheral);
+                // self.ringbuf.push(KernelPeripherals::#i as u8);
+                // syscall!(SysCall::ClaimPeripheral);
                 self.peripherals.#lower.write(unsafe { orbit_kernel::chip::pac::#i::steal() });
             // }
         }
@@ -181,45 +181,26 @@ pub fn orbit_app(attr: TokenStream, item: TokenStream) -> TokenStream {
         #[repr(C,align(4))]
         #(#attributes)*
         pub struct #struct_name #ty_generics {
-            context: Context,
-            ringbuf: RingBuf<RINGBUF_SIZE>,
             #existing_fields
             peripherals: Peripherals<'app>,
-            pub heap: [usize; HEAP_SIZE],
-            pub stack: [usize; STACK_SIZE],
             _phantom: PhantomData<&'app ()>,
         }
 
         impl #impl_generics #struct_name #ty_generics {
             pub fn new() -> Self{
                 let mut app = Self {
-                    context: Context::new(),
-                    ringbuf: RingBuf::default(),
                     #(#existing_fields_default)*
                     peripherals: Peripherals {
                         _phantom: PhantomData,
                         #(#peripherals_in_self)*
                     },
-                    heap: [0; HEAP_SIZE],
-                    stack: [0; STACK_SIZE],
                     _phantom: PhantomData,
                 };
-                app.context.ra = Self::ecall as *const fn() as usize;
+                // app.context.ra = Self::ecall as *const fn() as usize;
                 // app.context.sp = &app.stack as *const [usize; STACK_SIZE] as usize + STACK_SIZE;
                 // app.context.gp = &app as *const Self as usize;
 
                 app
-            }
-
-
-            #[inline(always)]
-            pub const fn heap_size() -> usize{
-                HEAP_SIZE
-            }
-
-            #[inline(always)]
-            pub const fn stack_size() -> usize{
-                STACK_SIZE
             }
         }
 
@@ -244,17 +225,13 @@ pub fn orbit_app(attr: TokenStream, item: TokenStream) -> TokenStream {
                 #(#peripherals_assume_init)*
 
                 self._init();
-                unsafe { asm!("li a0, 0;li a1, 0;") };
+                unsafe { asm!("li a0, 0;li a1, 0; ecall") };
             }
 
             #[inline(never)]
-            fn main(&mut self) {
+            fn main(&mut self, buf: &[u8]) {
                 // #(#peripherals_assume_main)*
-                let output = Self::_main(self);
-                self.ringbuf.push(Message::Reply as u8);
-                output.as_bytes()
-                    .iter()
-                    .for_each(|byte| self.ringbuf.push(*byte));
+                let output = Self::_main(self, buf);
                 // self.ringbuf.push(self.ringbuf.termination);
                 unsafe { asm!("li a0, 1;li a1, 0; ecall;") };
             }
@@ -263,21 +240,6 @@ pub fn orbit_app(attr: TokenStream, item: TokenStream) -> TokenStream {
             fn interrupt(&mut self) {
                 self._interrupt();
                 unsafe { asm!("li a0, 2; li a1, 0;") };
-            }
-
-            #[inline(always)]
-            fn context(&mut self) -> usize {
-                &self.context as *const Context as usize
-            }
-
-            #[inline(always)]
-            fn buf(&mut self) -> usize {
-                &self.ringbuf as *const RingBuf<RINGBUF_SIZE> as usize
-            }
-
-            #[inline(always)]
-            fn heap(&self) -> (usize,usize) {
-                (&self.heap as *const [usize; HEAP_SIZE] as usize, HEAP_SIZE)
             }
 
             #[unsafe(naked)]

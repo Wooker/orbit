@@ -72,3 +72,53 @@ macro_rules! syscall {
         }
     };
 }
+
+#[macro_export]
+macro_rules! send {
+    ($buf:expr) => {
+        unsafe {
+            // By binding to a local variable 'data' here, we force the
+            // temporary to live until the end of this unsafe block.
+            let data = $buf;
+            let ptr = data.as_ptr();
+            let len = data.len();
+            let syscall = SysCall::Send.discriminant();
+
+            core::arch::asm!(
+                "ecall",
+                in("a0") syscall,
+                in("a1") ptr,
+                in("a2") len,
+                clobber_abi("C"),
+            );
+        }
+    };
+}
+
+#[macro_export]
+macro_rules! invoke {
+    ($app:expr, $buf:expr) => {{
+        let result: usize;
+        unsafe {
+            let app = $app;
+            let aptr = app.as_ptr();
+            let alen = app.len();
+            let data = $buf;
+            let ptr = data.as_ptr();
+            let len = data.len();
+            let syscall = SysCall::Invoke.discriminant();
+
+            core::arch::asm!(
+                "ecall",
+                in("a0") syscall,
+                in("a1") aptr,
+                in("a2") alen,
+                in("a3") ptr,
+                in("a4") len,
+                lateout("a0") result,
+                clobber_abi("C"),
+            );
+        }
+        result
+    }};
+}

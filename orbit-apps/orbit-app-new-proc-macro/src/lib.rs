@@ -2,11 +2,11 @@
 
 use proc_macro::TokenStream;
 use quote::{format_ident, quote};
-use syn::{parse_macro_input, ItemFn};
+use syn::{ItemFn, parse_macro_input};
 
 #[proc_macro_attribute]
-pub fn orbit_app(attr: TokenStream, item: TokenStream) -> TokenStream {
-    let mut func = parse_macro_input!(item as ItemFn);
+pub fn orbit_app(_attr: TokenStream, item: TokenStream) -> TokenStream {
+    let func = parse_macro_input!(item as ItemFn);
     let crate_name = std::env::var("CARGO_PKG_NAME").unwrap();
 
     let mut func_sig = func.sig;
@@ -20,7 +20,7 @@ pub fn orbit_app(attr: TokenStream, item: TokenStream) -> TokenStream {
     let call_ecall = format!("j {}_ecall", crate_name);
 
     TokenStream::from(quote! {
-        use core::arch::naked_asm;
+        use core::arch::{asm,naked_asm};
         use orbit_kernel as _;
 
         #[unsafe(no_mangle)]
