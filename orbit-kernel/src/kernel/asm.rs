@@ -112,8 +112,8 @@ pub unsafe extern "C" fn save_context() {
                     sw s7, 0x58(gp);
                     sw s8, 0x5c(gp);
                     sw s9, 0x60(gp);
-                    sw s1, 0x64(gp);
-                    sw s1, 0x68(gp);
+                    sw s10, 0x64(gp);
+                    sw s11, 0x68(gp);
                     sw t3, 0x6c(gp);
                     sw t4, 0x70(gp);
                     sw t5, 0x74(gp);
@@ -237,6 +237,7 @@ pub(super) unsafe fn context_switch(_kernel: usize, _struct_addr: usize, _addr: 
                     lw a2, 0x2c(gp);
                     lw a3, 0x30(gp);
                     lw a4, 0x34(gp);
+                    lw a5, 0x38(gp);
                     lw a6, 0x3c(gp);
                     lw a7, 0x40(gp);
                     lw s2, 0x44(gp);
@@ -247,8 +248,8 @@ pub(super) unsafe fn context_switch(_kernel: usize, _struct_addr: usize, _addr: 
                     lw s7, 0x58(gp);
                     lw s8, 0x5c(gp);
                     lw s9, 0x60(gp);
-                    lw s1, 0x64(gp);
-                    lw s1, 0x68(gp);
+                    lw s10, 0x64(gp);
+                    lw s11, 0x68(gp);
                     lw t3, 0x6c(gp);
                     lw t4, 0x70(gp);
                     lw t5, 0x74(gp);

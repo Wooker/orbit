@@ -96,6 +96,25 @@ macro_rules! send {
 }
 
 #[macro_export]
+macro_rules! register_interrupt {
+    ($int:expr) => {
+        unsafe {
+            // By binding to a local variable 'data' here, we force the
+            // temporary to live until the end of this unsafe block.
+            let interrupt = $int;
+            let syscall = SysCall::RegisterInterrupt.discriminant();
+
+            core::arch::asm!(
+                "ecall",
+                in("a0") syscall,
+                in("a1") interrupt,
+                clobber_abi("C"),
+            );
+        }
+    };
+}
+
+#[macro_export]
 macro_rules! invoke {
     ($app:expr, $buf:expr) => {{
         let result: usize;

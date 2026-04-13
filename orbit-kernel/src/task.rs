@@ -3,6 +3,7 @@
 use core::{
     alloc::Layout,
     cell::UnsafeCell,
+    mem::size_of,
     pin::Pin,
     ptr::{null, null_mut},
 };
@@ -85,8 +86,12 @@ impl<'t> Task<'t> {
 
             (*header_ptr).context.mepc = addr;
             (*header_ptr).context.gp = raw as usize;
+            // SP must point to the end of the stack buffer in bytes.
+            // Using `+ STACK_SIZE` here underflows stack capacity because STACK_SIZE is
+            // number of `usize` elements, not number of bytes.
             (*header_ptr).context.sp =
-                &(*header_ptr).stack as *const [usize; STACK_SIZE] as usize + STACK_SIZE;
+                (&(*header_ptr).stack as *const [usize; STACK_SIZE] as usize)
+                    + (STACK_SIZE * size_of::<usize>());
             (*header_ptr).context.a0 = payload_ptr as usize;
             (*header_ptr).context.a1 = payload_len;
 

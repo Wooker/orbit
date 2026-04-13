@@ -17,8 +17,8 @@ impl Clocks {
             rcc.apb1pcenr().write(|w| w.bits(bits));
         }
 
-        // PA, PB, SPI1
-        let bits = 1 << 3 | 1 << 2 | 1 << 12;
+        // PC, PB, PA, AFIO, SPI1
+        let bits = 1 << 4 | 1 << 3 | 1 << 2 | 1 << 0 | 1 << 12;
         unsafe {
             rcc.apb2prstr().write(|w| w.bits(bits));
             rcc.apb2prstr().modify(|r, w| w.bits(r.bits() & !(bits)));

@@ -7,6 +7,8 @@ pub enum SysCall {
     ReturnMain,
     /// Only used after driver interrupt handling
     ReturnInterrupt,
+    /// Register interrupt for driver
+    RegisterInterrupt,
     /// Request delay from kernel
     Delay,
     /// Request the number of kernel ports

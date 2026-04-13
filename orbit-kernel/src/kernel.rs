@@ -49,6 +49,7 @@ pub struct Kernel<'k> {
     context: Context,
     apps: Vec<AppContainer<'k>>,
     drivers: Vec<AppContainer<'k>>,
+    interrupts: [u8; 255],
     ports: [Port<'k>; PORT_NUM],
     claims: [bool; KernelPeripherals::MAX as usize],
     pub core: Core<PMP>,
@@ -103,6 +104,10 @@ impl<'k> Kernel<'k> {
             Port::new(unsafe { &*ptr }, kind)
         });
 
+        unsafe {
+            orbit_arch::pfic::enable_interrupt(40);
+        }
+
         // Save trap handler
         unsafe {
             crate::arch::riscv::register::mtvec::write(
@@ -115,9 +120,9 @@ impl<'k> Kernel<'k> {
             context: Context::new(),
             core: Core::new(),
             ports,
-            apps: Vec::with_capacity(2),
-            drivers: Vec::with_capacity(2),
-            interrupts: [None; 255],
+            apps: Vec::new(),
+            drivers: Vec::new(),
+            interrupts: [0; 255],
             claims: [false; KernelPeripherals::MAX as usize],
             clock,
             scheduler: Scheduler::new(),
@@ -143,12 +148,19 @@ impl<'k> Kernel<'k> {
 
     #[inline(never)]
     pub fn add_driver(&mut self, app_cont: AppContainer<'k>) {
-        if let Some(task) = Task::new(
-            Packet::new(Flags::empty(), 0, 0, 0, Message::Invoke, b"init driver"),
+        if let Some(mut task) = Task::new(
+            Packet::new(
+                Flags::empty(),
+                0,
+                0,
+                0,
+                Message::Invoke,
+                app_cont.name().as_bytes(),
+            ),
             1,
             app_cont.init_addr(),
         ) {
-            // task.header.context.ra = app_cont.ecall_addr();
+            task.for_driver(app_cont.driver_struct().unwrap());
             self.drivers.push(app_cont);
             self.scheduler.add(task);
         }
@@ -223,8 +235,27 @@ impl<'k> Kernel<'k> {
             .find(|(_, (_, interrupt, _))| *interrupt == code)
         {
             self.port_handler(index);
-        } else {
+        } else if self.interrupts[code & 0xff] != 0 {
             // TODO: invoke app interrupt
+            let packet = Packet::new(
+                Flags::empty(),
+                PACKET_ID.get_id(),
+                0,
+                0,
+                Message::Invoke,
+                b"",
+            );
+            let (_, driver) = self
+                .drivers
+                .iter()
+                .enumerate()
+                .find(|(i, d)| (*i as u8) == self.interrupts[code & 0xff])
+                .unwrap();
+            if let Some(mut task) = Task::new(packet, 99, driver.interrupt_addr()) {
+                task.for_driver(driver.driver_struct().unwrap());
+                self.scheduler.add(task);
+            }
+        } else {
         }
     }
 
@@ -271,6 +302,19 @@ impl<'k> Kernel<'k> {
             SysCall::ReturnInit => {
                 if let Some(task) = self.scheduler.pop() {
                     task.header.packet.reply(b"Hello");
+                }
+            }
+            SysCall::RegisterInterrupt => {
+                let task = self.scheduler.current().unwrap();
+                let interrupt = task.header.context.a1;
+                let driver_name = task.header.packet.payload;
+                if let Some((index, driver)) = self
+                    .drivers
+                    .iter()
+                    .enumerate()
+                    .find(|(i, d)| d.name().as_bytes() == driver_name)
+                {
+                    self.interrupts[interrupt] = index as u8;
                 }
             }
             SysCall::Send => {
