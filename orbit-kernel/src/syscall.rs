@@ -25,8 +25,10 @@ pub enum SysCall {
     MemAlloc,
     /// Only used during driver initialization to claim specific peripheral
     ClaimPeripheral,
-    /// Invoke application locally
+    /// Invoke application
     Invoke,
+    /// Invoke application locally
+    InvokeLocal,
 }
 
 impl SysCall {

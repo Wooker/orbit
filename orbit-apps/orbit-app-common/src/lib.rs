@@ -101,7 +101,7 @@ macro_rules! register_interrupt {
         unsafe {
             // By binding to a local variable 'data' here, we force the
             // temporary to live until the end of this unsafe block.
-            let interrupt = $int;
+            let interrupt = $int as u8;
             let syscall = SysCall::RegisterInterrupt.discriminant();
 
             core::arch::asm!(
@@ -112,6 +112,34 @@ macro_rules! register_interrupt {
             );
         }
     };
+}
+
+#[macro_export]
+macro_rules! invoke_local {
+    ($app:expr, $buf:expr) => {{
+        let result: usize;
+        unsafe {
+            let app = $app;
+            let aptr = app.as_ptr();
+            let alen = app.len();
+            let data = $buf;
+            let ptr = data.as_ptr();
+            let len = data.len();
+            let syscall = SysCall::InvokeLocal.discriminant();
+
+            core::arch::asm!(
+                "ecall",
+                in("a0") syscall,
+                in("a1") aptr,
+                in("a2") alen,
+                in("a3") ptr,
+                in("a4") len,
+                lateout("a0") result,
+                clobber_abi("C"),
+            );
+        }
+        result
+    }};
 }
 
 #[macro_export]

@@ -49,7 +49,7 @@ pub struct Kernel<'k> {
     context: Context,
     apps: Vec<AppContainer<'k>>,
     drivers: Vec<AppContainer<'k>>,
-    interrupts: [u8; 255],
+    interrupts: [Option<u8>; 255],
     ports: [Port<'k>; PORT_NUM],
     claims: [bool; KernelPeripherals::MAX as usize],
     pub core: Core<PMP>,
@@ -104,10 +104,6 @@ impl<'k> Kernel<'k> {
             Port::new(unsafe { &*ptr }, kind)
         });
 
-        unsafe {
-            orbit_arch::pfic::enable_interrupt(40);
-        }
-
         // Save trap handler
         unsafe {
             crate::arch::riscv::register::mtvec::write(
@@ -122,7 +118,7 @@ impl<'k> Kernel<'k> {
             ports,
             apps: Vec::new(),
             drivers: Vec::new(),
-            interrupts: [0; 255],
+            interrupts: [None; 255],
             claims: [false; KernelPeripherals::MAX as usize],
             clock,
             scheduler: Scheduler::new(),
@@ -235,25 +231,22 @@ impl<'k> Kernel<'k> {
             .find(|(_, (_, interrupt, _))| *interrupt == code)
         {
             self.port_handler(index);
-        } else if self.interrupts[code & 0xff] != 0 {
-            // TODO: invoke app interrupt
-            let packet = Packet::new(
-                Flags::empty(),
-                PACKET_ID.get_id(),
-                0,
-                0,
-                Message::Invoke,
-                b"",
-            );
-            let (_, driver) = self
-                .drivers
-                .iter()
-                .enumerate()
-                .find(|(i, d)| (*i as u8) == self.interrupts[code & 0xff])
-                .unwrap();
-            if let Some(mut task) = Task::new(packet, 99, driver.interrupt_addr()) {
-                task.for_driver(driver.driver_struct().unwrap());
-                self.scheduler.add(task);
+        } else if let Some(driver_index) = self.interrupts.get(code).and_then(|entry| *entry) {
+            // Spawn the registered driver's interrupt routine.
+            if let Some(driver) = self.drivers.get(driver_index as usize) {
+                let packet = Packet::new(
+                    Flags::empty(),
+                    PACKET_ID.get_id(),
+                    0,
+                    0,
+                    Message::Invoke,
+                    driver.name().as_bytes(),
+                );
+                if let Some(mut task) = Task::new(packet, 1, driver.interrupt_addr()) {
+                    task.for_driver(driver.driver_struct().unwrap());
+                    unsafe { orbit_arch::pfic::disable_interrupt(code as u8) };
+                    self.scheduler.add(task);
+                }
             }
         } else {
         }
@@ -299,10 +292,25 @@ impl<'k> Kernel<'k> {
                         .unwrap_or(0);
                 }
             }
-            SysCall::ReturnInit => {
+            SysCall::ReturnInit => if let Some(task) = self.scheduler.pop() {},
+            SysCall::ReturnInterrupt => {
                 if let Some(task) = self.scheduler.pop() {
-                    task.header.packet.reply(b"Hello");
+                    if let Some((driver_index, _)) = self
+                        .drivers
+                        .iter()
+                        .enumerate()
+                        .find(|(i, d)| d.name().as_bytes() == task.header.packet.payload)
+                    {
+                        for (interrupt, i) in self.interrupts.iter().enumerate() {
+                            if let Some(index) = i
+                                && *index == driver_index as u8
+                            {
+                                unsafe { orbit_arch::pfic::enable_interrupt(interrupt as u8) };
+                            }
+                        }
+                    }
                 }
+                // unsafe { orbit_arch::pfic::enable_interrupt(40) };
             }
             SysCall::RegisterInterrupt => {
                 let task = self.scheduler.current().unwrap();
@@ -312,9 +320,14 @@ impl<'k> Kernel<'k> {
                     .drivers
                     .iter()
                     .enumerate()
-                    .find(|(i, d)| d.name().as_bytes() == driver_name)
+                    .find(|(i, d)| d.name().as_bytes().eq(driver_name))
                 {
-                    self.interrupts[interrupt] = index as u8;
+                    if interrupt < self.interrupts.len() {
+                        self.interrupts[interrupt] = Some(index as u8);
+                        unsafe {
+                            orbit_arch::pfic::enable_interrupt(interrupt as u8);
+                        }
+                    }
                 }
             }
             SysCall::Send => {
@@ -337,7 +350,7 @@ impl<'k> Kernel<'k> {
                     })
                     .unwrap_or(0);
             }
-            SysCall::Invoke => {
+            SysCall::InvokeLocal => {
                 let task = self.scheduler.current_mut().unwrap();
                 let name = unsafe {
                     core::slice::from_raw_parts(
@@ -390,6 +403,34 @@ impl<'k> Kernel<'k> {
                     }
                 } else {
                     task.header.context.a0 = usize::MAX;
+                }
+            }
+            SysCall::Invoke => {
+                let task = self.scheduler.current_mut().unwrap();
+                let name = unsafe {
+                    core::slice::from_raw_parts(
+                        task.header.context.a1 as *const u8,
+                        task.header.context.a2,
+                    )
+                };
+                let arg = unsafe {
+                    core::slice::from_raw_parts(
+                        task.header.context.a3 as *const u8,
+                        task.header.context.a4,
+                    )
+                };
+                let payload = &[name, b" ", arg].concat();
+                let packet_id = PACKET_ID.get_id();
+                PACKET_ID.set(packet_id + 1);
+                let packet = Packet::new(Flags::empty(), packet_id, 0, 0, Message::Invoke, payload);
+                let mut arr = [0; MAX_BUFFER_LENGTH];
+                if let Ok(size) = packet.encode(&mut arr) {
+                    self.ports.iter_mut().for_each(|p| {
+                        p.send(&arr);
+                    });
+                    task.header.context.a0 = size;
+                } else {
+                    task.header.context.a0 = 0;
                 }
             }
             _ => {}

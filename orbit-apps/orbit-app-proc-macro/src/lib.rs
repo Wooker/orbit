@@ -239,7 +239,7 @@ pub fn orbit_app(attr: TokenStream, item: TokenStream) -> TokenStream {
             #[inline(never)]
             fn interrupt(&mut self) {
                 self._interrupt();
-                unsafe { asm!("li a0, 2; li a1, 0;") };
+                unsafe { asm!("li a0, 2; li a1, 0;ecall;") };
             }
 
             #[unsafe(naked)]
