@@ -11,9 +11,10 @@ chip = { path = "../chip", optional = true }
 orbit-common = { path = "../orbit-common" }
 orbit-common-proc-macro = { path = "../orbit-common-proc-macro" }
 spaceport = { path = "../../spaceport" }
+embedded-alloc = { version = "0.7.0", optional = true }
 
 [features]
-rt = ["orbit-arch", "chip/rt"]
+rt = ["orbit-arch", "chip/rt", "embedded-alloc"]
 lib  = []
 pfic = []
 ch32v208wbu6 = [ "rt", "orbit-arch/qingke_v4", "chip/ch32v208wbu6" ]

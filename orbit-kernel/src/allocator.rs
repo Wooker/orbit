@@ -2,7 +2,12 @@ use core::alloc::{GlobalAlloc, Layout};
 use core::cell::UnsafeCell;
 use core::ptr::null_mut;
 
-const ARENA_SIZE: usize = chip::RAM_SIZE - 0x1500 - 16;
+unsafe extern "C" {
+    pub static _sram: u32;
+    pub static _stack_size: u32;
+}
+
+const ARENA_SIZE: usize = chip::RAM_SIZE - 0x1000 - 16;
 
 #[repr(C, align(4))]
 struct BlockHeader {
@@ -287,5 +292,9 @@ unsafe impl GlobalAlloc for SimpleAllocator {
     }
 }
 
+// #[global_allocator]
+// pub(crate) static ALLOCATOR: SimpleAllocator = SimpleAllocator::new();
+
+use embedded_alloc::LlffHeap as Heap;
 #[global_allocator]
-pub(crate) static ALLOCATOR: SimpleAllocator = SimpleAllocator::new();
+pub(crate) static ALLOCATOR: Heap = Heap::empty();

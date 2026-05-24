@@ -16,7 +16,7 @@ SECTIONS
         *orbit_kernel*.o(.rodata .rodata.*);
     } >FLASH
 
-    _stack_size = 0x1500;
+    _heap_size = __heap_size;
     .kernel.stack ORIGIN(RAM) + _stack_size : ALIGN(4)
     {
         PROVIDE(_stack_top = .);
