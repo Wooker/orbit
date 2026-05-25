@@ -10,7 +10,7 @@ orbit-arch = { path = "../orbit-arch", optional = true }
 chip = { path = "../chip", optional = true }
 orbit-common = { path = "../orbit-common" }
 orbit-common-proc-macro = { path = "../orbit-common-proc-macro" }
-spaceport = { path = "../../spaceport" }
+spaceport = { git = "https://github.com/Wooker/spaceport.git" }
 embedded-alloc = { version = "0.7.0", optional = true }
 
 [features]
