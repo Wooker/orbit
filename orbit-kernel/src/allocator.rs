@@ -292,9 +292,9 @@ unsafe impl GlobalAlloc for SimpleAllocator {
     }
 }
 
-// #[global_allocator]
-// pub(crate) static ALLOCATOR: SimpleAllocator = SimpleAllocator::new();
-
-use embedded_alloc::LlffHeap as Heap;
 #[global_allocator]
-pub(crate) static ALLOCATOR: Heap = Heap::empty();
+pub(crate) static ALLOCATOR: SimpleAllocator = SimpleAllocator::new();
+
+// use embedded_alloc::LlffHeap as Heap;
+// #[global_allocator]
+// pub(crate) static ALLOCATOR: Heap = Heap::empty();
