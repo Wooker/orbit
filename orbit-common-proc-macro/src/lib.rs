@@ -8,75 +8,132 @@ use syn::{
 };
 
 struct OrbitMainArgs {
-    structs: Punctuated<Ident, Token![,]>, // Structs
+    apps: Vec<Ident>,
+    drivers: Vec<Ident>,
 }
 
 impl Parse for OrbitMainArgs {
     fn parse(input: ParseStream) -> syn::Result<Self> {
-        Ok(OrbitMainArgs {
-            structs: input.parse_terminated(Ident::parse)?,
-        })
+        let apps_kw: Ident = input.parse()?;
+        if apps_kw != "apps" {
+            return Err(input.error("expected `apps`"));
+        }
+
+        let content;
+        syn::parenthesized!(content in input);
+
+        let apps = Punctuated::<Ident, Token![,]>::parse_terminated(&content)?
+            .into_iter()
+            .collect::<Vec<_>>();
+
+        input.parse::<Token![,]>()?;
+
+        let drivers_kw: Ident = input.parse()?;
+        if drivers_kw != "drivers" {
+            return Err(input.error("expected `drivers`"));
+        }
+
+        let content;
+        syn::parenthesized!(content in input);
+
+        let drivers = Punctuated::<Ident, Token![,]>::parse_terminated(&content)?
+            .into_iter()
+            .collect::<Vec<_>>();
+
+        Ok(Self { apps, drivers })
     }
 }
 
 #[proc_macro_attribute]
 pub fn orbit_main_attribute(attr: TokenStream, _item: TokenStream) -> TokenStream {
     let attr_args = parse_macro_input!(attr as OrbitMainArgs);
-    let args: Vec<Ident> = attr_args.structs.into_iter().collect();
 
-    let inits = args
+    let apps_args = attr_args.apps;
+    let drivers_args = attr_args.drivers;
+
+    let apps = apps_args
         .iter()
         .enumerate()
-        .map(|(i, s)| {
-            let struct_lower = format_ident!("{}", s.to_string().to_lowercase());
+        .map(|(_, s)| {
+            let app = format_ident!("{}", s.to_string().to_lowercase());
             quote! {
-                let mut #struct_lower = #s::new();
-                // #struct_lower.init();
-                kernel.add_application( #i, #struct_lower.to_container(), & #struct_lower.stack as *const usize as usize + #struct_lower.stack.len());
+                kernel.add_application(
+                    AppContainer::new(
+                        stringify!(#app),
+                        None,
+                        0,
+                        #app::#app as *const () as usize,
+                        0,
+                    )
+                );
             }
         })
         .collect::<Vec<proc_macro2::TokenStream>>();
 
-    let app_sizes = args
+    let drivers = drivers_args
+        .iter()
+        .enumerate()
+        .map(|(_, s)| {
+            let struct_lower = format_ident!("{}", s.to_string().to_lowercase());
+            let s_pin = format_ident!("_{}_pin", s.to_string().to_lowercase());
+            quote! {
+                let mut #struct_lower = #s::new();
+                let #s_pin = if let Ok(#struct_lower) = Box::try_new(#struct_lower) {
+                    let pin = Box::into_pin(#struct_lower);
+                    kernel.add_driver(AppContainer::new(
+                        stringify!(#struct_lower),
+                        Some(pin.as_ref().get_ref() as *const #s as usize),
+                        #s::init as *const () as usize,
+                        #s::main as *const () as usize,
+                        #s::interrupt as *const () as usize,
+                    ));
+                    Some(pin)
+                } else {
+                    None
+                };
+            }
+        })
+        .collect::<Vec<proc_macro2::TokenStream>>();
+
+    let driver_sizes = drivers_args
         .iter()
         .map(|s| {
             quote! {
-                (core::mem::size_of::<#s>() + #s::stack_size() + #s::heap_size())
+                (core::mem::size_of::<#s>())
             }
         })
         .collect::<Vec<proc_macro2::TokenStream>>();
-
-    let app_size = args.iter().count();
 
     let expanded = quote! {
         use core::{arch::asm,mem::MaybeUninit};
 
-        // use orbit_kernel::application::{Application, Context, PmpEntry, AppContainer};
+        extern crate alloc;
+        use alloc::boxed::Box;
+
         use orbit_bin::{
-            ringbuf::RingBuf,
             arch,
             chip,
             kernel::{asm, Kernel, APPS},
-            application::Application
+            application::Application,
+            application_container::AppContainer,
         };
         use orbit_bin::const_assert;
 
-        const_assert!(#app_size <= APPS);
-        const_assert!(0 #(+ #app_sizes)* < chip::RAM_SIZE);
+        const_assert!(0 #(+ #driver_sizes)* < chip::RAM_SIZE);
 
         #[unsafe(no_mangle)]
         fn main() -> ! {
             let mut kernel = Kernel::new();
-            // let mut peripherals = unsafe {chip::pac::Peripherals::steal()};
-            arch::riscv::register::mscratch::write(&mut kernel as *mut Kernel as usize);
+            arch::riscv::register::mscratch::write(&kernel as *const Kernel as usize);
             unsafe {
                 asm!("csrr gp, mscratch");
-                asm::save_context()
-            };
+                asm::save_context();
+            }
 
-            #(#inits)*
+            #(#apps)*
+            #(#drivers)*
 
-            unsafe { Kernel::initialize_finish() }
+            kernel.setup_event_loop()
         }
     };
 
