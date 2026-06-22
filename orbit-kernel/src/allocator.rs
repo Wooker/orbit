@@ -3,11 +3,9 @@ use core::cell::UnsafeCell;
 use core::ptr::null_mut;
 
 unsafe extern "C" {
-    pub static _sram: u32;
-    pub static _stack_size: u32;
+    static _arena_start: u8;
+    static _arena_end: u8;
 }
-
-const ARENA_SIZE: usize = chip::RAM_SIZE - 0x1000 - 16;
 
 #[repr(C, align(4))]
 struct BlockHeader {
@@ -17,7 +15,6 @@ struct BlockHeader {
 
 #[repr(C, align(4))]
 pub struct SimpleAllocator {
-    arena: UnsafeCell<[u8; ARENA_SIZE]>,
     free_list: UnsafeCell<*mut BlockHeader>,
 }
 
@@ -26,17 +23,21 @@ unsafe impl Sync for SimpleAllocator {}
 impl SimpleAllocator {
     pub const fn new() -> Self {
         Self {
-            arena: UnsafeCell::new([0; ARENA_SIZE]),
             free_list: UnsafeCell::new(null_mut()),
         }
     }
 
+    /// SAFETY: _arena_start and _arena_end poiont to boundaries
+    /// of the .kernel.heap section and aligned to 4.
     unsafe fn init(&self) {
-        let arena_ptr = self.arena.get() as *mut u8;
-        let block = arena_ptr as *mut BlockHeader;
+        let start = core::ptr::addr_of!(_arena_start) as *const u8;
+        let end = core::ptr::addr_of!(_arena_end) as *const u8;
+
+        let size = end.offset_from(start) as usize;
+        let block = start as *mut BlockHeader;
 
         unsafe {
-            (*block).size = ARENA_SIZE;
+            (*block).size = size;
             (*block).next = null_mut();
 
             *self.free_list.get() = block;
