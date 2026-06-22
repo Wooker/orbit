@@ -33,7 +33,7 @@ impl SimpleAllocator {
         let start = core::ptr::addr_of!(_arena_start) as *const u8;
         let end = core::ptr::addr_of!(_arena_end) as *const u8;
 
-        let size = end.offset_from(start) as usize;
+        let size = unsafe { end.offset_from(start) } as usize;
         let block = start as *mut BlockHeader;
 
         unsafe {
