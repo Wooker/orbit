@@ -184,13 +184,14 @@ impl<'k> Kernel<'k> {
         if let Some(packet) = self.ports[i].handle() {
             match packet.msg_type {
                 Message::Invoke => {
-                    let resp = handle_invoke(
+                    if let Some(resp) = handle_invoke(
                         &mut self.apps,
                         &mut self.drivers,
                         &mut self.scheduler,
                         packet,
-                    );
-                    self.ports[i].respond(resp);
+                    ) {
+                        self.ports[i].respond(resp);
+                    }
                 }
                 Message::KernelVersion => {
                     let (id, src, dst) = (packet.packet_id + 1, packet.dst, packet.src);

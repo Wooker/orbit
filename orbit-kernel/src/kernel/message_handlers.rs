@@ -12,7 +12,7 @@ pub(super) fn handle_invoke<'kernel, 'old_packet, 'new_packet>(
     drivers: &'old_packet mut Vec<AppContainer<'kernel>>,
     scheduler: &'old_packet mut Scheduler,
     mut packet: Packet<'old_packet>,
-) -> Packet<'new_packet>
+) -> Option<Packet<'new_packet>>
 where
     'kernel: 'old_packet,
     'kernel: 'new_packet,
@@ -37,48 +37,41 @@ where
         if let Some(task) = Task::new(packet, 1, app.main_addr()) {
             let task_id = task.header.task_id;
             scheduler.add(task);
-            Packet::new(
-                Flags::empty(),
-                id,
-                src,
-                dst,
-                Message::Reply,
-                b"Task created",
-            )
+            None
         } else {
-            Packet::new(
+            Some(Packet::new(
                 Flags::ERROR,
                 id,
                 src,
                 dst,
                 Message::Reply,
                 b"Could not create task",
-            )
+            ))
         }
     } else if let Some(app) = drivers.iter().find(|(app)| app.name().as_bytes().eq(name)) {
         if let Some(mut task) = Task::new(packet, 1, app.main_addr()) {
             let task_id = task.header.task_id;
             task.for_driver(app.driver_struct().unwrap());
             scheduler.add(task);
-            Packet::new(
-                Flags::empty(),
-                id,
-                src,
-                dst,
-                Message::Reply,
-                b"Task created",
-            )
+            None
         } else {
-            Packet::new(
+            Some(Packet::new(
                 Flags::ERROR,
                 id,
                 src,
                 dst,
                 Message::Reply,
                 b"Could not create task",
-            )
+            ))
         }
     } else {
-        Packet::new(Flags::ERROR, id, src, dst, Message::Error, b"Unknown name")
+        Some(Packet::new(
+            Flags::ERROR,
+            id,
+            src,
+            dst,
+            Message::Error,
+            b"Unknown name",
+        ))
     }
 }
