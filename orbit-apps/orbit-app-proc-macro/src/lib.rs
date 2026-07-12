@@ -1,5 +1,3 @@
-#![feature(proc_macro_span)]
-
 use std::path::Path;
 
 use proc_macro::TokenStream;
@@ -345,7 +343,7 @@ pub fn app_main_impl(_attr: TokenStream, item: TokenStream) -> TokenStream {
     let function = parse_macro_input!(item as ItemFn);
     let sig = &function.sig;
     let block = &function.block;
-    let span_file = &proc_macro::Span::call_site().source().file();
+    let span_file = file!();
     let crate_name = Path::new(&span_file)
         .iter()
         .nth(0)
