@@ -41,8 +41,7 @@ use spaceport::{
 
 pub const APPS: usize = 5;
 pub(crate) static PACKET_ID: ID<u16> = ID::new(0);
-pub static KERNEL_MAJOR: u8 = 0;
-pub static KERNEL_MINOR: u8 = 1;
+pub static KERNEL_VERSION: &'static str = env!("CARGO_PKG_VERSION");
 
 #[repr(C, align(4))]
 pub struct Kernel<'k> {
@@ -148,8 +147,8 @@ impl<'k> Kernel<'k> {
 
     #[inline(never)]
     #[unsafe(link_section = ".text")]
-    pub fn version(&self) -> (u8, u8) {
-        (KERNEL_MAJOR, KERNEL_MINOR)
+    pub fn version(&self) -> (&'static str) {
+        (KERNEL_VERSION)
     }
 
     #[inline(never)]
@@ -216,7 +215,7 @@ impl<'k> Kernel<'k> {
                         src,
                         dst,
                         Message::Reply,
-                        &[KERNEL_MAJOR, KERNEL_MINOR],
+                        KERNEL_VERSION.as_bytes(),
                     ))
                 }
                 _ => self.ports[i].respond(Packet {
