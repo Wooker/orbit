@@ -5,7 +5,7 @@ mod scheduler;
 
 use crate::{
     RINGBUF_SIZE,
-    allocator::{ALLOCATOR, SimpleAllocator},
+    allocator::ALLOCATOR,
     application::Application,
     application_container::{AppContainer, RunApplication},
     claim::KernelPeripherals,
@@ -94,6 +94,21 @@ impl<'k> Kernel<'k> {
         let mut clock = Clocks::default();
         clock.freeze();
         unsafe { init_memory() };
+
+        // Initialize allocator
+        unsafe {
+            embedded_alloc::init!(
+                ALLOCATOR,
+                chip::RAM_SIZE
+                    - match usize::from_str_radix(env!("ORBIT_KERNEL_STACK_SIZE"), 16) {
+                        #[cfg(feature = "alloc_tlsf")]
+                        Ok(v) => v + 4256,
+                        #[cfg(feature = "alloc_llff")]
+                        Ok(v) => v + 40,
+                        Err(_) => 0,
+                    }
+            );
+        }
 
         // Initialize ports
         let ports: [Port; PORT_NUM] = core::array::from_fn(|i| {

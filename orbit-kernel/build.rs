@@ -36,12 +36,12 @@ SECTIONS
         *orbit_kernel*.o(.rodata .rodata.*);
     }} >FLASH
 
-    _stack_size = {stack_size};
+    _stack_size = 0x{stack_size};
     .kernel.stack ORIGIN(RAM) : ALIGN(4)
     {{
         . += _stack_size;
         PROVIDE(_stack_top = .);
-    }} > RAM
+    }} > RAM AT>FLASH
 
     /* FLASH load address of .data */
     _sidata = LOADADDR(.kernel.data);
@@ -62,14 +62,11 @@ SECTIONS
         *chip*.o(.bss .bss* .sbss.*);
         *orbit_kernel*.o(.bss .bss.* .sbss.*);
         _ebss = .;
-    }} >RAM
+    }} >RAM AT>FLASH
 
     .kernel.heap : ALIGN(4)
     {{
-        _arena_start = .;
-        . += ORIGIN(RAM) + LENGTH(RAM) - .;
-        _arena_end = .;
-    }} >RAM
+    }} >RAM AT>FLASH
 }}
 "
     )
@@ -84,10 +81,8 @@ fn main() {
 
     if let Ok(stack_size) = std::env::var("ORBIT_KERNEL_STACK_SIZE") {
         std::fs::write(out.join("kernel.x"), linker(&stack_size)).unwrap();
-        println!("cargo:rustc-link-arg=--defsym=_stack_size={}", stack_size);
     } else {
         std::fs::write(out.join("kernel.x"), linker(&String::from("__stack_size"))).unwrap();
-        println!("cargo:rustc-link-arg=--defsym=_stack_size=__stack_size");
     }
 
     println!("cargo:rustc-link-search={}", out.display());

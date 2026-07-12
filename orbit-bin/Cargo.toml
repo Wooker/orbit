@@ -11,4 +11,6 @@ orbit-common-proc-macro = { path = "../orbit-common-proc-macro" }
 [features]
 ch32v208wbu6 = [ "orbit-kernel/ch32v208wbu6" ]
 ch32x035 = [ "orbit-kernel/ch32x035" ]
+alloc_llff = [ "orbit-kernel/alloc_llff" ]
+alloc_tlsf = [ "orbit-kernel/alloc_tlsf" ]
 
