@@ -20,10 +20,10 @@ const STACK_SIZE: usize = 512;
 pub(crate) struct TaskHeader<'t> {
     pub(crate) context: Context,
     pub(crate) task_id: usize,
-    pub(crate) stack: [usize; STACK_SIZE],
     pub(crate) packet: Packet<'t>,
     pub(crate) priority: usize,
     pub(crate) state: TaskState,
+    pub(crate) stack: [usize; STACK_SIZE],
 }
 
 #[derive(PartialEq)]
@@ -89,9 +89,9 @@ impl<'t> Task<'t> {
             // SP must point to the end of the stack buffer in bytes.
             // Using `+ STACK_SIZE` here underflows stack capacity because STACK_SIZE is
             // number of `usize` elements, not number of bytes.
-            (*header_ptr).context.sp =
-                (&(*header_ptr).stack as *const [usize; STACK_SIZE] as usize)
-                    + (STACK_SIZE * size_of::<usize>());
+            (*header_ptr).context.sp = (&(*header_ptr).stack as *const [usize; STACK_SIZE]
+                as usize)
+                + (STACK_SIZE * size_of::<usize>());
             (*header_ptr).context.a0 = payload_ptr as usize;
             (*header_ptr).context.a1 = payload_len;
 
