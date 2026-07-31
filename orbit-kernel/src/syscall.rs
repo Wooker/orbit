@@ -40,3 +40,25 @@ impl SysCall {
         unsafe { *(&v as *const usize as *const Self) }
     }
 }
+
+#[repr(usize)]
+#[derive(Clone, PartialEq, Eq, Copy)]
+pub enum InvokeLocalError {
+    ApplicationNotFound,
+    TaskCreationFailed,
+    Unknown,
+}
+
+impl InvokeLocalError {
+    pub const fn discriminant(&self) -> usize {
+        unsafe { *(self as *const Self as *const usize) }
+    }
+
+    pub const fn from_usize(v: usize) -> Self {
+        unsafe { *(&v as *const usize as *const Self) }
+    }
+
+    pub const fn from_discriminant(v: usize) -> Option<Self> {
+        unsafe { Some(*(&v as *const usize as *const Self)) }
+    }
+}

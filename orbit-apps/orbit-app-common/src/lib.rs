@@ -117,6 +117,7 @@ macro_rules! register_interrupt {
 #[macro_export]
 macro_rules! invoke_local {
     ($app:expr, $buf:expr) => {{
+        let status: usize;
         let result: usize;
         unsafe {
             let app = $app;
@@ -134,11 +135,16 @@ macro_rules! invoke_local {
                 in("a2") alen,
                 in("a3") ptr,
                 in("a4") len,
-                lateout("a0") result,
+                lateout("a0") status,
+                lateout("a1") result,
                 clobber_abi("C"),
             );
         }
-        result
+        match status {
+            0 => Ok(result),
+            code => Err(orbit_kernel::syscall::InvokeLocalError::from_discriminant(code)
+                .unwrap_or(orbit_kernel::syscall::InvokeLocalError::Unknown)),
+        }
     }};
 }
 

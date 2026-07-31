@@ -1,6 +1,6 @@
 use proc_macro::TokenStream;
 use quote::{format_ident, quote};
-use syn::{parse_macro_input, ItemFn};
+use syn::{ItemFn, parse_macro_input};
 
 #[proc_macro_attribute]
 pub fn orbit_app(_attr: TokenStream, item: TokenStream) -> TokenStream {
@@ -33,7 +33,7 @@ pub fn orbit_app(_attr: TokenStream, item: TokenStream) -> TokenStream {
         #[unsafe(no_mangle)]
         #[unsafe(naked)]
         extern "C" fn #func_ecall () -> ! {
-            naked_asm!("li a0, 1; li a1, 0; ecall;")
+            naked_asm!("mv a1, a0; li a0, 1; ecall;")
         }
 
         #[unsafe (no_mangle)]

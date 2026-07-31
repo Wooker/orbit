@@ -4,12 +4,12 @@ use proc_macro::TokenStream;
 use proc_macro2::Span;
 use quote::{format_ident, quote};
 use syn::{
+    Field, Fields, Ident, ItemFn, ItemImpl, ItemStruct, Lifetime, LifetimeDef, ReturnType, Token,
+    Type,
     parse::{Parse, ParseStream},
     parse_macro_input,
     punctuated::Punctuated,
     token::Comma,
-    Field, Fields, Ident, ItemFn, ItemImpl, ItemStruct, Lifetime, LifetimeDef, ReturnType, Token,
-    Type,
 };
 
 struct OrbitAppArgs {
@@ -230,8 +230,23 @@ pub fn orbit_app(attr: TokenStream, item: TokenStream) -> TokenStream {
             fn main(&mut self, buf: &[u8]) {
                 // #(#peripherals_assume_main)*
                 let output = Self::_main(self, buf);
+                let result = output
+                    .as_bytes()
+                    .iter()
+                    .take(core::mem::size_of::<usize>())
+                    .enumerate()
+                    .fold(0usize, |value, (index, &byte)| {
+                        value | ((byte as usize) << (index * 8))
+                    });
                 // self.ringbuf.push(self.ringbuf.termination);
-                unsafe { asm!("li a0, 1;li a1, 0; ecall;") };
+                unsafe {
+                    asm!(
+                        "ecall",
+                        in("a0") SysCall::ReturnMain.discriminant(),
+                        in("a1") result,
+                        clobber_abi("C"),
+                    );
+                }
             }
 
             #[inline(never)]

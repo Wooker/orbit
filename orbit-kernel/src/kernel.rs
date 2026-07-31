@@ -18,7 +18,7 @@ use crate::{
         port_kind::{PORT_INTERRUPTS, PORT_NUM},
     },
     ringbuf::RingBuf,
-    syscall::SysCall,
+    syscall::{InvokeLocalError, SysCall},
     task::{Task, TaskState},
 };
 use alloc::{boxed::Box, collections::linked_list::LinkedList, slice, vec::Vec};
@@ -281,8 +281,11 @@ impl<'k> Kernel<'k> {
 
         match syscall {
             SysCall::ReturnMain => {
-                orbit_arch::riscv::register::mepc::write(asm::wait as *const fn() as usize);
-                self.context.a1 = 0;
+                unsafe {
+                    orbit_arch::riscv::register::mepc::write(asm::wait as *const fn() as usize);
+                }
+                // Keep the return value from a1 before removing the completed task.
+                let result = self.context.a1;
 
                 let mut out = [0u8; MAX_BUFFER_LENGTH];
                 if let Some(task) = self.scheduler.pop() {
@@ -292,19 +295,24 @@ impl<'k> Kernel<'k> {
                         .iter_mut()
                         .find(|t| t.header.state == TaskState::Blocked(task.header.task_id))
                     {
-                        blocked.header.context.a0 = task.header.context.a1;
+                        // `a0` is the completion status and `a1` carries the
+                        // successful return value.  Keeping them separate
+                        // makes every `usize` value, including `usize::MAX`, a
+                        // valid application result.
+                        blocked.header.context.a0 = 0;
+                        blocked.header.context.a1 = result;
                         blocked.header.state = TaskState::Ready;
                     }
-                    task.header
-                        .packet
-                        .reply(&task.header.packet.payload.len().to_le_bytes())
-                        .encode(&mut out)
-                        .and_then(|size| {
-                            self.ports[0]
-                                .send(&out[..size])
-                                .map_err(|_| EncodeError::BufferTooSmall)
-                        })
-                        .unwrap_or(0);
+                    // task.header
+                    //     .packet
+                    //     .reply(&task.header.packet.payload.len().to_le_bytes())
+                    //     .encode(&mut out)
+                    //     .and_then(|size| {
+                    //         self.ports[0]
+                    //             .send(&out[..size])
+                    //             .map_err(|_| EncodeError::BufferTooSmall)
+                    //     })
+                    //     .unwrap_or(0);
                 }
             }
             SysCall::ReturnInit => if let Some(task) = self.scheduler.pop() {},
@@ -366,58 +374,78 @@ impl<'k> Kernel<'k> {
                     .unwrap_or(0);
             }
             SysCall::InvokeLocal => {
-                let task = self.scheduler.current_mut().unwrap();
-                let name = unsafe {
-                    core::slice::from_raw_parts(
-                        task.header.context.a1 as *const u8,
-                        task.header.context.a2,
-                    )
-                };
-                let arg = unsafe {
-                    core::slice::from_raw_parts(
-                        task.header.context.a3 as *const u8,
-                        task.header.context.a4,
-                    )
-                };
-                if let Some(app) = self.apps.iter().find(|a| a.name().as_bytes() == name) {
-                    let packet_id = PACKET_ID.get_id();
-                    PACKET_ID.set(packet_id + 1);
-                    if let Some(t) = Task::new(
-                        Packet::new(
-                            Flags::empty(),
-                            packet_id,
-                            0,
-                            0,
-                            Message::Invoke,
-                            &[name, b" ", arg].concat(),
-                        ),
-                        task.header.priority.saturating_add(1),
-                        app.main_addr(),
-                    ) {
-                        task.header.state = TaskState::Blocked(t.header.task_id);
+                // Copy the syscall arguments before creating the new task.
+                // The invoker's context is then free to be updated after
+                // the child has been built and enqueued.
+                let (name, arg, priority) = {
+                    let task = self.scheduler.current().unwrap();
+                    let name = unsafe {
+                        core::slice::from_raw_parts(
+                            task.header.context.a1 as *const u8,
+                            task.header.context.a2,
+                        )
                     }
-                } else if let Some(driver) =
-                    self.drivers.iter().find(|d| d.name().as_bytes() == name)
+                    .to_vec();
+                    let arg = unsafe {
+                        core::slice::from_raw_parts(
+                            task.header.context.a3 as *const u8,
+                            task.header.context.a4,
+                        )
+                    }
+                    .to_vec();
+                    (name, arg, task.header.priority.saturating_add(1))
+                };
+
+                let packet_id = PACKET_ID.get_id();
+                let payload = [&name[..], b" ", &arg[..]].concat();
+                let (mut invokee, is_application, error) = if let Some(app) =
+                    self.apps.iter().find(|app| app.name().as_bytes() == name)
                 {
-                    let packet_id = PACKET_ID.get_id();
-                    PACKET_ID.set(packet_id + 1);
-                    if let Some(mut t) = Task::new(
-                        Packet::new(
-                            Flags::empty(),
-                            packet_id,
-                            0,
-                            0,
-                            Message::Invoke,
-                            &[name, b" ", arg].concat(),
+                    (
+                        Task::new(
+                            Packet::new(Flags::empty(), packet_id, 0, 0, Message::Invoke, &payload),
+                            priority,
+                            app.main_addr(),
                         ),
-                        task.header.priority.saturating_add(1),
+                        true,
+                        InvokeLocalError::TaskCreationFailed,
+                    )
+                } else if let Some(driver) = self
+                    .drivers
+                    .iter()
+                    .find(|driver| driver.name().as_bytes() == name)
+                {
+                    let mut task = Task::new(
+                        Packet::new(Flags::empty(), packet_id, 0, 0, Message::Invoke, &payload),
+                        priority,
                         driver.main_addr(),
-                    ) {
-                        task.header.state = TaskState::Blocked(t.header.task_id);
-                        t.for_driver(driver.driver_struct().unwrap());
+                    );
+                    if let Some(task) = task.as_mut() {
+                        task.for_driver(driver.driver_struct().unwrap());
                     }
+                    (task, false, InvokeLocalError::TaskCreationFailed)
                 } else {
-                    task.header.context.a0 = usize::MAX;
+                    (None, false, InvokeLocalError::ApplicationNotFound)
+                };
+
+                if let Some(mut invokee) = invokee.take() {
+                    if is_application {
+                        let arg_start = invokee
+                            .header
+                            .packet
+                            .payload
+                            .as_ptr()
+                            .wrapping_add(name.len() + 1);
+                        invokee.header.context.a0 = arg_start as usize;
+                        invokee.header.context.a1 = arg.len();
+                    }
+                    let invokee_id = invokee.header.task_id;
+                    self.scheduler.current_mut().unwrap().header.state =
+                        TaskState::Blocked(invokee_id);
+                    self.scheduler.add(invokee);
+                    PACKET_ID.set(packet_id + 1);
+                } else {
+                    self.scheduler.current_mut().unwrap().header.context.a0 = error.discriminant();
                 }
             }
             SysCall::Invoke => {
