@@ -1,4 +1,4 @@
-#[cfg(feature = "alloc_llff")]
+#[cfg(all(feature = "alloc_llff", not(feature = "alloc_tlsf")))]
 use embedded_alloc::LlffHeap as Heap;
 #[cfg(feature = "alloc_tlsf")]
 use embedded_alloc::TlsfHeap as Heap;

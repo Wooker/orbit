@@ -3,9 +3,11 @@ pub mod asm;
 mod message_handlers;
 mod scheduler;
 
+#[cfg(any(feature = "alloc_tlsf", feature = "alloc_llff"))]
+use crate::allocator::ALLOCATOR;
+
 use crate::{
     RINGBUF_SIZE,
-    allocator::ALLOCATOR,
     application::Application,
     application_container::{AppContainer, RunApplication},
     claim::KernelPeripherals,
@@ -30,7 +32,10 @@ use core::{
     pin::Pin,
     ptr::null,
 };
-use orbit_arch::{Core, PMP};
+use orbit_arch::{
+    Core, PMP,
+    interface::{Interruptable, SetupMtvec},
+};
 use spaceport::{
     constants::{MAX_TTL, PROTOCOL_VERSION},
     error::EncodeError,
@@ -89,6 +94,8 @@ impl<'k> Kernel<'k> {
     #[rustc_align(4)]
     #[inline(never)]
     pub fn new() -> Self {
+        let core: Core<PMP> = Core::new();
+
         // Enable clocks
         let mut clock = Clocks::default();
         clock.freeze();
@@ -99,7 +106,10 @@ impl<'k> Kernel<'k> {
             embedded_alloc::init!(
                 ALLOCATOR,
                 chip::RAM_SIZE
-                    - match usize::from_str_radix(env!("ORBIT_KERNEL_STACK_SIZE"), 16) {
+                    - match usize::from_str_radix(
+                        option_env!("ORBIT_KERNEL_STACK_SIZE").unwrap_or("0x1000"),
+                        16
+                    ) {
                         #[cfg(feature = "alloc_tlsf")]
                         Ok(v) => v + 4256,
                         #[cfg(feature = "alloc_llff")]
@@ -112,19 +122,15 @@ impl<'k> Kernel<'k> {
         // Initialize ports
         let ports: [Port; PORT_NUM] = core::array::from_fn(|i| {
             let (ptr, interrupt, kind) = PORT_INTERRUPTS.0[i];
-            unsafe {
-                orbit_arch::pfic::enable_interrupt(interrupt as u8);
-            }
+            core.enable_interrupt(interrupt as u8);
             Port::new(unsafe { &*ptr }, kind)
         });
 
         // Save trap handler
-        unsafe {
-            crate::arch::riscv::register::mtvec::write(
-                asm::handler as *const fn() as usize,
-                crate::arch::riscv::register::mtvec::TrapMode::Direct,
-            )
-        };
+        core.setup_mtvec(
+            asm::handler as *const fn() as usize,
+            crate::arch::riscv::register::mtvec::TrapMode::Direct,
+        );
 
         let mut kernel = Self {
             context: Context::new(),
@@ -259,7 +265,7 @@ impl<'k> Kernel<'k> {
                 );
                 if let Some(mut task) = Task::new(packet, 1, driver.interrupt_addr()) {
                     task.for_driver(driver.driver_struct().unwrap());
-                    unsafe { orbit_arch::pfic::disable_interrupt(code as u8) };
+                    self.core.disable_interrupt(code as u8);
                     self.scheduler.add(task);
                 }
             }
@@ -328,7 +334,7 @@ impl<'k> Kernel<'k> {
                             if let Some(index) = i
                                 && *index == driver_index as u8
                             {
-                                unsafe { orbit_arch::pfic::enable_interrupt(interrupt as u8) };
+                                self.core.enable_interrupt(interrupt as u8);
                             }
                         }
                     }
@@ -347,9 +353,7 @@ impl<'k> Kernel<'k> {
                 {
                     if interrupt < self.interrupts.len() {
                         self.interrupts[interrupt] = Some(index as u8);
-                        unsafe {
-                            orbit_arch::pfic::enable_interrupt(interrupt as u8);
-                        }
+                        self.core.enable_interrupt(interrupt as u8);
                     }
                 }
             }

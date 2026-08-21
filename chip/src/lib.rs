@@ -12,3 +12,4 @@ feature_mod_use!("ch32v003");
 // Other
 feature_mod_use!("bl702");
 feature_mod_use!("esp32c3");
+feature_mod_use!("qemu");

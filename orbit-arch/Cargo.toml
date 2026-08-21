@@ -8,14 +8,14 @@ description = "Architecture-dependent library crate"
 embedded-hal = "1.0.0"
 
 [target.'cfg(all(target_arch = "riscv32", target_os = "none"))'.dependencies]
-qingke = { version = "0.5.0", optional = true }
-qingke-rt = { version = "0.5.0", optional = true }
+qingke = { version = "0.7.0", optional = true }
+qingke-rt = { version = "0.7.0", optional = true }
 
 esp-riscv-rt = { version = "0.9.1", optional = true }
 
-riscv = { version = "0.15.0", optional = true }
-riscv-rt = { version = "0.13.0", optional = true }
-riscv-rt-macros = { version = "0.2.2", optional = true }
+riscv = { version = "0.16.1", optional = true }
+riscv-rt = { version = "0.18.0", optional = true }
+riscv-rt-macros = { version = "0.7.0", optional = true }
 
 [target.'cfg(all(target_arch = "arm", target_os = "none"))'.dependencies]
 cortex-m = "0.7.4"
@@ -25,4 +25,4 @@ cortex-m = "0.7.4"
 "qingke_v4" = [ "dep:qingke", "qingke/critical-section-impl"]
 "qingke_v2" = [ "dep:qingke", "qingke/critical-section-impl"]
 "esp_riscv" = [ "dep:esp-riscv-rt" ]
-"riscv" = [ "dep:riscv", "riscv/critical-section-single-hart", "dep:riscv-rt-macros", "dep:riscv-rt", "riscv-rt/single-hart" ]
+"riscv" = [ "dep:riscv", "riscv/critical-section-single-hart", "dep:riscv-rt-macros" ]

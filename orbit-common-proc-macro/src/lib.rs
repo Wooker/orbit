@@ -124,7 +124,9 @@ pub fn orbit_main_attribute(attr: TokenStream, _item: TokenStream) -> TokenStrea
         #[unsafe(no_mangle)]
         fn main() -> ! {
             let mut kernel = Kernel::new();
-            arch::riscv::register::mscratch::write(&kernel as *const Kernel as usize);
+            unsafe {
+                arch::riscv::register::mscratch::write(&kernel as *const Kernel as usize);
+            }
             unsafe {
                 asm!("csrr gp, mscratch");
                 asm::save_context();

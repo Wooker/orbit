@@ -1,13 +1,24 @@
-use crate::interface::pmp::Pmp;
-use riscv::register::{pmpaddr0, pmpaddr1, pmpaddr2, pmpaddr3, pmpcfg0, Permission, Range};
-use riscv::result;
+use crate::interface::{pmp::Pmp, timer::Timer, Interruptable, SetupMtvec};
+use core::arch::global_asm;
+use embedded_hal::delay::DelayNs;
+pub use riscv::asm::delay;
+use riscv::register::{mtvec, pmpaddr0, pmpaddr1, pmpaddr2, pmpaddr3, pmpcfg0, Permission, Range};
+use riscv::{asm, result};
+
+pub const PMP: usize = 4;
+
+pub use riscv;
 
 pub struct Core<const PMP: usize> {
+    pub clock: CoreClock,
     pub pmp: RiscvPmp<PMP>,
 }
 impl<const PMP: usize> Core<PMP> {
     pub const fn new() -> Self {
-        Self { pmp: RiscvPmp {} }
+        Self {
+            pmp: RiscvPmp {},
+            clock: CoreClock { hz: 10 },
+        }
     }
 }
 
@@ -66,11 +77,12 @@ impl<const PMP: usize> Pmp<Permission, Range> for RiscvPmp<PMP> {
     }
 
     fn write_addr(&self, reg: usize, addr: usize) -> Self::Result<()> {
+        // SAFETY: this code is guaranteed to run only on Risc-V targets
         match reg {
-            0 => Ok(pmpaddr0::write(addr)),
-            1 => Ok(pmpaddr1::write(addr)),
-            2 => Ok(pmpaddr2::write(addr)),
-            3 => Ok(pmpaddr3::write(addr)),
+            0 => unsafe { Ok(pmpaddr0::write(addr)) },
+            1 => unsafe { Ok(pmpaddr1::write(addr)) },
+            2 => unsafe { Ok(pmpaddr2::write(addr)) },
+            3 => unsafe { Ok(pmpaddr3::write(addr)) },
             _ => Err(result::Error::IndexOutOfBounds {
                 index: reg,
                 min: 0,
@@ -101,3 +113,52 @@ impl<const PMP: usize> RiscvPmp<PMP> {
         }
     }
 }
+
+pub struct CoreClock {
+    hz: u32,
+}
+
+impl Timer for CoreClock {
+    /// Delay in nanoseconds. Arguments shows the minimum amount as the
+    /// operation may take longer time
+    #[inline(always)]
+    fn delay(&self, ns: u32) {
+        asm::delay(ns)
+    }
+}
+
+impl<const PMP: usize> Interruptable for Core<PMP> {
+    fn enable_interrupt(&self, interrupt_code: u8) {}
+    fn disable_interrupt(&self, interrupt_code: u8) {}
+}
+
+impl<const PMP: usize> SetupMtvec for Core<PMP> {
+    type TrapMode = mtvec::TrapMode;
+
+    fn setup_mtvec(&self, addr: usize, mode: Self::TrapMode) {
+        unsafe { mtvec::write(mtvec::Mtvec::new(addr, mode)) }
+    }
+}
+
+global_asm!(
+    "
+    .section .init
+    .global _start
+
+_start:
+    la sp, _stack_top
+    li t0, 0x1880
+    csrw mstatus, t0
+    ",
+    // Set mtvec
+    "
+    la t0, handler;
+    csrw mtvec, t0;
+    ",
+    // Jump to main
+    "
+    la t0, main;
+    csrw mepc, t0;
+    mret;
+    "
+);

@@ -41,24 +41,29 @@ impl SysCall {
     }
 }
 
+/// This enum shows the reason a [`SysCall::InvokeLocal`] request failed.
+///
+/// This is an ABI value: zero is reserved for success, while these values are
+/// returned in `a0` to the caller of `InvokeLocal`.
 #[repr(usize)]
-#[derive(Clone, PartialEq, Eq, Copy)]
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub enum InvokeLocalError {
-    ApplicationNotFound,
-    TaskCreationFailed,
-    Unknown,
+    ApplicationNotFound = 1,
+    TaskCreationFailed = 2,
+    Unknown = 3,
 }
 
 impl InvokeLocalError {
-    pub const fn discriminant(&self) -> usize {
-        unsafe { *(self as *const Self as *const usize) }
+    pub const fn discriminant(self) -> usize {
+        self as usize
     }
 
-    pub const fn from_usize(v: usize) -> Self {
-        unsafe { *(&v as *const usize as *const Self) }
-    }
-
-    pub const fn from_discriminant(v: usize) -> Option<Self> {
-        unsafe { Some(*(&v as *const usize as *const Self)) }
+    pub const fn from_discriminant(value: usize) -> Option<Self> {
+        match value {
+            1 => Some(Self::ApplicationNotFound),
+            2 => Some(Self::TaskCreationFailed),
+            3 => Some(Self::Unknown),
+            _ => None,
+        }
     }
 }

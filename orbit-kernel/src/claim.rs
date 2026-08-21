@@ -111,4 +111,4 @@ impl_claim!(
     EXTI = 0x40010400,
     AFIO = 0x40010000,
 );
-impl_claim!();
+impl_claim!("qemu",);
