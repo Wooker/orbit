@@ -1,8 +1,7 @@
 [package]
-name = "orbit-app-new-proc-macro"
+name = "orbit-driver-proc-macro"
 version = "0.1.0"
 edition = "2024"
-build = "build.rs"
 
 [lib]
 proc-macro = true
