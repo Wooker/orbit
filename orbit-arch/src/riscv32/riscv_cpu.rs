@@ -155,6 +155,16 @@ _start:
     la t0, handler;
     csrw mtvec, t0;
     ",
+    // Setup PMP
+    "
+    li t0, 0
+    csrw pmpaddr0, t0
+    li t0, 0xffffffff
+    srli t0, t0, 2
+    csrw pmpaddr1, t0
+    li t0, 0x00000F00
+    csrw pmpcfg0, t0
+    ",
     // Jump to main
     "
     la t0, main;
