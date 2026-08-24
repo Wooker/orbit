@@ -1,0 +1,9 @@
+[package]
+name = "qemu-virt32-pac"
+version = "0.1.0"
+edition = "2024"
+
+[dependencies]
+vcell = "*"
+
+[workspace]

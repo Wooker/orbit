@@ -1,0 +1,333 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<device schemaVersion="1.1" xmlns:xs="http://www.w3.org/2001/XMLSchema-instance" xs:noNamespaceSchemaLocation="CMSIS-SVD_Schema_1_1.xsd">
+  <name>riscv-virtio,qemu</name>
+  <version>0.1</version>
+  <description>From riscv-virtio,qemu,model device generator</description>
+  <addressUnitBits>8</addressUnitBits>
+  <width>32</width>
+  <peripherals>
+    <peripheral>
+      <name>plic</name>
+      <description>RISC-V PLIC: plic</description>
+      <baseAddress>0x0C000000</baseAddress>
+      <addressBlock>
+        <offset>0x0</offset>
+        <size>0x600000</size>
+        <usage>registers</usage>
+      </addressBlock>
+      <registers>
+        <register>
+          <dim>95</dim>
+          <dimIncrement>0x4</dimIncrement>
+          <name>priority[%s]</name>
+          <description>RISC-V PLIC Interrupt Source Priority.</description>
+          <addressOffset>0x4</addressOffset>
+          <size>0x20</size>
+          <resetValue>0x00000000</resetValue>
+          <fields>
+            <field>
+              <name>priority</name>
+              <description>Represents interrupt source priority: `0` is reserved to mean `never interrupt`, and interrupt priority increases with increasing integer values.</description>
+              <bitRange>[31:0]</bitRange>
+              <access>read-write</access>
+              <writeConstraint>
+                <range>
+                  <minimum>0</minimum>
+                  <maximum>4294967295</maximum>
+                </range>
+              </writeConstraint>
+            </field>
+          </fields>
+        </register>
+        <register>
+          <dim>3</dim>
+          <dimIncrement>0x4</dimIncrement>
+          <name>pending[%s]</name>
+          <description>RISC-V PLIC Pending: 32-bit register indicating if there is a pending interrupt, e.g. pending[0][0] is interrupt 0, pending[0][31] is interrupt 31, pending[1][0] is interrupt 32.</description>
+          <addressOffset>0x1000</addressOffset>
+          <size>0x20</size>
+          <resetValue>0x00000000</resetValue>
+          <fields>
+            <field>
+              <dim>32</dim>
+              <dimIncrement>0x1</dimIncrement>
+              <name>pending[%s]</name>
+              <description>Bit index that indicates whether the interrupt source is pending</description>
+              <bitRange>[0:0]</bitRange>
+              <access>read-write</access>
+              <writeConstraint>
+                <useEnumeratedValues>true</useEnumeratedValues>
+              </writeConstraint>
+              <enumeratedValues>
+                <enumeratedValue>
+                  <name>clear</name>
+                  <description>The interrupt source has no pending interrupt</description>
+                  <value>0</value>
+                </enumeratedValue>
+                <enumeratedValue>
+                  <name>pending</name>
+                  <description>The interrupt source has a pending interrupt</description>
+                  <value>1</value>
+                </enumeratedValue>
+              </enumeratedValues>
+            </field>
+          </fields>
+        </register>
+        <cluster>
+          <dim>1</dim>
+          <dimIncrement>0x80</dimIncrement>
+          <name>enable[%s]</name>
+          <description>PLIC interrupt enable registers (per-HART)</description>
+          <addressOffset>0x2000</addressOffset>
+          <register>
+            <dim>3</dim>
+            <dimIncrement>0x4</dimIncrement>
+            <name>enable_bits[%s]</name>
+            <description>Interrupt source enable bits.</description>
+            <addressOffset>0x0</addressOffset>
+            <size>0x20</size>
+            <resetValue>0x00000000</resetValue>
+            <fields>
+              <field>
+                <dim>32</dim>
+                <dimIncrement>0x1</dimIncrement>
+                <name>enable[%s]</name>
+                <description>Enables the interrupt source associated with the bit index.</description>
+                <bitRange>[0:0]</bitRange>
+                <access>read-write</access>
+              </field>
+            </fields>
+          </register>
+          <register>
+            <name>_enable_reserved</name>
+            <description>PLIC Enable Reserved register used for alignment.</description>
+            <addressOffset>0x7C</addressOffset>
+            <size>0x20</size>
+            <resetValue>0x00000000</resetValue>
+          </register>
+        </cluster>
+        <cluster>
+          <dim>1</dim>
+          <dimIncrement>0x1000</dimIncrement>
+          <name>threshold_claim[%s]</name>
+          <description>PLIC threshold and claim_complete registers</description>
+          <addressOffset>0x200000</addressOffset>
+          <register>
+            <name>threshold</name>
+            <description>Interrupt priority threshold of each context.</description>
+            <addressOffset>0x0</addressOffset>
+            <size>0x20</size>
+            <resetValue>0x00000000</resetValue>
+            <fields>
+              <field>
+                <name>threshold</name>
+                <description>The PLIC will mask all PLIC interrupts of a priority less than or equal to `threshold`.</description>
+                <bitRange>[31:0]</bitRange>
+                <access>read-write</access>
+                <writeConstraint>
+                  <range>
+                    <minimum>0</minimum>
+                    <maximum>4294967295</maximum>
+                  </range>
+                </writeConstraint>
+              </field>
+            </fields>
+          </register>
+          <register>
+            <name>claim_complete</name>
+            <description>Interrupt source `claim` (read) and complete (write) register. The PLIC will write pending interrupt source information to the `claim` register. When the interrupt handler is finished, the interrupt source idendification should be written to the corresponding `complete` register.</description>
+            <addressOffset>0x4</addressOffset>
+            <size>0x20</size>
+            <resetValue>0x00000000</resetValue>
+            <fields>
+              <field>
+                <name>claim</name>
+                <description>Claim interrupt source ID of highest-priority pending interrupt. Value of `0` indicates no pending interrupt.</description>
+                <bitRange>[31:0]</bitRange>
+                <access>read-only</access>
+              </field>
+              <field>
+                <name>complete</name>
+                <description>Completes handling for interrupt source ID.</description>
+                <bitRange>[31:0]</bitRange>
+                <access>write-only</access>
+                <writeConstraint>
+                  <range>
+                    <minimum>0</minimum>
+                    <maximum>4294967295</maximum>
+                  </range>
+                </writeConstraint>
+              </field>
+            </fields>
+          </register>
+          <register>
+            <name>_threshold_reserved</name>
+            <description>PLIC Threshold Reserved register used for alignment.</description>
+            <addressOffset>0xFFC</addressOffset>
+            <size>0x20</size>
+            <resetValue>0x00000000</resetValue>
+          </register>
+        </cluster>
+      </registers>
+    </peripheral>
+    <peripheral>
+      <name>clint</name>
+      <description>RISC-V CLINT: clint</description>
+      <baseAddress>0x02000000</baseAddress>
+      <addressBlock>
+        <offset>0x0</offset>
+        <size>0x10000</size>
+        <usage>registers</usage>
+      </addressBlock>
+      <registers>
+        <register>
+          <dim>1</dim>
+          <dimIncrement>0x4</dimIncrement>
+          <name>msip[%s]</name>
+          <description>CLINT MSIP (Machine Software Interrupt) register</description>
+          <addressOffset>0x0</addressOffset>
+          <size>0x20</size>
+          <resetValue>0x00000000</resetValue>
+          <fields>
+            <field>
+              <name>control</name>
+              <bitRange>[0:0]</bitRange>
+              <access>read-write</access>
+            </field>
+          </fields>
+        </register>
+        <register>
+          <dim>1</dim>
+          <dimIncrement>0x8</dimIncrement>
+          <name>mtimecmp[%s]</name>
+          <description>CLINT MTIMECMP (Machine Time Compare) register</description>
+          <addressOffset>0x4000</addressOffset>
+          <size>0x40</size>
+          <resetValue>0x00000000</resetValue>
+          <fields>
+            <field>
+              <name>cycles</name>
+              <bitRange>[63:0]</bitRange>
+              <access>read-write</access>
+              <writeConstraint>
+                <range>
+                  <minimum>0</minimum>
+                  <maximum>18446744073709551615</maximum>
+                </range>
+              </writeConstraint>
+            </field>
+          </fields>
+        </register>
+        <register>
+          <name>mtime</name>
+          <description>CLINT MTIME (Machine Time) register</description>
+          <addressOffset>0xBFF8</addressOffset>
+          <size>0x40</size>
+          <resetValue>0x00000000</resetValue>
+          <fields>
+            <field>
+              <name>cycles</name>
+              <bitRange>[63:0]</bitRange>
+              <access>read-write</access>
+              <writeConstraint>
+                <range>
+                  <minimum>0</minimum>
+                  <maximum>18446744073709551615</maximum>
+                </range>
+              </writeConstraint>
+            </field>
+          </fields>
+        </register>
+      </registers>
+    </peripheral>
+    <peripheral>
+      <name>UART0</name>
+      <description>NS16550A Compatible UART Peripheral</description>
+      <baseAddress>0x10000000</baseAddress>
+      <addressBlock>
+        <offset>0</offset>
+        <size>0x8</size>
+        <usage>registers</usage>
+      </addressBlock>
+      <registers>
+        <!-- RBR / THR / DLL (Offset 0x00) -->
+        <register>
+          <name>RBR_THR_DLL</name>
+          <description>Rx Buffer (R), Tx Holding (W), or Divisor Latch Low (if DLAB=1)</description>
+          <addressOffset>0x00</addressOffset>
+          <size>32</size> <!-- Change to 8 if your bus maps registers with byte spacing -->
+          <access>read-write</access>
+        </register>
+        <!-- IER / DLM (Offset 0x01) -->
+        <register>
+          <name>IER_DLM</name>
+          <description>Interrupt Enable Register, or Divisor Latch High (if DLAB=1)</description>
+          <addressOffset>0x01</addressOffset> <!-- Change to 0x04 if registers are word-aligned/spaced -->
+          <size>32</size>
+          <access>read-write</access>
+        </register>
+        <!-- IIR / FCR (Offset 0x02) -->
+        <register>
+          <name>IIR_FCR</name>
+          <description>Interrupt Identification Register (R) or FIFO Control Register (W)</description>
+          <addressOffset>0x02</addressOffset>
+          <size>32</size>
+          <access>read-write</access>
+        </register>
+        <!-- LCR (Offset 0x03) -->
+        <register>
+          <name>LCR</name>
+          <description>Line Control Register (Bit 7 is DLAB)</description>
+          <addressOffset>0x03</addressOffset>
+          <size>32</size>
+          <access>read-write</access>
+          <fields>
+            <field>
+              <name>DLAB</name>
+              <description>Divisor Latch Access Bit</description>
+              <bitOffset>7</bitOffset>
+              <bitWidth>1</bitWidth>
+            </field>
+          </fields>
+        </register>
+        <!-- MCR (Offset 0x04) -->
+        <register>
+          <name>MCR</name>
+          <description>Modem Control Register</description>
+          <addressOffset>0x04</addressOffset>
+          <size>32</size>
+          <access>read-write</access>
+        </register>
+        <!-- LSR (Offset 0x05) -->
+        <register>
+          <name>LSR</name>
+          <description>Line Status Register</description>
+          <addressOffset>0x05</addressOffset>
+          <size>32</size>
+          <access>read-only</access>
+          <fields>
+            <field><name>DR</name><description>Data Ready</description><bitOffset>0</bitOffset><bitWidth>1</bitWidth></field>
+            <field><name>THRE</name><description>Tx Holding Register Empty</description><bitOffset>5</bitOffset><bitWidth>1</bitWidth></field>
+            <field><name>TEMT</name><description>Transmitter Empty</description><bitOffset>6</bitOffset><bitWidth>1</bitWidth></field>
+          </fields>
+        </register>
+        <!-- MSR (Offset 0x06) -->
+        <register>
+          <name>MSR</name>
+          <description>Modem Status Register</description>
+          <addressOffset>0x06</addressOffset>
+          <size>32</size>
+          <access>read-only</access>
+        </register>
+        <!-- SCR (Offset 0x07) -->
+        <register>
+          <name>SCR</name>
+          <description>Scratchpad Register</description>
+          <addressOffset>0x07</addressOffset>
+          <size>32</size>
+          <access>read-write</access>
+        </register>
+      </registers>
+    </peripheral>
+  </peripherals>
+</device>
