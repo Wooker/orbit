@@ -1,10 +1,10 @@
 use proc_macro::TokenStream;
 use quote::{format_ident, quote};
 use syn::{
-    Expr, Ident, Token,
     parse::{Parse, ParseStream},
     parse_macro_input,
     punctuated::Punctuated,
+    Expr, Ident, Token,
 };
 
 struct OrbitMainArgs {
@@ -73,7 +73,7 @@ pub fn orbit_main_attribute(attr: TokenStream, _item: TokenStream) -> TokenStrea
     let drivers = drivers_args
         .iter()
         .enumerate()
-        .map(|(_, s)| {
+        .map(|(i, s)| {
             let struct_lower = format_ident!("{}", s.to_string().to_lowercase());
             let s_pin = format_ident!("_{}_pin", s.to_string().to_lowercase());
             quote! {
@@ -86,7 +86,7 @@ pub fn orbit_main_attribute(attr: TokenStream, _item: TokenStream) -> TokenStrea
                         #s::init as *const () as usize,
                         #s::main as *const () as usize,
                         #s::interrupt as *const () as usize,
-                    ));
+                    ), #i);
                     Some(pin)
                 } else {
                     None

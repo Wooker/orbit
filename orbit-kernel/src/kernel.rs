@@ -157,7 +157,7 @@ impl<'k> Kernel<'k> {
     }
 
     #[inline(never)]
-    pub fn add_driver(&mut self, app_cont: AppContainer<'k>) {
+    pub fn add_driver(&mut self, app_cont: AppContainer<'k>, priority: usize) {
         if let Some(mut task) = Task::new(
             Packet::new(
                 Flags::empty(),
@@ -167,7 +167,7 @@ impl<'k> Kernel<'k> {
                 Message::Invoke,
                 app_cont.name().as_bytes(),
             ),
-            1,
+            priority,
             app_cont.init_addr(),
         ) {
             task.for_driver(app_cont.driver_struct().unwrap());

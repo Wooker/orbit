@@ -35,21 +35,17 @@ impl<'s> Scheduler<'s> {
         &mut self.list
     }
 
+    /// Add a task to scheduler list.
+    /// Lower priority places the task closer to the front
+    /// of the list.
     pub(super) fn add(&mut self, task: Pin<Box<Task<'s>>>) {
-        let mut front = self.list.cursor_front_mut();
+        let mut cursor = self.list.cursor_front_mut();
 
-        if let Some(current) = front.current()
-            && current.header.priority > task.header.priority
+        while let Some(current) = cursor.current()
+            && current.header.priority <= task.header.priority
         {
-            let mut cursor = self.list.cursor_front_mut();
-            while let Some(current) = cursor.current()
-                && task.header.priority <= current.header.priority
-            {
-                cursor.move_next();
-            }
-            cursor.insert_before(task);
-        } else {
-            front.insert_before(task);
+            cursor.move_next();
         }
+        cursor.insert_before(task);
     }
 }
