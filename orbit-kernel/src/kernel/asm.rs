@@ -10,6 +10,19 @@ pub(super) unsafe extern "C" fn exit_to_loop() -> ! {
         "
             la t0, wait;
             csrw mepc, t0;
+            ",
+        // "
+        //     la t0, wait
+        //     srli t0, t0, 2
+        //     ",
+        // "
+        // csrw pmpaddr0, t0
+        // addi t0, t0, 2
+        // csrw pmpaddr1, t0
+        // li t0, 0x00000F00
+        // csrw pmpcfg0, t0
+        // ",
+        "
             mret;
             ",
     );

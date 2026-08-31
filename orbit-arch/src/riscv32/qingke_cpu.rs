@@ -1,10 +1,12 @@
-use crate::interface::{pmp::Pmp, timer::Timer};
+use crate::interface::{pmp::Pmp, timer::Timer, Interruptable, SetupMtvec};
+use core::arch::global_asm;
 use embedded_hal::delay::DelayNs;
 use qingke::riscv::{
     asm,
     delay::McycleDelay,
     register::{
         mhpmcounter5h::write,
+        mtvec,
         pmpcfg0::{self, clear_pmp},
         Permission, Range,
     },
@@ -91,10 +93,10 @@ impl<const PMP: usize> Pmp<Permission, Range> for RiscvPmp<PMP> {
 
     fn write_addr(&self, reg: usize, addr: usize) -> Self::Result<()> {
         match reg {
-            0 => Ok(qingke::riscv::register::pmpaddr0::write(addr)),
-            1 => Ok(qingke::riscv::register::pmpaddr1::write(addr)),
-            2 => Ok(qingke::riscv::register::pmpaddr2::write(addr)),
-            3 => Ok(qingke::riscv::register::pmpaddr3::write(addr)),
+            0 => unsafe { Ok(qingke::riscv::register::pmpaddr0::write(addr)) },
+            1 => unsafe { Ok(qingke::riscv::register::pmpaddr1::write(addr)) },
+            2 => unsafe { Ok(qingke::riscv::register::pmpaddr2::write(addr)) },
+            3 => unsafe { Ok(qingke::riscv::register::pmpaddr3::write(addr)) },
             _ => Err(RiscvError::IndexOutOfBounds {
                 index: reg,
                 min: 0,
@@ -161,3 +163,50 @@ impl Timer for CoreClock {
         asm::delay(ns)
     }
 }
+
+impl<const PMP: usize> Interruptable for Core<PMP> {
+    fn enable_interrupt(&self, interrupt_code: u8) {
+        unsafe { qingke::pfic::enable_interrupt(interrupt_code) };
+    }
+    fn disable_interrupt(&self, interrupt_code: u8) {
+        unsafe { qingke::pfic::disable_interrupt(interrupt_code) };
+    }
+}
+
+impl<const PMP: usize> SetupMtvec for Core<PMP> {
+    type TrapMode = mtvec::TrapMode;
+
+    fn setup_mtvec(&self, addr: usize, mode: Self::TrapMode) {
+        unsafe { mtvec::write(mtvec::Mtvec::new(addr, mode)) };
+    }
+}
+
+global_asm!(
+    "
+    .section .init
+    .global _start
+
+_start:
+    la sp, _stack_top
+    li t0, 0x1880
+    csrw mstatus, t0
+    ",
+    // Set mtvec
+    "
+    la t0, handler;
+    csrw mtvec, t0;
+    ",
+    // Set dcsr 9 and 11 bits
+    "
+    csrr t0, dcsr;
+    li t1, 0xa00;
+    or t0, t0, t1;
+    csrw dcsr, t0;
+    ",
+    // Jump to main
+    "
+    la t0, main;
+    csrw mepc, t0;
+    mret;
+    "
+);

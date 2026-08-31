@@ -4,6 +4,10 @@
 #![feature(naked_functions_rustic_abi)]
 #![feature(linked_list_cursors)]
 #![feature(ptr_metadata)]
+#![feature(const_option_ops)]
+#![feature(const_trait_impl)]
+
+//! Orbit kernel
 
 pub mod application;
 pub mod application_container;
@@ -53,43 +57,3 @@ pub fn panic_handler<'a, 'b>(_info: &'a core::panic::PanicInfo<'b>) -> ! {
     // kernel.handle_panic(info);
     loop {}
 }
-
-#[cfg(feature = "rt")]
-use core::arch::global_asm;
-#[cfg(feature = "rt")]
-global_asm!(
-    "
-    .section .init
-    .global _start
-
-_start:
-    la sp, _stack_top
-    ",
-    // "
-    // li t0, 0x1f
-    // csrw 0xbc0, t0
-    // li t0, 0x08
-    // csrw 0x804, t0
-    // ",
-    "li t0, 0x1880",
-    "csrw mstatus, t0",
-    "la ra, initialize_finish",
-    // Set mtvec
-    "
-    la t0, handler;
-    csrw mtvec, t0;
-    ",
-    // Set dcsr 9 and 11 bits
-    "
-    csrr t0, dcsr;
-    li t1, 0xa00;
-    or t0, t0, t1;
-    csrw dcsr, t0;
-    ",
-    "
-    la t0, main;
-    csrw mepc, t0;
-    mret;
-    // j main;
-    "
-);

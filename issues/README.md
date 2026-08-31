@@ -12,4 +12,3 @@ Next issue id: 5
 - [1](configure-pmp-registers-before-switching-context-to-user.md)
 - [2](implement-WFI-instead-of-busy-loop.md)
 - [3](check-claim-status-of-peripherals-on-driver-initialization.md)
-- [4](qemu-support.md)

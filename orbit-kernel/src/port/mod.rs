@@ -27,6 +27,7 @@ pub enum UartError {
 
 feature_mod_use_mutual!(uart_v208, "ch32v208wbu6", "ch32v003");
 feature_mod_use_mutual!(uart_x035, "ch32x035");
+feature_mod_use_mutual!(uart_qemu, "qemu");
 
 #[derive(Clone, Copy)]
 pub(crate) enum Role {

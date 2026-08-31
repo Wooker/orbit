@@ -24,7 +24,7 @@ SECTIONS
 {{
     .kernel.text : ALIGN(4)
     {{
-        *orbit_kernel*.o(.init);
+        *orbit_arch*.o(.init);
         *orbit_arch*.o(.text .text.*);
         *chip*.o(.text .text.*);
         *orbit_kernel*.o(.text .text.*);

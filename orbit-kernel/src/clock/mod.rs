@@ -5,3 +5,4 @@ feature_mod_use!("ch32v208wbu6");
 feature_mod_use!("ch32x035");
 feature_mod_use!("ch32v003");
 feature_mod_use!("bl702");
+feature_mod_use!("qemu");
