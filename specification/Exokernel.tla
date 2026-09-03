@@ -3,8 +3,10 @@
 EXTENDS Naturals, Sequences
 
 (* Parameters and constants *)
-CONSTANT TaskCount, ResourceCount
+CONSTANT TaskCount, ResourceCount, KernelCount
 VARIABLE tasks, resources, allocations
+
+Id == 1..KernelCount
 
 (* TaskId are modeled as a sequence of task IDs, where each task has an index. *)
 TaskId == 1..TaskCount
@@ -12,54 +14,85 @@ TaskId == 1..TaskCount
 (* ResourceId are modeled as a sequence of resource IDs, where each resource has an index. *)
 ResourceId == 1..ResourceCount
 
-TaskState == {"waiting", "running"}
+TaskState == {"waiting", "running", "requested"}
+TaskType == [state: TaskState, request: [0..KernelCount -> 0..ResourceCount] ]
 Availability == {"free", "busy"}
 
 (**************************************************************)
 (* Type invariant of the specification                        *)
 (**************************************************************)
 ExokernelTypeInvariant ==
-  /\ tasks \in [TaskId -> TaskState]
-  /\ resources \in [ResourceId -> Availability]
-  /\ allocations \in [TaskId -> [ResourceId -> BOOLEAN ] ]
+  /\ tasks \in [Id -> [TaskId -> [state: TaskState, request: [Id -> 0..ResourceCount ] ] ] ]
+  /\ resources \in [Id -> [ResourceId -> Availability] ]
+  /\ allocations \in [Id -> [TaskId -> [ResourceId -> BOOLEAN ] ] ]
 
 ----
 
 (* Define Exokernel state as a record containing tasks, resources, and allocations *)
 ExokernelInit ==
-  /\ tasks = [ t \in TaskId |-> "waiting" ]
-  /\ resources = [ r \in ResourceId |-> "free" ]
-  /\ allocations = [ t \in TaskId |-> [ r \in ResourceId |-> FALSE ] ]
+  /\ tasks =
+    [k \in Id |->
+      [t \in TaskId |->
+        [state |-> "waiting"
+        ,request |->
+          [n \in Id |-> 0
+          ]
+        ]
+      ]
+    ]
+  /\ resources = [ k \in Id |-> [r \in ResourceId |-> "free" ] ]
+  /\ allocations = [ k \in Id |-> [t \in TaskId |-> [ r \in ResourceId |-> FALSE ] ] ]
+
+RunTask(k, t) ==
+  /\ \A every \in TaskId: tasks[k][every].state = "waiting"
+  /\ tasks' = [tasks EXCEPT ![k][t].state = "running"]
+  /\ UNCHANGED <<resources, allocations>>
+
+WaitTask(k, t) ==
+  /\ \E every \in TaskId: tasks[k][every].state = "running"
+  /\ tasks' = [tasks EXCEPT ![k][t].state = "waiting"]
+  /\ UNCHANGED <<resources, allocations>>
 
 (* A task can request access to a resource if it's not already in use. *)
-RequestResource(t, r) ==
-  /\ resources[r] = "free"
-  /\ allocations[t][r] = FALSE
-  /\ tasks[t] = "waiting"
-  /\ tasks' = [tasks EXCEPT ![t] = "running"]
-  /\ resources' = [resources EXCEPT ![r] = "busy"]
-  /\ allocations' = [allocations EXCEPT ![t][r] = TRUE]
+RequestResource(from, to, t, r) ==
+  /\ tasks[from][t].state = "running"
+  /\ tasks' = [tasks EXCEPT ![from][t].state = "requested", ![from][t].request[to] = r]
+  /\ UNCHANGED <<resources, allocations>>
 
-FreeResource == CHOOSE r \in ResourceId : resources[r] = "free"
-OccupyResource ==
-  /\ \E r \in ResourceId : resources[r] = "free"
-  /\ LET res == CHOOSE r \in ResourceId : resources[r] = "free"
-     IN resources' = [ resources EXCEPT ![res] = "busy" ]
-  /\ UNCHANGED <<tasks, allocations>>
+RequestFail(from, to, t, r) ==
+  /\ tasks[from][t].state = "requested"
+  /\ tasks' = [tasks EXCEPT ![from][t].state = "running", ![from][t].request[to] = 0]
+  /\ UNCHANGED <<resources, allocations>>
+
+OccupyResource(from, to, t, r) ==
+  /\ resources[from][r] = "free"
+  /\ allocations[from][t][r] = FALSE
+  /\ tasks[from][t].state = "requested"
+  /\ tasks[from][t].request[to] = r
+  /\ resources' = [resources EXCEPT ![to][r] = "busy"]
+  /\ allocations' = [allocations EXCEPT ![from][t][r] = TRUE]
+  /\ tasks' = [tasks EXCEPT ![from][t].state = "running", ![from][t].request[to] = 0]
 
 (* A task can release a resource when it has finished using it. *)
-ReleaseResource(t, r) ==
-  /\ allocations[t][r] = TRUE
-  /\ tasks[t] = "running"
-  /\ tasks' = [tasks EXCEPT ![t] = "waiting"]
-  /\ resources' = [resources EXCEPT ![r] = "free"]
-  /\ allocations' = [allocations EXCEPT ![t][r] = FALSE]
+ReleaseResource(k, t, r) ==
+  /\ allocations[k][t][r] = TRUE
+  /\ tasks[k][t].state = "running"
+  /\ tasks' = [tasks EXCEPT ![k][t].state = "waiting"]
+  /\ resources' = [resources EXCEPT ![k][r] = "free"]
+  /\ allocations' = [allocations EXCEPT ![k][t][r] = FALSE]
        
+----
 
 (* The next-state relation defines valid state transitions *)
 ExokernelNext ==
-  \E t \in TaskId, r \in ResourceId : 
-    (RequestResource(t, r) \/ ReleaseResource(t, r))
+  \E from, to \in Id, t \in TaskId: 
+    \/ RunTask(from, t)
+    \/ WaitTask(from, t)
+    \/ \E r \in ResourceId:
+       \/ RequestResource(from, to, t, r)
+       \/ OccupyResource(from, to, t, r)
+       \/ RequestFail(from, to, t, t)
+       \/ ReleaseResource(from, t, r)
 
 ----
 
