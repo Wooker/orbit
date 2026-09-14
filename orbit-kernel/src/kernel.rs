@@ -248,40 +248,6 @@ impl<'k> Kernel<'k> {
     fn interrupt_handler(&mut self) {
         let code = orbit_arch::riscv::register::mcause::read().code();
 
-        #[cfg(feature = "qemu")]
-        if code == 11 {
-            if let Some(source) = self.claim_plic_interrupt() {
-                if let Some(driver_index) =
-                    self.interrupts.get(source as usize).and_then(|entry| *entry)
-                {
-                    if let Some(driver) = self.drivers.get(driver_index as usize) {
-                        let packet = Packet::new(
-                            Flags::empty(),
-                            PACKET_ID.get_id(),
-                            0,
-                            0,
-                            Message::Invoke,
-                            driver.name().as_bytes(),
-                        );
-                        if let Some(mut task) = Task::new(packet, 1, driver.interrupt_addr()) {
-                            task.for_driver(driver.driver_struct().unwrap());
-                            self.set_plic_interrupt_enabled(source, false);
-                            self.plic_claims[source as usize] =
-                                Some((task.header.task_id, source));
-                            self.scheduler.add(task);
-                        } else {
-                            self.complete_plic_interrupt(source);
-                        }
-                    } else {
-                        self.complete_plic_interrupt(source);
-                    }
-                } else {
-                    self.complete_plic_interrupt(source);
-                }
-            }
-            return;
-        }
-
         // Check if it's a port interrupt
         if let Some((index, port)) = PORT_INTERRUPTS
             .0
@@ -309,51 +275,6 @@ impl<'k> Kernel<'k> {
             }
         } else {
         }
-    }
-
-    #[cfg(feature = "qemu")]
-    fn claim_plic_interrupt(&self) -> Option<u8> {
-        let plic = unsafe { &*chip::pac::PLIC::ptr() };
-        let source = plic
-            .threshold_claim(0)
-            .claim_complete()
-            .read()
-            .claim()
-            .bits();
-
-        u8::try_from(source).ok().filter(|source| *source != 0)
-    }
-
-    #[cfg(feature = "qemu")]
-    fn complete_plic_interrupt(&self, source: u8) {
-        let plic = unsafe { &*chip::pac::PLIC::ptr() };
-        plic.threshold_claim(0)
-            .claim_complete()
-            .write(|writer| unsafe { writer.bits(source as u32) });
-    }
-
-    #[cfg(feature = "qemu")]
-    fn set_plic_interrupt_enabled(&self, source: u8, enabled: bool) {
-        let plic = unsafe { &*chip::pac::PLIC::ptr() };
-        let mask = 1u32 << (source % 32);
-        let enable = plic.enable(0).enable_bits((source / 32) as usize);
-        enable.modify(|reader, writer| unsafe {
-            let bits = if enabled {
-                reader.bits() | mask
-            } else {
-                reader.bits() & !mask
-            };
-            writer.bits(bits)
-        });
-    }
-
-    #[cfg(feature = "qemu")]
-    fn take_plic_claim(&mut self, task_id: usize) -> Option<u8> {
-        self.plic_claims
-            .iter_mut()
-            .find(|claim| claim.is_some_and(|(id, _)| id == task_id))
-            .and_then(Option::take)
-            .map(|(_, source)| source)
     }
 
     #[inline(never)]
@@ -407,12 +328,6 @@ impl<'k> Kernel<'k> {
             SysCall::ReturnInit => if let Some(task) = self.scheduler.pop() {},
             SysCall::ReturnInterrupt => {
                 if let Some(task) = self.scheduler.pop() {
-                    #[cfg(feature = "qemu")]
-                    if let Some(source) = self.take_plic_claim(task.header.task_id) {
-                        self.set_plic_interrupt_enabled(source, true);
-                        self.complete_plic_interrupt(source);
-                    }
-                    #[cfg(not(feature = "qemu"))]
                     if let Some((driver_index, _)) = self
                         .drivers
                         .iter()
@@ -442,11 +357,6 @@ impl<'k> Kernel<'k> {
                 {
                     if interrupt < self.interrupts.len() {
                         self.interrupts[interrupt] = Some(index as u8);
-                        #[cfg(feature = "qemu")]
-                        unsafe {
-                            orbit_arch::riscv::register::mie::set_mext();
-                        }
-                        #[cfg(not(feature = "qemu"))]
                         self.core.enable_interrupt(interrupt as u8);
                     }
                 }
