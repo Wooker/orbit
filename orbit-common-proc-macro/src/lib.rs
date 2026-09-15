@@ -1,10 +1,10 @@
 use proc_macro::TokenStream;
 use quote::{format_ident, quote};
 use syn::{
+    Expr, Ident, Token,
     parse::{Parse, ParseStream},
     parse_macro_input,
     punctuated::Punctuated,
-    Expr, Ident, Token,
 };
 
 struct OrbitMainArgs {
@@ -113,7 +113,7 @@ pub fn orbit_main_attribute(attr: TokenStream, _item: TokenStream) -> TokenStrea
         use orbit_bin::{
             arch,
             chip,
-            kernel::{asm, Kernel, APPS},
+            kernel::{asm, Kernel},
             application::Application,
             application_container::AppContainer,
         };

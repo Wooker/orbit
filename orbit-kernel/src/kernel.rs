@@ -21,6 +21,7 @@ use crate::{
     },
     ringbuf::RingBuf,
     syscall::{InvokeLocalError, SysCall},
+    systems::SystemId,
     task::{Task, TaskState},
 };
 use alloc::{boxed::Box, collections::linked_list::LinkedList, slice, vec::Vec};
@@ -44,7 +45,6 @@ use spaceport::{
     types::Flags,
 };
 
-pub const APPS: usize = 5;
 pub(crate) static PACKET_ID: ID<u16> = ID::new(0);
 pub static KERNEL_VERSION: &'static str = env!("CARGO_PKG_VERSION");
 
@@ -53,13 +53,12 @@ pub struct Kernel<'k> {
     context: Context,
     apps: Vec<AppContainer<'k>>,
     drivers: Vec<AppContainer<'k>>,
+    systems: [Option<usize>; SystemId::MAX as usize],
     interrupts: [Option<u8>; 255],
-    #[cfg(feature = "qemu")]
-    plic_claims: [Option<(usize, u8)>; 255],
     ports: [Port<'k>; PORT_NUM],
     claims: [bool; KernelPeripherals::MAX as usize],
-    pub core: Core<PMP>,
-    pub clock: Clocks,
+    core: Core<PMP>,
+    clock: Clocks,
     scheduler: Scheduler<'k>,
 }
 
@@ -140,9 +139,8 @@ impl<'k> Kernel<'k> {
             ports,
             apps: Vec::new(),
             drivers: Vec::new(),
+            systems: [None; SystemId::MAX as usize],
             interrupts: [None; 255],
-            #[cfg(feature = "qemu")]
-            plic_claims: [None; 255],
             claims: [false; KernelPeripherals::MAX as usize],
             clock,
             scheduler: Scheduler::new(),
@@ -327,6 +325,11 @@ impl<'k> Kernel<'k> {
             }
             SysCall::ReturnInit => if let Some(task) = self.scheduler.pop() {},
             SysCall::ReturnInterrupt => {
+                // TODO: check if the driver is linked to any system
+                // if so, handle it
+                // self.handle_system()
+                //       |
+                // else, V
                 if let Some(task) = self.scheduler.pop() {
                     if let Some((driver_index, _)) = self
                         .drivers
@@ -345,6 +348,37 @@ impl<'k> Kernel<'k> {
                 }
                 // unsafe { orbit_arch::pfic::enable_interrupt(40) };
             }
+            SysCall::RegisterSystem => {
+                let task = self.scheduler.current().unwrap();
+                let system_id = task.header.context.a1;
+                let driver_name = task.header.packet.payload;
+                if let Some((index, driver)) = self
+                    .drivers
+                    .iter()
+                    .enumerate()
+                    .find(|(i, d)| d.name().as_bytes().eq(driver_name))
+                {
+                    if self.systems[system_id].is_none() {
+                        self.systems[system_id] = Some(index);
+                    } else {
+                        self.drivers.remove(index);
+                        self.scheduler.pop();
+                    }
+                }
+            }
+            SysCall::HandleSystem => {
+                let task = self.scheduler.current().unwrap();
+                let system_id = task.header.context.a1;
+                let driver_name = task.header.packet.payload;
+                if let Some((index, driver)) = self
+                    .drivers
+                    .iter()
+                    .enumerate()
+                    .find(|(i, d)| d.name().as_bytes().eq(driver_name))
+                    && let Some(system_index) = self.systems[system_id]
+                    && system_index == index
+                {}
+            }
             SysCall::RegisterInterrupt => {
                 let task = self.scheduler.current().unwrap();
                 let interrupt = task.header.context.a1;
@@ -355,9 +389,27 @@ impl<'k> Kernel<'k> {
                     .enumerate()
                     .find(|(i, d)| d.name().as_bytes().eq(driver_name))
                 {
-                    if interrupt < self.interrupts.len() {
+                    if let Some(system_index) = self.systems[SystemId::InterruptController as usize]
+                        && system_index == index
+                    {
+                        let packet = Packet::new(
+                            Flags::empty(),
+                            PACKET_ID.get_id(),
+                            0,
+                            0,
+                            Message::Invoke,
+                            driver.name().as_bytes(),
+                        );
+                        if let Some(mut task) = Task::new(packet, 1, driver.main_addr()) {
+                            task.for_driver(driver.driver_struct().unwrap());
+                            self.scheduler.add(task);
+                        }
                         self.interrupts[interrupt] = Some(index as u8);
-                        self.core.enable_interrupt(interrupt as u8);
+                    } else {
+                        if interrupt < self.interrupts.len() {
+                            self.interrupts[interrupt] = Some(index as u8);
+                            self.core.enable_interrupt(interrupt as u8);
+                        }
                     }
                 }
             }

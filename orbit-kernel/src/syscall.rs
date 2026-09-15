@@ -9,6 +9,10 @@ pub enum SysCall {
     ReturnInterrupt,
     /// Register interrupt for driver
     RegisterInterrupt,
+    /// Register system for driver
+    RegisterSystem,
+    /// Handle system
+    HandleSystem,
     /// Request delay from kernel
     Delay,
     /// Request the number of kernel ports

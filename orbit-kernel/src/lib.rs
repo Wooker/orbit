@@ -17,6 +17,7 @@ pub mod context;
 pub mod id;
 pub mod ringbuf;
 pub mod syscall;
+pub mod systems;
 pub mod usizebuf;
 
 pub use spaceport;

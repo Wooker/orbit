@@ -115,6 +115,25 @@ macro_rules! register_interrupt {
 }
 
 #[macro_export]
+macro_rules! register_system {
+    ($sys:expr) => {
+        unsafe {
+            // By binding to a local variable 'data' here, we force the
+            // temporary to live until the end of this unsafe block.
+            let system = $sys as u8;
+            let syscall = SysCall::RegisterSystem.discriminant();
+
+            core::arch::asm!(
+                "ecall",
+                in("a0") syscall,
+                in("a1") system,
+                clobber_abi("C"),
+            );
+        }
+    };
+}
+
+#[macro_export]
 macro_rules! invoke_local {
     ($app:expr, $buf:expr) => {{
         let status: usize;
