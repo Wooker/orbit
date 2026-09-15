@@ -155,6 +155,11 @@ _start:
     la t0, handler;
     csrw mtvec, t0;
     ",
+    #[cfg(feature = "ext-ints")]
+    "
+    li      t0, 0x800
+    csrs    mie, t0  
+    ",
     // Setup PMP
     "
     li t0, 0
