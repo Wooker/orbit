@@ -2,7 +2,9 @@ use crate::interface::{pmp::Pmp, timer::Timer, Interruptable, SetupMtvec};
 use core::arch::global_asm;
 use embedded_hal::delay::DelayNs;
 pub use riscv::asm::delay;
-use riscv::register::{mtvec, pmpaddr0, pmpaddr1, pmpaddr2, pmpaddr3, pmpcfg0, Permission, Range};
+use riscv::register::{
+    mie, mtvec, pmpaddr0, pmpaddr1, pmpaddr2, pmpaddr3, pmpcfg0, Permission, Range,
+};
 use riscv::{asm, result};
 
 pub const PMP: usize = 4;
@@ -128,8 +130,12 @@ impl Timer for CoreClock {
 }
 
 impl<const PMP: usize> Interruptable for Core<PMP> {
-    fn enable_interrupt(&self, interrupt_code: u8) {}
-    fn disable_interrupt(&self, interrupt_code: u8) {}
+    fn enable_interrupt(&self, _interrupt_code: u8) {
+        unsafe { mie::set_mext() };
+    }
+    fn disable_interrupt(&self, _interrupt_code: u8) {
+        unsafe { mie::clear_mext() };
+    }
 }
 
 impl<const PMP: usize> SetupMtvec for Core<PMP> {
