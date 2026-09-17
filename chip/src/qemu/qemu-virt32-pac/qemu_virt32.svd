@@ -255,7 +255,7 @@
           <name>RBR_THR_DLL</name>
           <description>Rx Buffer (R), Tx Holding (W), or Divisor Latch Low (if DLAB=1)</description>
           <addressOffset>0x00</addressOffset>
-          <size>32</size> <!-- Change to 8 if your bus maps registers with byte spacing -->
+          <size>8</size>
           <access>read-write</access>
         </register>
         <!-- IER / DLM (Offset 0x01) -->
@@ -263,7 +263,7 @@
           <name>IER_DLM</name>
           <description>Interrupt Enable Register, or Divisor Latch High (if DLAB=1)</description>
           <addressOffset>0x01</addressOffset> <!-- Change to 0x04 if registers are word-aligned/spaced -->
-          <size>32</size>
+          <size>8</size>
           <access>read-write</access>
         </register>
         <!-- IIR / FCR (Offset 0x02) -->
@@ -271,7 +271,7 @@
           <name>IIR_FCR</name>
           <description>Interrupt Identification Register (R) or FIFO Control Register (W)</description>
           <addressOffset>0x02</addressOffset>
-          <size>32</size>
+          <size>8</size>
           <access>read-write</access>
         </register>
         <!-- LCR (Offset 0x03) -->
@@ -279,7 +279,7 @@
           <name>LCR</name>
           <description>Line Control Register (Bit 7 is DLAB)</description>
           <addressOffset>0x03</addressOffset>
-          <size>32</size>
+          <size>8</size>
           <access>read-write</access>
           <fields>
             <field>
@@ -295,7 +295,7 @@
           <name>MCR</name>
           <description>Modem Control Register</description>
           <addressOffset>0x04</addressOffset>
-          <size>32</size>
+          <size>8</size>
           <access>read-write</access>
         </register>
         <!-- LSR (Offset 0x05) -->
@@ -303,7 +303,7 @@
           <name>LSR</name>
           <description>Line Status Register</description>
           <addressOffset>0x05</addressOffset>
-          <size>32</size>
+          <size>8</size>
           <access>read-only</access>
           <fields>
             <field><name>DR</name><description>Data Ready</description><bitOffset>0</bitOffset><bitWidth>1</bitWidth></field>
@@ -316,7 +316,7 @@
           <name>MSR</name>
           <description>Modem Status Register</description>
           <addressOffset>0x06</addressOffset>
-          <size>32</size>
+          <size>8</size>
           <access>read-only</access>
         </register>
         <!-- SCR (Offset 0x07) -->
@@ -324,7 +324,7 @@
           <name>SCR</name>
           <description>Scratchpad Register</description>
           <addressOffset>0x07</addressOffset>
-          <size>32</size>
+          <size>8</size>
           <access>read-write</access>
         </register>
       </registers>
