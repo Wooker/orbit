@@ -22,7 +22,7 @@ use crate::{
     ringbuf::RingBuf,
     syscall::{InvokeLocalError, SysCall},
     systems::SystemId,
-    task::{Task, TaskState},
+    task::{TASK_ID, Task, TaskState},
 };
 use alloc::{boxed::Box, collections::linked_list::LinkedList, slice, vec::Vec};
 use core::{
@@ -367,7 +367,8 @@ impl<'k> Kernel<'k> {
                 }
             }
             SysCall::HandleSystem => {
-                let task = self.scheduler.current().unwrap();
+                let mut scheduler = &mut self.scheduler;
+                let task = scheduler.current().unwrap();
                 let system_id = task.header.context.a1;
                 let driver_name = task.header.packet.payload;
                 if let Some((index, driver)) = self
@@ -377,7 +378,60 @@ impl<'k> Kernel<'k> {
                     .find(|(i, d)| d.name().as_bytes().eq(driver_name))
                     && let Some(system_index) = self.systems[system_id]
                     && system_index == index
-                {}
+                {
+                    if let Ok(system_id) = SystemId::try_from(system_id) {
+                        match system_id {
+                            SystemId::InterruptController => {
+                                let interrupt_src = task.header.context.t0;
+
+                                // Check if there is driver registered for the interrupt
+                                if let Some(Some(driver_index)) = self.interrupts.get(interrupt_src)
+                                    && let Some(driver) = self.drivers.get(*driver_index as usize)
+                                {
+                                    // Create new task to handle the interrupt by driver
+                                    let new_task_id = TASK_ID.get_id();
+                                    if let Some(mut new_task) = Task::new(
+                                        Packet {
+                                            version: 0,
+                                            flags: Flags::empty(),
+                                            packet_id: new_task_id as u16,
+                                            src: 0,
+                                            dst: 0,
+                                            ttl: MAX_TTL,
+                                            msg_type: Message::Invoke,
+                                            payload: b"interrupt",
+                                        },
+                                        task.header.priority.saturating_sub(1),
+                                        driver.interrupt_addr(),
+                                    ) {
+                                        // Add driver struct to task context
+                                        new_task.for_driver(driver.driver_struct().unwrap());
+
+                                        // Mark current task as blocked by a new one
+                                        scheduler.current_mut().unwrap().header.state =
+                                            TaskState::Blocked(new_task_id);
+
+                                        scheduler.current_mut().unwrap().header.context.t0 = 0;
+
+                                        // Add new task to the scheduler
+                                        scheduler.add(new_task);
+                                    } else {
+                                        scheduler.current_mut().unwrap().header.context.t0 = 1;
+                                    }
+                                } else {
+                                    scheduler.current_mut().unwrap().header.context.t0 = 2;
+                                }
+                            }
+                            _ => {
+                                scheduler.current_mut().unwrap().header.context.t0 = 3;
+                            }
+                        }
+                    } else {
+                        scheduler.current_mut().unwrap().header.context.t0 = 4;
+                    }
+                } else {
+                    scheduler.current_mut().unwrap().header.context.t0 = 5;
+                }
             }
             SysCall::RegisterInterrupt => {
                 let task = self.scheduler.current().unwrap();
