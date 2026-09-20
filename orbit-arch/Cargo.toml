@@ -1,8 +1,9 @@
 [package]
 name = "orbit-arch"
-version = "0.0.1"
-edition = "2021"
+version = "0.0.2"
+edition = "2024"
 description = "Architecture-dependent library crate"
+license = "MIT"
 
 [dependencies]
 embedded-hal = "1.0.0"

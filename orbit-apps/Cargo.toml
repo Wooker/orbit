@@ -1,7 +1,7 @@
 [workspace]
 resolver = "2"
 members = [
-    "orbit-app-common",
+    "orbit-user-common",
     "orbit-app-proc-macro",
     "orbit-driver-proc-macro",
 ]

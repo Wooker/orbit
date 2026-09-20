@@ -1,6 +1,6 @@
-use chip::{
-    pac::{USART1, USART2, USART3, USART4},
+use orbit_chip::{
     PortPeripheral,
+    pac::{USART1, USART2, USART3, USART4},
 };
 use orbit_common_proc_macro::define_ports;
 

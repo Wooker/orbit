@@ -1,0 +1,8 @@
+[package]
+name = "orbit-user-common"
+version = "0.1.0"
+edition = "2024"
+description = "Orbit macros used in applications"
+license = "MIT"
+
+[dependencies]

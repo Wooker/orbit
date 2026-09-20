@@ -1,8 +1,9 @@
 [package]
 name = "orbit-common"
-version = "0.1.0"
+version = "0.0.1"
 edition = "2024"
-
+description = "Common macros used internally by orbit crates"
+license = "MIT"
 
 [dependencies]
 paste = "1.0.15"

@@ -1,12 +1,13 @@
 [package]
-name = "chip"
-version = "0.1.0"
+name = "orbit-chip"
+version = "0.0.1"
 edition = "2024"
-description = "Library crate containing linker scripts for a given microcontroller"
+description = "Library crate containing linker scripts and PACs for various targets for orbit"
+license = "MIT"
 
 [dependencies]
-orbit-common = { path = "../orbit-common" }
-orbit-common-proc-macro = { path = "../orbit-common-proc-macro" }
+orbit-common = "0.0.1"
+orbit-common-proc-macro = "0.0.1"
 
 ch32v2 = { version = "0.1.6", optional = true }
 ch59x = { version = "0.1.7", optional = true }
@@ -14,8 +15,7 @@ esp32c3 = { version = "0.26.0", optional = true }
 ch32v0 = { version = "0.1.7", optional = true }
 ch32x0 = { version = "0.1.7", optional = true }
 bl702-pac = { version = "0.0.3", optional = true }
-
-qemu-virt32-pac = { path = "src/qemu/qemu-virt32-pac", optional = true }
+qemu-virt32-pac = { version = "0.1.0", optional = true }
 
 [features]
 rt = []

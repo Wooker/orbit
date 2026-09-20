@@ -3,6 +3,8 @@ name = "orbit-app-proc-macro"
 version = "0.1.0"
 edition = "2024"
 build = "build.rs"
+description = "Orbit proc macros used in applications"
+license = "MIT"
 
 [lib]
 proc-macro = true

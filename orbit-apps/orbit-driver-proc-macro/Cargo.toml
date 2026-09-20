@@ -2,6 +2,8 @@
 name = "orbit-driver-proc-macro"
 version = "0.1.0"
 edition = "2024"
+description = "Orbit proc macros used in drivers"
+license = "MIT"
 
 [lib]
 proc-macro = true

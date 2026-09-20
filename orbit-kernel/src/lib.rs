@@ -34,9 +34,9 @@ pub mod port;
 #[cfg(feature = "rt")]
 pub mod task;
 #[cfg(feature = "rt")]
-pub use chip;
-#[cfg(feature = "rt")]
 pub use orbit_arch as arch;
+#[cfg(feature = "rt")]
+pub use orbit_chip;
 use spaceport::packet::MAX_BUFFER_LENGTH;
 
 // TODO: make use of PMP internal. Application code should

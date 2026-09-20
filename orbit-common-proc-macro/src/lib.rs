@@ -112,14 +112,14 @@ pub fn orbit_main_attribute(attr: TokenStream, _item: TokenStream) -> TokenStrea
 
         use orbit_bin::{
             arch,
-            chip,
+            orbit_chip,
             kernel::{asm, Kernel},
             application::Application,
             application_container::AppContainer,
         };
         use orbit_bin::const_assert;
 
-        const_assert!(0 #(+ #driver_sizes)* < chip::RAM_SIZE);
+        const_assert!(0 #(+ #driver_sizes)* < orbit_chip::RAM_SIZE);
 
         #[unsafe(no_mangle)]
         fn main() -> ! {
@@ -183,11 +183,11 @@ pub fn define_ports(input: TokenStream) -> TokenStream {
         let ptr_const = format_ident!("PORT_PTR{}", i + 1);
 
         uses.push(quote! {
-            pub use chip::pac::#lower::RegisterBlock as #port_struct;
+            pub use orbit_chip::pac::#lower::RegisterBlock as #port_struct;
         });
 
         consts.push(quote! {
-            pub const #ptr_const: *const PortPeripheral = chip::pac::#upper::PTR;
+            pub const #ptr_const: *const PortPeripheral = orbit_chip::pac::#upper::PTR;
         });
 
         ptrs.push(quote! {(#ptr_const, #int_num, PortKinds::#upper)});

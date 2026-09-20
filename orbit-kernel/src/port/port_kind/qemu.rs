@@ -1,4 +1,4 @@
-use chip::{pac::UART0, PortPeripheral};
+use orbit_chip::{PortPeripheral, pac::UART0};
 use orbit_common_proc_macro::define_ports;
 
 use crate::port::ConfigureGPIO;

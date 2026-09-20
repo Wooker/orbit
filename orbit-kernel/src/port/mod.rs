@@ -1,7 +1,7 @@
 #![allow(unused)]
 
 use alloc::vec::Vec;
-use chip::PortPeripheral;
+use orbit_chip::PortPeripheral;
 
 use orbit_arch::interface::timer::Timer;
 use orbit_common::{feature_mod_use, feature_mod_use_mutual};

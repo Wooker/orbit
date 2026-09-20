@@ -1,7 +1,9 @@
 [package]
 name = "orbit-common-proc-macro"
-version = "0.1.0"
+version = "0.0.2"
 edition = "2024"
+description = "Common proc macros used internally by orbit crates"
+license = "MIT"
 
 [lib]
 proc-macro = true
