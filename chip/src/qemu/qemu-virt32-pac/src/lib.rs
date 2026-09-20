@@ -304,12 +304,12 @@ svd2rust --target riscv -i qemu_virt32.svd -o src/ -f peripheral::c: --edition 2
 #[doc = " ```"]
 #[doc = " Other fields will have the value they had before the call to `modify`."]
 #[inline (always)] pub fn from_modify < F , T > (& self , f : F) -> T where for < 'w > F : FnOnce (& R < REG > , & 'w mut W < REG >) -> T , { let bits = self . register . get () ; let mut writer = W { bits : bits & ! REG :: ONE_TO_MODIFY_FIELDS_BITMAP | REG :: ZERO_TO_MODIFY_FIELDS_BITMAP , _reg : marker :: PhantomData , } ; let result = f (& R { bits , _reg : marker :: PhantomData , } , & mut writer ,) ; self . register . set (writer . bits) ; result } } impl < REG : Readable > core :: fmt :: Debug for crate :: generic :: Reg < REG > where R < REG > : core :: fmt :: Debug , { fn fmt (& self , f : & mut core :: fmt :: Formatter < '_ >) -> core :: fmt :: Result { core :: fmt :: Debug :: fmt (& self . read () , f) } } }
-#[cfg (feature = "rt")] extern "C" { }
+#[cfg (feature = "rt")] unsafe extern "C" { }
 #[doc (hidden)]
 #[repr (C)] pub union Vector { pub _handler : unsafe extern "C" fn () , pub _reserved : usize , }
 #[cfg (feature = "rt")]
 #[doc (hidden)]
-#[unsafe(no_mangle)] pub static __EXTERNAL_INTERRUPTS : [Vector ; 0] = [] ;
+#[unsafe (no_mangle)] pub static __EXTERNAL_INTERRUPTS : [Vector ; 0] = [] ;
 #[doc = "RISC-V PLIC: plic"] pub type PLIC = crate :: Periph < plic :: RegisterBlock , 0x0c00_0000 > ; impl core :: fmt :: Debug for PLIC { fn fmt (& self , f : & mut core :: fmt :: Formatter) -> core :: fmt :: Result { f . debug_struct ("PLIC") . finish () } }
 #[doc = "RISC-V PLIC: plic"] pub mod plic {
 #[repr (C)]
@@ -805,29 +805,29 @@ svd2rust --target riscv -i qemu_virt32.svd -o src/ -f peripheral::c: --edition 2
 #[doc = "NS16550A Compatible UART Peripheral"] pub type UART0 = crate :: Periph < uart0 :: RegisterBlock , 0x1000_0000 > ; impl core :: fmt :: Debug for UART0 { fn fmt (& self , f : & mut core :: fmt :: Formatter) -> core :: fmt :: Result { f . debug_struct ("UART0") . finish () } }
 #[doc = "NS16550A Compatible UART Peripheral"] pub mod uart0 {
 #[repr (C)]
-#[doc = "Register block"] pub struct RegisterBlock { _reserved_0_lcr : [u8 ; 0x0b] , } impl RegisterBlock {
+#[doc = "Register block"] pub struct RegisterBlock { rbr_thr_dll : RbrThrDll , ier_dlm : IerDlm , iir_fcr : IirFcr , lcr : Lcr , mcr : Mcr , lsr : Lsr , msr : Msr , scr : Scr , } impl RegisterBlock {
 #[doc = "0x00 - Rx Buffer (R), Tx Holding (W), or Divisor Latch Low (if DLAB=1)"]
-#[inline (always)] pub const fn rbr_thr_dll (& self) -> & RbrThrDll { unsafe { & * core :: ptr :: from_ref (self) . cast :: < u8 > () . cast () } }
+#[inline (always)] pub const fn rbr_thr_dll (& self) -> & RbrThrDll { & self . rbr_thr_dll }
 #[doc = "0x01 - Interrupt Enable Register, or Divisor Latch High (if DLAB=1)"]
-#[inline (always)] pub const fn ier_dlm (& self) -> & IerDlm { unsafe { & * core :: ptr :: from_ref (self) . cast :: < u8 > () . add (1) . cast () } }
+#[inline (always)] pub const fn ier_dlm (& self) -> & IerDlm { & self . ier_dlm }
 #[doc = "0x02 - Interrupt Identification Register (R) or FIFO Control Register (W)"]
-#[inline (always)] pub const fn iir_fcr (& self) -> & IirFcr { unsafe { & * core :: ptr :: from_ref (self) . cast :: < u8 > () . add (2) . cast () } }
+#[inline (always)] pub const fn iir_fcr (& self) -> & IirFcr { & self . iir_fcr }
 #[doc = "0x03 - Line Control Register (Bit 7 is DLAB)"]
-#[inline (always)] pub const fn lcr (& self) -> & Lcr { unsafe { & * core :: ptr :: from_ref (self) . cast :: < u8 > () . add (3) . cast () } }
+#[inline (always)] pub const fn lcr (& self) -> & Lcr { & self . lcr }
 #[doc = "0x04 - Modem Control Register"]
-#[inline (always)] pub const fn mcr (& self) -> & Mcr { unsafe { & * core :: ptr :: from_ref (self) . cast :: < u8 > () . add (4) . cast () } }
+#[inline (always)] pub const fn mcr (& self) -> & Mcr { & self . mcr }
 #[doc = "0x05 - Line Status Register"]
-#[inline (always)] pub const fn lsr (& self) -> & Lsr { unsafe { & * core :: ptr :: from_ref (self) . cast :: < u8 > () . add (5) . cast () } }
+#[inline (always)] pub const fn lsr (& self) -> & Lsr { & self . lsr }
 #[doc = "0x06 - Modem Status Register"]
-#[inline (always)] pub const fn msr (& self) -> & Msr { unsafe { & * core :: ptr :: from_ref (self) . cast :: < u8 > () . add (6) . cast () } }
+#[inline (always)] pub const fn msr (& self) -> & Msr { & self . msr }
 #[doc = "0x07 - Scratchpad Register"]
-#[inline (always)] pub const fn scr (& self) -> & Scr { unsafe { & * core :: ptr :: from_ref (self) . cast :: < u8 > () . add (7) . cast () } } }
+#[inline (always)] pub const fn scr (& self) -> & Scr { & self . scr } }
 #[doc = "RBR_THR_DLL (rw) register accessor: Rx Buffer (R), Tx Holding (W), or Divisor Latch Low (if DLAB=1)\n\nYou can [`read`](crate::Reg::read) this register and get [`rbr_thr_dll::R`]. You can [`write_with_zero`](crate::Reg::write_with_zero) this register using [`rbr_thr_dll::W`]. You can also [`modify`](crate::Reg::modify) this register. See [API](https://docs.rs/svd2rust/#read--modify--write-api).\n\nFor information about available fields see [`mod@rbr_thr_dll`] module"]
 #[doc (alias = "RBR_THR_DLL")] pub type RbrThrDll = crate :: Reg < rbr_thr_dll :: RbrThrDllSpec > ;
 #[doc = "Rx Buffer (R), Tx Holding (W), or Divisor Latch Low (if DLAB=1)"] pub mod rbr_thr_dll {
 #[doc = "Register `RBR_THR_DLL` reader"] pub type R = crate :: R < RbrThrDllSpec > ;
 #[doc = "Register `RBR_THR_DLL` writer"] pub type W = crate :: W < RbrThrDllSpec > ; impl core :: fmt :: Debug for R { fn fmt (& self , f : & mut core :: fmt :: Formatter) -> core :: fmt :: Result { write ! (f , "{}" , self . bits ()) } } impl W { }
-#[doc = "Rx Buffer (R), Tx Holding (W), or Divisor Latch Low (if DLAB=1)\n\nYou can [`read`](crate::Reg::read) this register and get [`rbr_thr_dll::R`](R). You can [`write_with_zero`](crate::Reg::write_with_zero) this register using [`rbr_thr_dll::W`](W). You can also [`modify`](crate::Reg::modify) this register. See [API](https://docs.rs/svd2rust/#read--modify--write-api)."] pub struct RbrThrDllSpec ; impl crate :: RegisterSpec for RbrThrDllSpec { type Ux = u32 ; }
+#[doc = "Rx Buffer (R), Tx Holding (W), or Divisor Latch Low (if DLAB=1)\n\nYou can [`read`](crate::Reg::read) this register and get [`rbr_thr_dll::R`](R). You can [`write_with_zero`](crate::Reg::write_with_zero) this register using [`rbr_thr_dll::W`](W). You can also [`modify`](crate::Reg::modify) this register. See [API](https://docs.rs/svd2rust/#read--modify--write-api)."] pub struct RbrThrDllSpec ; impl crate :: RegisterSpec for RbrThrDllSpec { type Ux = u8 ; }
 #[doc = "`read()` method returns [`rbr_thr_dll::R`](R) reader structure"] impl crate :: Readable for RbrThrDllSpec { }
 #[doc = "`write(|w| ..)` method takes [`rbr_thr_dll::W`](W) writer structure"] impl crate :: Writable for RbrThrDllSpec { type Safety = crate :: Unsafe ; } }
 #[doc = "IER_DLM (rw) register accessor: Interrupt Enable Register, or Divisor Latch High (if DLAB=1)\n\nYou can [`read`](crate::Reg::read) this register and get [`ier_dlm::R`]. You can [`write_with_zero`](crate::Reg::write_with_zero) this register using [`ier_dlm::W`]. You can also [`modify`](crate::Reg::modify) this register. See [API](https://docs.rs/svd2rust/#read--modify--write-api).\n\nFor information about available fields see [`mod@ier_dlm`] module"]
@@ -835,7 +835,7 @@ svd2rust --target riscv -i qemu_virt32.svd -o src/ -f peripheral::c: --edition 2
 #[doc = "Interrupt Enable Register, or Divisor Latch High (if DLAB=1)"] pub mod ier_dlm {
 #[doc = "Register `IER_DLM` reader"] pub type R = crate :: R < IerDlmSpec > ;
 #[doc = "Register `IER_DLM` writer"] pub type W = crate :: W < IerDlmSpec > ; impl core :: fmt :: Debug for R { fn fmt (& self , f : & mut core :: fmt :: Formatter) -> core :: fmt :: Result { write ! (f , "{}" , self . bits ()) } } impl W { }
-#[doc = "Interrupt Enable Register, or Divisor Latch High (if DLAB=1)\n\nYou can [`read`](crate::Reg::read) this register and get [`ier_dlm::R`](R). You can [`write_with_zero`](crate::Reg::write_with_zero) this register using [`ier_dlm::W`](W). You can also [`modify`](crate::Reg::modify) this register. See [API](https://docs.rs/svd2rust/#read--modify--write-api)."] pub struct IerDlmSpec ; impl crate :: RegisterSpec for IerDlmSpec { type Ux = u32 ; }
+#[doc = "Interrupt Enable Register, or Divisor Latch High (if DLAB=1)\n\nYou can [`read`](crate::Reg::read) this register and get [`ier_dlm::R`](R). You can [`write_with_zero`](crate::Reg::write_with_zero) this register using [`ier_dlm::W`](W). You can also [`modify`](crate::Reg::modify) this register. See [API](https://docs.rs/svd2rust/#read--modify--write-api)."] pub struct IerDlmSpec ; impl crate :: RegisterSpec for IerDlmSpec { type Ux = u8 ; }
 #[doc = "`read()` method returns [`ier_dlm::R`](R) reader structure"] impl crate :: Readable for IerDlmSpec { }
 #[doc = "`write(|w| ..)` method takes [`ier_dlm::W`](W) writer structure"] impl crate :: Writable for IerDlmSpec { type Safety = crate :: Unsafe ; } }
 #[doc = "IIR_FCR (rw) register accessor: Interrupt Identification Register (R) or FIFO Control Register (W)\n\nYou can [`read`](crate::Reg::read) this register and get [`iir_fcr::R`]. You can [`write_with_zero`](crate::Reg::write_with_zero) this register using [`iir_fcr::W`]. You can also [`modify`](crate::Reg::modify) this register. See [API](https://docs.rs/svd2rust/#read--modify--write-api).\n\nFor information about available fields see [`mod@iir_fcr`] module"]
@@ -843,7 +843,7 @@ svd2rust --target riscv -i qemu_virt32.svd -o src/ -f peripheral::c: --edition 2
 #[doc = "Interrupt Identification Register (R) or FIFO Control Register (W)"] pub mod iir_fcr {
 #[doc = "Register `IIR_FCR` reader"] pub type R = crate :: R < IirFcrSpec > ;
 #[doc = "Register `IIR_FCR` writer"] pub type W = crate :: W < IirFcrSpec > ; impl core :: fmt :: Debug for R { fn fmt (& self , f : & mut core :: fmt :: Formatter) -> core :: fmt :: Result { write ! (f , "{}" , self . bits ()) } } impl W { }
-#[doc = "Interrupt Identification Register (R) or FIFO Control Register (W)\n\nYou can [`read`](crate::Reg::read) this register and get [`iir_fcr::R`](R). You can [`write_with_zero`](crate::Reg::write_with_zero) this register using [`iir_fcr::W`](W). You can also [`modify`](crate::Reg::modify) this register. See [API](https://docs.rs/svd2rust/#read--modify--write-api)."] pub struct IirFcrSpec ; impl crate :: RegisterSpec for IirFcrSpec { type Ux = u32 ; }
+#[doc = "Interrupt Identification Register (R) or FIFO Control Register (W)\n\nYou can [`read`](crate::Reg::read) this register and get [`iir_fcr::R`](R). You can [`write_with_zero`](crate::Reg::write_with_zero) this register using [`iir_fcr::W`](W). You can also [`modify`](crate::Reg::modify) this register. See [API](https://docs.rs/svd2rust/#read--modify--write-api)."] pub struct IirFcrSpec ; impl crate :: RegisterSpec for IirFcrSpec { type Ux = u8 ; }
 #[doc = "`read()` method returns [`iir_fcr::R`](R) reader structure"] impl crate :: Readable for IirFcrSpec { }
 #[doc = "`write(|w| ..)` method takes [`iir_fcr::W`](W) writer structure"] impl crate :: Writable for IirFcrSpec { type Safety = crate :: Unsafe ; } }
 #[doc = "LCR (rw) register accessor: Line Control Register (Bit 7 is DLAB)\n\nYou can [`read`](crate::Reg::read) this register and get [`lcr::R`]. You can [`write_with_zero`](crate::Reg::write_with_zero) this register using [`lcr::W`]. You can also [`modify`](crate::Reg::modify) this register. See [API](https://docs.rs/svd2rust/#read--modify--write-api).\n\nFor information about available fields see [`mod@lcr`] module"]
@@ -857,7 +857,7 @@ svd2rust --target riscv -i qemu_virt32.svd -o src/ -f peripheral::c: --edition 2
 #[inline (always)] pub fn dlab (& self) -> DlabR { DlabR :: new (((self . bits >> 7) & 1) != 0) } } impl W {
 #[doc = "Bit 7 - Divisor Latch Access Bit"]
 #[inline (always)] pub fn dlab (& mut self) -> DlabW < '_ , LcrSpec > { DlabW :: new (self , 7) } }
-#[doc = "Line Control Register (Bit 7 is DLAB)\n\nYou can [`read`](crate::Reg::read) this register and get [`lcr::R`](R). You can [`write_with_zero`](crate::Reg::write_with_zero) this register using [`lcr::W`](W). You can also [`modify`](crate::Reg::modify) this register. See [API](https://docs.rs/svd2rust/#read--modify--write-api)."] pub struct LcrSpec ; impl crate :: RegisterSpec for LcrSpec { type Ux = u32 ; }
+#[doc = "Line Control Register (Bit 7 is DLAB)\n\nYou can [`read`](crate::Reg::read) this register and get [`lcr::R`](R). You can [`write_with_zero`](crate::Reg::write_with_zero) this register using [`lcr::W`](W). You can also [`modify`](crate::Reg::modify) this register. See [API](https://docs.rs/svd2rust/#read--modify--write-api)."] pub struct LcrSpec ; impl crate :: RegisterSpec for LcrSpec { type Ux = u8 ; }
 #[doc = "`read()` method returns [`lcr::R`](R) reader structure"] impl crate :: Readable for LcrSpec { }
 #[doc = "`write(|w| ..)` method takes [`lcr::W`](W) writer structure"] impl crate :: Writable for LcrSpec { type Safety = crate :: Unsafe ; } }
 #[doc = "MCR (rw) register accessor: Modem Control Register\n\nYou can [`read`](crate::Reg::read) this register and get [`mcr::R`]. You can [`write_with_zero`](crate::Reg::write_with_zero) this register using [`mcr::W`]. You can also [`modify`](crate::Reg::modify) this register. See [API](https://docs.rs/svd2rust/#read--modify--write-api).\n\nFor information about available fields see [`mod@mcr`] module"]
@@ -865,7 +865,7 @@ svd2rust --target riscv -i qemu_virt32.svd -o src/ -f peripheral::c: --edition 2
 #[doc = "Modem Control Register"] pub mod mcr {
 #[doc = "Register `MCR` reader"] pub type R = crate :: R < McrSpec > ;
 #[doc = "Register `MCR` writer"] pub type W = crate :: W < McrSpec > ; impl core :: fmt :: Debug for R { fn fmt (& self , f : & mut core :: fmt :: Formatter) -> core :: fmt :: Result { write ! (f , "{}" , self . bits ()) } } impl W { }
-#[doc = "Modem Control Register\n\nYou can [`read`](crate::Reg::read) this register and get [`mcr::R`](R). You can [`write_with_zero`](crate::Reg::write_with_zero) this register using [`mcr::W`](W). You can also [`modify`](crate::Reg::modify) this register. See [API](https://docs.rs/svd2rust/#read--modify--write-api)."] pub struct McrSpec ; impl crate :: RegisterSpec for McrSpec { type Ux = u32 ; }
+#[doc = "Modem Control Register\n\nYou can [`read`](crate::Reg::read) this register and get [`mcr::R`](R). You can [`write_with_zero`](crate::Reg::write_with_zero) this register using [`mcr::W`](W). You can also [`modify`](crate::Reg::modify) this register. See [API](https://docs.rs/svd2rust/#read--modify--write-api)."] pub struct McrSpec ; impl crate :: RegisterSpec for McrSpec { type Ux = u8 ; }
 #[doc = "`read()` method returns [`mcr::R`](R) reader structure"] impl crate :: Readable for McrSpec { }
 #[doc = "`write(|w| ..)` method takes [`mcr::W`](W) writer structure"] impl crate :: Writable for McrSpec { type Safety = crate :: Unsafe ; } }
 #[doc = "LSR (r) register accessor: Line Status Register\n\nYou can [`read`](crate::Reg::read) this register and get [`lsr::R`]. See [API](https://docs.rs/svd2rust/#read--modify--write-api).\n\nFor information about available fields see [`mod@lsr`] module"]
@@ -881,23 +881,23 @@ svd2rust --target riscv -i qemu_virt32.svd -o src/ -f peripheral::c: --edition 2
 #[inline (always)] pub fn thre (& self) -> ThreR { ThreR :: new (((self . bits >> 5) & 1) != 0) }
 #[doc = "Bit 6 - Transmitter Empty"]
 #[inline (always)] pub fn temt (& self) -> TemtR { TemtR :: new (((self . bits >> 6) & 1) != 0) } }
-#[doc = "Line Status Register\n\nYou can [`read`](crate::Reg::read) this register and get [`lsr::R`](R). See [API](https://docs.rs/svd2rust/#read--modify--write-api)."] pub struct LsrSpec ; impl crate :: RegisterSpec for LsrSpec { type Ux = u32 ; }
+#[doc = "Line Status Register\n\nYou can [`read`](crate::Reg::read) this register and get [`lsr::R`](R). See [API](https://docs.rs/svd2rust/#read--modify--write-api)."] pub struct LsrSpec ; impl crate :: RegisterSpec for LsrSpec { type Ux = u8 ; }
 #[doc = "`read()` method returns [`lsr::R`](R) reader structure"] impl crate :: Readable for LsrSpec { } }
 #[doc = "MSR (r) register accessor: Modem Status Register\n\nYou can [`read`](crate::Reg::read) this register and get [`msr::R`]. See [API](https://docs.rs/svd2rust/#read--modify--write-api).\n\nFor information about available fields see [`mod@msr`] module"]
 #[doc (alias = "MSR")] pub type Msr = crate :: Reg < msr :: MsrSpec > ;
 #[doc = "Modem Status Register"] pub mod msr {
 #[doc = "Register `MSR` reader"] pub type R = crate :: R < MsrSpec > ; impl core :: fmt :: Debug for R { fn fmt (& self , f : & mut core :: fmt :: Formatter) -> core :: fmt :: Result { write ! (f , "{}" , self . bits ()) } }
-#[doc = "Modem Status Register\n\nYou can [`read`](crate::Reg::read) this register and get [`msr::R`](R). See [API](https://docs.rs/svd2rust/#read--modify--write-api)."] pub struct MsrSpec ; impl crate :: RegisterSpec for MsrSpec { type Ux = u32 ; }
+#[doc = "Modem Status Register\n\nYou can [`read`](crate::Reg::read) this register and get [`msr::R`](R). See [API](https://docs.rs/svd2rust/#read--modify--write-api)."] pub struct MsrSpec ; impl crate :: RegisterSpec for MsrSpec { type Ux = u8 ; }
 #[doc = "`read()` method returns [`msr::R`](R) reader structure"] impl crate :: Readable for MsrSpec { } }
 #[doc = "SCR (rw) register accessor: Scratchpad Register\n\nYou can [`read`](crate::Reg::read) this register and get [`scr::R`]. You can [`write_with_zero`](crate::Reg::write_with_zero) this register using [`scr::W`]. You can also [`modify`](crate::Reg::modify) this register. See [API](https://docs.rs/svd2rust/#read--modify--write-api).\n\nFor information about available fields see [`mod@scr`] module"]
 #[doc (alias = "SCR")] pub type Scr = crate :: Reg < scr :: ScrSpec > ;
 #[doc = "Scratchpad Register"] pub mod scr {
 #[doc = "Register `SCR` reader"] pub type R = crate :: R < ScrSpec > ;
 #[doc = "Register `SCR` writer"] pub type W = crate :: W < ScrSpec > ; impl core :: fmt :: Debug for R { fn fmt (& self , f : & mut core :: fmt :: Formatter) -> core :: fmt :: Result { write ! (f , "{}" , self . bits ()) } } impl W { }
-#[doc = "Scratchpad Register\n\nYou can [`read`](crate::Reg::read) this register and get [`scr::R`](R). You can [`write_with_zero`](crate::Reg::write_with_zero) this register using [`scr::W`](W). You can also [`modify`](crate::Reg::modify) this register. See [API](https://docs.rs/svd2rust/#read--modify--write-api)."] pub struct ScrSpec ; impl crate :: RegisterSpec for ScrSpec { type Ux = u32 ; }
+#[doc = "Scratchpad Register\n\nYou can [`read`](crate::Reg::read) this register and get [`scr::R`](R). You can [`write_with_zero`](crate::Reg::write_with_zero) this register using [`scr::W`](W). You can also [`modify`](crate::Reg::modify) this register. See [API](https://docs.rs/svd2rust/#read--modify--write-api)."] pub struct ScrSpec ; impl crate :: RegisterSpec for ScrSpec { type Ux = u8 ; }
 #[doc = "`read()` method returns [`scr::R`](R) reader structure"] impl crate :: Readable for ScrSpec { }
 #[doc = "`write(|w| ..)` method takes [`scr::W`](W) writer structure"] impl crate :: Writable for ScrSpec { type Safety = crate :: Unsafe ; } } }
-#[unsafe(no_mangle)] static mut DEVICE_PERIPHERALS : bool = false ;
+#[unsafe (no_mangle)] static mut DEVICE_PERIPHERALS : bool = false ;
 #[doc = r" All the peripherals."]
 #[allow (non_snake_case)] pub struct Peripherals {
 #[doc = "plic"] pub plic : PLIC ,
@@ -911,4 +911,4 @@ svd2rust --target riscv -i qemu_virt32.svd -o src/ -f peripheral::c: --edition 2
 #[doc = r" # Safety"]
 #[doc = r""]
 #[doc = r" Each of the returned peripherals must be used at most once."]
-#[inline] pub unsafe fn steal () -> Self { DEVICE_PERIPHERALS = true ; Peripherals { plic : PLIC :: steal () , clint : CLINT :: steal () , uart0 : UART0 :: steal () , } } }
+#[inline] pub unsafe fn steal () -> Self { unsafe { DEVICE_PERIPHERALS = true } Peripherals { plic : unsafe { PLIC :: steal () } , clint : unsafe { CLINT :: steal () } , uart0 : unsafe { UART0 :: steal () } , } } }

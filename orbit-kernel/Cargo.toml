@@ -20,7 +20,7 @@ alloc_tlsf = []
 lib  = []
 pfic = []
 
-qemu = [ "rt", "orbit-arch/riscv", "chip/qemu" ]
+qemu = [ "rt", "orbit-arch/riscv", "orbit-arch/ext-ints", "chip/qemu" ]
 ch32v208wbu6 = [ "rt", "orbit-arch/qingke_v4", "chip/ch32v208wbu6" ]
 ch32x035 = [ "rt", "orbit-arch/qingke_v4", "chip/ch32x035" ]
 ch592 = [ "rt", "orbit-arch/qingke_v4", "chip/ch592" ]
