@@ -4,27 +4,13 @@ use core::arch::{asm, naked_asm};
 #[unsafe(no_mangle)]
 pub(super) unsafe extern "C" fn exit_to_loop() -> ! {
     naked_asm!(
-        // a0 is 0 or 1
-        // 1 - call app
-        // 0 - don't
+        // Set MIE and MPIE
         "
-            la t0, wait;
-            csrw mepc, t0;
-            ",
-        // "
-        //     la t0, wait
-        //     srli t0, t0, 2
-        //     ",
-        // "
-        // csrw pmpaddr0, t0
-        // addi t0, t0, 2
-        // csrw pmpaddr1, t0
-        // li t0, 0x00000F00
-        // csrw pmpcfg0, t0
-        // ",
+        li t0, 0x88;
+        csrs mstatus, t0;
+
+        wfi;
         "
-            mret;
-            ",
     );
 }
 
