@@ -13,7 +13,7 @@ orbit-common-proc-macro = "0.0.2"
 [features]
 qemu = [ "orbit-kernel/qemu" ]
 ch32v208wbu6 = [ "orbit-kernel/ch32v208wbu6" ]
-ch32x035 = [ "orbit-kernel/ch32x035" ]
+ch32x035 = [ "orbit-kernel/ch32x035", "orbit-kernel/rt" ]
 alloc_llff = [ "orbit-kernel/alloc_llff" ]
 alloc_tlsf = [ "orbit-kernel/alloc_tlsf" ]
 

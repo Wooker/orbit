@@ -7,7 +7,7 @@ impl Clocks {
     #[inline(never)]
     #[unsafe(link_section = ".kernel.text")]
     pub fn freeze(&mut self) {
-        let rcc = unsafe { &*chip::pac::RCC::PTR };
+        let rcc = unsafe { &*crate::chip::pac::RCC::PTR };
 
         // USART2
         let bits = 1 << 17;

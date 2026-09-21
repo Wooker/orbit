@@ -1,12 +1,26 @@
 [workspace]
-resolver = "2"
+resolver = "3"
 
 members = [
     "orbit-arch",
     "orbit-chip",
     "orbit-kernel",
-    # "orbit-libos",
-    # "orbit-app",
-    "orbit-bin", "orbit-common", "orbit-common-proc-macro",
+    "orbit-bin",
+    "orbit-common",
+    "orbit-common-proc-macro",
+    "orbit-apps/orbit-user-common",
+    "orbit-apps/orbit-app-proc-macro",
+    "orbit-apps/orbit-driver-proc-macro",
 ]
-exclude = ["orbit-apps"]
+
+# [patch.crates-io]
+# orbit-bin = { path = "orbit-bin" }
+# orbit-kernel = { path = "orbit-kernel" }
+# orbit-chip = { path = "orbit-chip" }
+# orbit-arch = { path = "orbit-arch" }
+# orbit-common-proc-macro = { path = "orbit-common-proc-macro" }
+# orbit-common = { path = "orbit-common" }
+
+# orbit-user-common = { path = "orbit-apps/orbit-user-common" }
+# orbit-app-proc-macro = { path = "orbit-apps/orbit-app-proc-macro" }
+# orbit-driver-proc-macro = { path = "orbit-apps/orbit-driver-proc-macro" }

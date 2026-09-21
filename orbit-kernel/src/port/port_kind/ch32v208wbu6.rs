@@ -1,4 +1,4 @@
-use orbit_chip::{
+use crate::chip::{
     PortPeripheral,
     pac::{UART4, USART1, USART2, USART3},
 };

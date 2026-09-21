@@ -53,7 +53,7 @@ SECTIONS
     .kernel.data : ALIGN(4)
     {{
         *orbit_kernel*(.data, .data.*);
-    }} >RAM AT>FLASH
+    }} >RAM
 
     .kernel.bss : ALIGN(4)
     {{
@@ -62,11 +62,11 @@ SECTIONS
         *chip*.o(.bss .bss* .sbss.*);
         *orbit_kernel*.o(.bss .bss.* .sbss.*);
         _ebss = .;
-    }} >RAM AT>FLASH
+    }} >RAM
 
     .kernel.heap : ALIGN(4)
     {{
-    }} >RAM AT>FLASH
+    }} >RAM
 }}
 "
     )

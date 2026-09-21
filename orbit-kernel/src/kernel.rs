@@ -106,7 +106,7 @@ impl<'k> Kernel<'k> {
         unsafe {
             embedded_alloc::init!(
                 ALLOCATOR,
-                orbit_chip::RAM_SIZE
+                crate::chip::RAM_SIZE
                     - match usize::from_str_radix(
                         option_env!("ORBIT_KERNEL_STACK_SIZE").unwrap_or("0x1000"),
                         16

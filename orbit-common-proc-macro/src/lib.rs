@@ -112,14 +112,14 @@ pub fn orbit_main_attribute(attr: TokenStream, _item: TokenStream) -> TokenStrea
 
         use orbit_bin::{
             arch,
-            orbit_chip,
+            chip,
             kernel::{asm, Kernel},
             application::Application,
             application_container::AppContainer,
         };
         use orbit_bin::const_assert;
 
-        const_assert!(0 #(+ #driver_sizes)* < orbit_chip::RAM_SIZE);
+        const_assert!(0 #(+ #driver_sizes)* < chip::RAM_SIZE);
 
         #[unsafe(no_mangle)]
         fn main() -> ! {

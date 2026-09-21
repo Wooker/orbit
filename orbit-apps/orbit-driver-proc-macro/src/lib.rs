@@ -114,10 +114,10 @@ pub fn orbit_driver(attr: TokenStream, item: TokenStream) -> TokenStream {
         let lower = format_ident!("{}", i.to_string().to_lowercase());
         // let fn_name = format_ident!("claim_peripheral_{}", lower);
         quote! {
-            // fn #fn_name(&mut self) -> orbit_kernel::orbit_chip::pac::#i {
+            // fn #fn_name(&mut self) -> orbit_kernel::chip::pac::#i {
                 // self.ringbuf.push(KernelPeripherals::#i as u8);
                 // syscall!(SysCall::ClaimPeripheral);
-                self.peripherals.#lower.write(unsafe { orbit_kernel::orbit_chip::pac::#i::steal() });
+                self.peripherals.#lower.write(unsafe { orbit_kernel::chip::pac::#i::steal() });
             // }
         }
     });
@@ -125,7 +125,7 @@ pub fn orbit_driver(attr: TokenStream, item: TokenStream) -> TokenStream {
         let lower = format_ident!("{}", i.to_string().to_lowercase());
         // let fn_name = format_ident!("claim_peripheral_{}", lower);
         quote! {
-            // fn #fn_name(&mut self) -> orbit_kernel::orbit_chip::pac::#i {
+            // fn #fn_name(&mut self) -> orbit_kernel::chip::pac::#i {
                 let #lower = unsafe {self.peripherals.#lower.assume_init_mut() };
             // }
         }

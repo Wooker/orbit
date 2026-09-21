@@ -7,7 +7,7 @@ license = "MIT"
 
 [dependencies]
 orbit-common = "0.0.1"
-orbit-common-proc-macro = "0.0.1"
+orbit-common-proc-macro = "0.0.2"
 
 ch32v2 = { version = "0.1.6", optional = true }
 ch59x = { version = "0.1.7", optional = true }

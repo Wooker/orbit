@@ -72,11 +72,11 @@ macro_rules! impl_claim {
         pub const PERIPHERALS_TABLE: [usize; PERIPHERALS_NUM] = [0;PERIPHERALS_NUM];
         $(
             #[cfg(all(feature = $chip, feature = "rt"))]
-            use orbit_chip::pac::$field;
+            use crate::chip::pac::$field;
             #[cfg(all(feature = $chip, feature = "rt"))]
             impl Claimable for $field {}
             #[cfg(all(feature = $chip, feature = "rt"))]
-            impl<'p> Claim<'p, $field> for chip::pac::$field {
+            impl<'p> Claim<'p, $field> for crate::chip::pac::$field {
                 #[inline(never)]
                 fn claim(&'p mut self) -> Claimed<'p,$field>{
                     Claimed::new(self)

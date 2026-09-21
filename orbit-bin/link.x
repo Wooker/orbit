@@ -18,7 +18,7 @@ SECTIONS
     .data : ALIGN(4)
     {
         *(*.data.*);
-    } >RAM AT>FLASH
+    } >RAM
 
     .bss : ALIGN(4)
     {

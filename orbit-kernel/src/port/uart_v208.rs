@@ -2,8 +2,8 @@
 #![allow(unused)]
 
 // Default UART is UART4()
+use crate::chip::PortPeripheral;
 use core::sync::atomic::{Ordering, compiler_fence};
-use orbit_chip::PortPeripheral;
 
 use super::{ConfigureGPIO, PortKinds};
 
