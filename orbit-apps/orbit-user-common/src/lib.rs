@@ -131,6 +131,24 @@ macro_rules! register_system {
 
 #[macro_export]
 macro_rules! handle_system {
+    ($sys:expr) => {{
+        let status: usize;
+        unsafe {
+            // By binding to a local variable 'data' here, we force the
+            // temporary to live until the end of this unsafe block.
+            let system = $sys as u8;
+            let syscall = SysCall::HandleSystem.discriminant();
+
+            core::arch::asm!(
+                "ecall",
+                in("a0") syscall,
+                in("a1") system,
+                lateout("t0") status,
+                clobber_abi("C"),
+            );
+        }
+        status
+    }};
     ($sys:expr, $val:expr) => {{
         let status: usize;
         unsafe {
