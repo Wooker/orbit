@@ -399,7 +399,7 @@ impl<'k> Kernel<'k> {
                                             dst: 0,
                                             ttl: MAX_TTL,
                                             msg_type: Message::Invoke,
-                                            payload: b"interrupt",
+                                            payload: driver.name().as_bytes(),
                                         },
                                         task.header.priority.saturating_sub(1),
                                         driver.interrupt_addr(),
@@ -422,8 +422,36 @@ impl<'k> Kernel<'k> {
                                     scheduler.current_mut().unwrap().header.context.t0 = 2;
                                 }
                             }
+                            SystemId::Port => {
+                                // Create new task to handle the interrupt by driver
+                                let new_task_id = TASK_ID.get_id();
+                                if let Some(mut new_task) = Task::new(
+                                    Packet {
+                                        version: 0,
+                                        flags: Flags::empty(),
+                                        packet_id: new_task_id as u16,
+                                        src: 0,
+                                        dst: 0,
+                                        ttl: MAX_TTL,
+                                        msg_type: Message::Invoke,
+                                        payload: &[],
+                                    },
+                                    task.header.priority.saturating_sub(1),
+                                    driver.main_addr(),
+                                ) {
+                                    // Add driver struct to task context
+                                    new_task.for_driver(driver.driver_struct().unwrap());
+
+                                    scheduler.current_mut().unwrap().header.context.t0 = 0;
+
+                                    // Add new task to the scheduler
+                                    scheduler.add(new_task);
+                                } else {
+                                    scheduler.current_mut().unwrap().header.context.t0 = 6;
+                                }
+                            }
                             _ => {
-                                scheduler.current_mut().unwrap().header.context.t0 = 3;
+                                scheduler.current_mut().unwrap().header.context.t0 = 7;
                             }
                         }
                     } else {
