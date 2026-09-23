@@ -15,7 +15,7 @@ esp32c3 = { version = "0.26.0", optional = true }
 ch32v0 = { version = "0.1.7", optional = true }
 ch32x0 = { version = "0.1.7", optional = true }
 bl702-pac = { version = "0.0.3", optional = true }
-qemu-virt32-pac = { version = "0.1.0", optional = true }
+qemu-virt32-pac = { version = "0.1.1", optional = true }
 
 [features]
 rt = []
