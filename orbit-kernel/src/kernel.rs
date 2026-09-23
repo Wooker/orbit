@@ -45,6 +45,8 @@ use spaceport::{
     types::Flags,
 };
 
+const DRIVERS_PER_SYSTEM: usize = 2;
+
 pub(crate) static PACKET_ID: ID<u16> = ID::new(0);
 pub static KERNEL_VERSION: &'static str = env!("CARGO_PKG_VERSION");
 
@@ -53,7 +55,7 @@ pub struct Kernel<'k> {
     context: Context,
     apps: Vec<AppContainer<'k>>,
     drivers: Vec<AppContainer<'k>>,
-    systems: [Option<usize>; SystemId::MAX as usize],
+    systems: [Option<[usize; DRIVERS_PER_SYSTEM]>; SystemId::MAX as usize],
     interrupts: [Option<u8>; 255],
     ports: [Port<'k>; PORT_NUM],
     claims: [bool; KernelPeripherals::MAX as usize],
@@ -349,7 +351,7 @@ impl<'k> Kernel<'k> {
                 // unsafe { orbit_arch::pfic::enable_interrupt(40) };
             }
             SysCall::RegisterSystem => {
-                let task = self.scheduler.current().unwrap();
+                let task = self.scheduler.current_mut().unwrap();
                 let system_id = task.header.context.a1;
                 let driver_name = task.header.packet.payload;
                 if let Some((index, driver)) = self
@@ -359,10 +361,22 @@ impl<'k> Kernel<'k> {
                     .find(|(i, d)| d.name().as_bytes().eq(driver_name))
                 {
                     if self.systems[system_id].is_none() {
-                        self.systems[system_id] = Some(index);
+                        let mut populate = [0; DRIVERS_PER_SYSTEM];
+                        populate[0] = index;
+                        self.systems[system_id] = Some(populate);
+                        task.header.context.t0 = 0;
                     } else {
-                        self.drivers.remove(index);
-                        self.scheduler.pop();
+                        if let Some(system) = self.systems[system_id].as_mut() {
+                            let candidate = system.iter_mut().find(|s| **s == 0);
+                            if candidate.is_some() {
+                                let c = candidate.unwrap();
+                                *c = index;
+                                task.header.context.t0 = 1;
+                            } else {
+                                self.drivers.remove(index);
+                                self.scheduler.pop();
+                            }
+                        }
                     }
                 }
             }
@@ -377,7 +391,7 @@ impl<'k> Kernel<'k> {
                     .enumerate()
                     .find(|(i, d)| d.name().as_bytes().eq(driver_name))
                     && let Some(system_index) = self.systems[system_id]
-                    && system_index == index
+                    && system_index.contains(&index)
                 {
                     if let Ok(system_id) = SystemId::try_from(system_id) {
                         match system_id {
@@ -472,7 +486,7 @@ impl<'k> Kernel<'k> {
                     .find(|(i, d)| d.name().as_bytes().eq(driver_name))
                 {
                     if let Some(system_index) = self.systems[SystemId::InterruptController as usize]
-                        && system_index == index
+                        && system_index.contains(&index)
                     {
                         let packet = Packet::new(
                             Flags::empty(),
