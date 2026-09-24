@@ -229,14 +229,10 @@ impl<'k> Kernel<'k> {
                     ))
                 }
                 _ => self.ports[i].respond(Packet {
-                    version: PROTOCOL_VERSION,
                     flags: Flags::ERROR,
-                    packet_id: 0,
-                    src: 0,
-                    dst: 0,
-                    ttl: 0,
                     msg_type: Message::Reply,
                     payload: b"Not implemented",
+                    ..Default::default()
                 }),
             }
             self.ports[i].fragments = Vec::new();
@@ -441,14 +437,9 @@ impl<'k> Kernel<'k> {
                                 let new_task_id = TASK_ID.get_id();
                                 if let Some(mut new_task) = Task::new(
                                     Packet {
-                                        version: 0,
-                                        flags: Flags::empty(),
                                         packet_id: new_task_id as u16,
-                                        src: 0,
-                                        dst: 0,
-                                        ttl: MAX_TTL,
                                         msg_type: Message::Invoke,
-                                        payload: &[],
+                                        ..Default::default()
                                     },
                                     task.header.priority.saturating_sub(1),
                                     driver.main_addr(),
