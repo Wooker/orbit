@@ -1,9 +1,9 @@
-pub mod interrupt_controller;
+pub mod external_interrupt_controller;
 pub mod port;
 
 #[repr(u8)]
 pub enum SystemId {
-    InterruptController = 0,
+    ExternalInterruptController = 0,
     Port,
     MAX,
 }
@@ -18,7 +18,7 @@ impl TryFrom<usize> for SystemId {
 
     fn try_from(value: usize) -> Result<Self, Self::Error> {
         match value {
-            0 => Ok(SystemId::InterruptController),
+            0 => Ok(SystemId::ExternalInterruptController),
             1 => Ok(SystemId::Port),
             _ => Err(SystemIdError::UnknownId),
         }
