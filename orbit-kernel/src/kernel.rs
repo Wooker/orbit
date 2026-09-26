@@ -125,7 +125,7 @@ impl<'k> Kernel<'k> {
         // Initialize ports
         let ports: [Port; PORT_NUM] = core::array::from_fn(|i| {
             let (ptr, interrupt, kind) = PORT_INTERRUPTS.0[i];
-            core.enable_interrupt(interrupt as u8);
+            core.enable_interrupt(interrupt);
             Port::new(unsafe { &*ptr }, kind)
         });
 
@@ -258,13 +258,13 @@ impl<'k> Kernel<'k> {
                 );
                 if let Some(mut task) = Task::new(packet, 1, driver.interrupt_addr()) {
                     task.for_driver(driver.driver_struct().unwrap());
-                    self.core.disable_interrupt(code as u8);
+                    self.core.disable_interrupt(code);
                     self.scheduler.add(task);
                 }
             }
         } else {
-            self.core.disable_interrupt(code as u8);
-            self.core.enable_interrupt(code as u8);
+            self.core.disable_interrupt(code);
+            self.core.enable_interrupt(code);
         }
     }
 
@@ -329,7 +329,7 @@ impl<'k> Kernel<'k> {
                             if let Some(index) = i
                                 && *index == driver_index as u8
                             {
-                                self.core.enable_interrupt(interrupt as u8);
+                                self.core.enable_interrupt(interrupt);
                             }
                         }
                     }
@@ -473,7 +473,7 @@ impl<'k> Kernel<'k> {
                     } else {
                         if interrupt < self.interrupts.len() {
                             self.interrupts[interrupt] = Some(index as u8);
-                            self.core.enable_interrupt(interrupt as u8);
+                            self.core.enable_interrupt(interrupt);
                         }
                     }
                 }

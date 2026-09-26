@@ -9,8 +9,8 @@ pub mod pmp;
 pub mod timer;
 
 pub trait Interruptable {
-    fn enable_interrupt(&self, interrupt_code: u8);
-    fn disable_interrupt(&self, interrupt_code: u8);
+    fn enable_interrupt(&self, interrupt_code: usize);
+    fn disable_interrupt(&self, interrupt_code: usize);
 }
 
 pub trait SetupMtvec {

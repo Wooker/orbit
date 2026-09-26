@@ -1,14 +1,14 @@
-use crate::interface::{pmp::Pmp, timer::Timer, Interruptable, SetupMtvec};
+use crate::interface::{Interruptable, SetupMtvec, pmp::Pmp, timer::Timer};
 use core::arch::global_asm;
 use embedded_hal::delay::DelayNs;
 use qingke::riscv::{
     asm,
     delay::McycleDelay,
     register::{
+        Permission, Range,
         mhpmcounter5h::write,
         mtvec,
         pmpcfg0::{self, clear_pmp},
-        Permission, Range,
     },
     result::{Error as RiscvError, Result},
 };
@@ -165,11 +165,11 @@ impl Timer for CoreClock {
 }
 
 impl<const PMP: usize> Interruptable for Core<PMP> {
-    fn enable_interrupt(&self, interrupt_code: u8) {
-        unsafe { qingke::pfic::enable_interrupt(interrupt_code) };
+    fn enable_interrupt(&self, interrupt_code: usize) {
+        unsafe { qingke::pfic::enable_interrupt(interrupt_code as u8) };
     }
-    fn disable_interrupt(&self, interrupt_code: u8) {
-        unsafe { qingke::pfic::disable_interrupt(interrupt_code) };
+    fn disable_interrupt(&self, interrupt_code: usize) {
+        unsafe { qingke::pfic::disable_interrupt(interrupt_code as u8) };
     }
 }
 
