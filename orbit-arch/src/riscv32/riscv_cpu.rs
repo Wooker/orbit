@@ -1,9 +1,10 @@
-use crate::interface::{pmp::Pmp, timer::Timer, Interruptable, SetupMtvec};
+use crate::interface::{Interruptable, SetupMtvec, pmp::Pmp, timer::Timer};
 use core::arch::global_asm;
 use embedded_hal::delay::DelayNs;
 pub use riscv::asm::delay;
+use riscv::interrupt::InterruptNumber;
 use riscv::register::{
-    mie, mtvec, pmpaddr0, pmpaddr1, pmpaddr2, pmpaddr3, pmpcfg0, Permission, Range,
+    Permission, Range, mie, mtvec, pmpaddr0, pmpaddr1, pmpaddr2, pmpaddr3, pmpcfg0,
 };
 use riscv::{asm, result};
 
@@ -130,11 +131,15 @@ impl Timer for CoreClock {
 }
 
 impl<const PMP: usize> Interruptable for Core<PMP> {
-    fn enable_interrupt(&self, _interrupt_code: u8) {
-        unsafe { mie::set_mext() };
+    fn enable_interrupt(&self, interrupt_code: usize) {
+        if let Ok(irq) = riscv::interrupt::Interrupt::from_number(interrupt_code) {
+            unsafe { mie::enable(irq) };
+        }
     }
-    fn disable_interrupt(&self, _interrupt_code: u8) {
-        unsafe { mie::clear_mext() };
+    fn disable_interrupt(&self, interrupt_code: usize) {
+        if let Ok(irq) = riscv::interrupt::Interrupt::from_number(interrupt_code) {
+            unsafe { mie::disable(irq) };
+        }
     }
 }
 

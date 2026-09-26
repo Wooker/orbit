@@ -5,7 +5,7 @@ This directory is designed to track issues related to orbit.
 Each issues must be described in a separate file as well as
 listed below.
 
-Next issue id: 7
+Next issue id: 8
 
 ---
 

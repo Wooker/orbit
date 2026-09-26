@@ -155,7 +155,7 @@ macro_rules! handle_system {
             // By binding to a local variable 'data' here, we force the
             // temporary to live until the end of this unsafe block.
             let system = $sys as u8;
-            let value = $val as u8;
+            let value = $val as usize;
             let syscall = SysCall::HandleSystem.discriminant();
 
             core::arch::asm!(

@@ -125,7 +125,7 @@ impl<'k> Kernel<'k> {
         // Initialize ports
         let ports: [Port; PORT_NUM] = core::array::from_fn(|i| {
             let (ptr, interrupt, kind) = PORT_INTERRUPTS.0[i];
-            core.enable_interrupt(interrupt as u8);
+            core.enable_interrupt(interrupt);
             Port::new(unsafe { &*ptr }, kind)
         });
 
@@ -244,15 +244,8 @@ impl<'k> Kernel<'k> {
     fn interrupt_handler(&mut self) {
         let code = orbit_arch::riscv::register::mcause::read().code();
 
-        // Check if it's a port interrupt
-        if let Some((index, port)) = PORT_INTERRUPTS
-            .0
-            .iter()
-            .enumerate()
-            .find(|(_, (_, interrupt, _))| *interrupt == code)
-        {
-            self.port_handler(index);
-        } else if let Some(driver_index) = self.interrupts.get(code).and_then(|entry| *entry) {
+        // Check if it's an external interrupt
+        if let Some(driver_index) = self.interrupts.get(code).and_then(|entry| *entry) {
             // Spawn the registered driver's interrupt routine.
             if let Some(driver) = self.drivers.get(driver_index as usize) {
                 let packet = Packet::new(
@@ -265,11 +258,13 @@ impl<'k> Kernel<'k> {
                 );
                 if let Some(mut task) = Task::new(packet, 1, driver.interrupt_addr()) {
                     task.for_driver(driver.driver_struct().unwrap());
-                    self.core.disable_interrupt(code as u8);
+                    self.core.disable_interrupt(code);
                     self.scheduler.add(task);
                 }
             }
         } else {
+            self.core.disable_interrupt(code);
+            self.core.enable_interrupt(code);
         }
     }
 
@@ -323,11 +318,6 @@ impl<'k> Kernel<'k> {
             }
             SysCall::ReturnInit => if let Some(task) = self.scheduler.pop() {},
             SysCall::ReturnInterrupt => {
-                // TODO: check if the driver is linked to any system
-                // if so, handle it
-                // self.handle_system()
-                //       |
-                // else, V
                 if let Some(task) = self.scheduler.pop() {
                     if let Some((driver_index, _)) = self
                         .drivers
@@ -339,12 +329,11 @@ impl<'k> Kernel<'k> {
                             if let Some(index) = i
                                 && *index == driver_index as u8
                             {
-                                self.core.enable_interrupt(interrupt as u8);
+                                self.core.enable_interrupt(interrupt);
                             }
                         }
                     }
                 }
-                // unsafe { orbit_arch::pfic::enable_interrupt(40) };
             }
             SysCall::RegisterSystem => {
                 let task = self.scheduler.current_mut().unwrap();
@@ -391,45 +380,35 @@ impl<'k> Kernel<'k> {
                 {
                     if let Ok(system_id) = SystemId::try_from(system_id) {
                         match system_id {
-                            SystemId::InterruptController => {
-                                let interrupt_src = task.header.context.t0;
+                            SystemId::ExternalInterruptController => {
+                                let driver_index = task.header.context.t0;
+                                let call_driver = self.drivers[driver_index];
 
-                                // Check if there is driver registered for the interrupt
-                                if let Some(Some(driver_index)) = self.interrupts.get(interrupt_src)
-                                    && let Some(driver) = self.drivers.get(*driver_index as usize)
-                                {
-                                    // Create new task to handle the interrupt by driver
-                                    let new_task_id = TASK_ID.get_id();
-                                    if let Some(mut new_task) = Task::new(
-                                        Packet {
-                                            version: 0,
-                                            flags: Flags::empty(),
-                                            packet_id: new_task_id as u16,
-                                            src: 0,
-                                            dst: 0,
-                                            ttl: MAX_TTL,
-                                            msg_type: Message::Invoke,
-                                            payload: driver.name().as_bytes(),
-                                        },
-                                        task.header.priority.saturating_sub(1),
-                                        driver.interrupt_addr(),
-                                    ) {
-                                        // Add driver struct to task context
-                                        new_task.for_driver(driver.driver_struct().unwrap());
+                                // Create new task to handle the interrupt by driver
+                                let new_task_id = TASK_ID.get_id();
+                                if let Some(mut new_task) = Task::new(
+                                    Packet {
+                                        packet_id: new_task_id as u16,
+                                        msg_type: Message::Invoke,
+                                        payload: call_driver.name().as_bytes(),
+                                        ..Default::default()
+                                    },
+                                    task.header.priority.saturating_sub(1),
+                                    call_driver.interrupt_addr(),
+                                ) {
+                                    // Add driver struct to task context
+                                    new_task.for_driver(call_driver.driver_struct().unwrap());
 
-                                        // Mark current task as blocked by a new one
-                                        scheduler.current_mut().unwrap().header.state =
-                                            TaskState::Blocked(new_task_id);
+                                    // Mark current task as blocked by a new one
+                                    scheduler.current_mut().unwrap().header.state =
+                                        TaskState::Blocked(new_task_id);
 
-                                        scheduler.current_mut().unwrap().header.context.t0 = 0;
+                                    scheduler.current_mut().unwrap().header.context.t0 = 0;
 
-                                        // Add new task to the scheduler
-                                        scheduler.add(new_task);
-                                    } else {
-                                        scheduler.current_mut().unwrap().header.context.t0 = 1;
-                                    }
+                                    // Add new task to the scheduler
+                                    scheduler.add(new_task);
                                 } else {
-                                    scheduler.current_mut().unwrap().header.context.t0 = 2;
+                                    scheduler.current_mut().unwrap().header.context.t0 = 1;
                                 }
                             }
                             SystemId::Port => {
@@ -476,26 +455,25 @@ impl<'k> Kernel<'k> {
                     .enumerate()
                     .find(|(i, d)| d.name().as_bytes().eq(driver_name))
                 {
-                    if let Some(system_index) = self.systems[SystemId::InterruptController as usize]
-                        && system_index.contains(&index)
+                    if let Some(system_users) =
+                        self.systems[SystemId::ExternalInterruptController as usize]
+                        && let Some(system_index) = system_users.get(0)
+                        && let Some(system_driver) = self.drivers.get(*system_index)
                     {
-                        let packet = Packet::new(
-                            Flags::empty(),
-                            PACKET_ID.get_id(),
-                            0,
-                            0,
-                            Message::Invoke,
-                            driver.name().as_bytes(),
-                        );
-                        if let Some(mut task) = Task::new(packet, 1, driver.main_addr()) {
-                            task.for_driver(driver.driver_struct().unwrap());
+                        let packet = Packet {
+                            packet_id: PACKET_ID.get_id(),
+                            msg_type: Message::Invoke,
+                            payload: &[index.to_le_bytes(), interrupt.to_le_bytes()].concat(),
+                            ..Default::default()
+                        };
+                        if let Some(mut task) = Task::new(packet, 1, system_driver.main_addr()) {
+                            task.for_driver(system_driver.driver_struct().unwrap());
                             self.scheduler.add(task);
                         }
-                        self.interrupts[interrupt] = Some(index as u8);
                     } else {
                         if interrupt < self.interrupts.len() {
                             self.interrupts[interrupt] = Some(index as u8);
-                            self.core.enable_interrupt(interrupt as u8);
+                            self.core.enable_interrupt(interrupt);
                         }
                     }
                 }
