@@ -51,7 +51,9 @@ pub fn build_main() {
         .into_iter()
         .filter(|(key, _)| key.starts_with("DEP") && !key.contains("COMPILER"))
     {
+        #[cfg(debug_assertions)]
         print_build!("");
+        #[cfg(debug_assertions)]
         print_build!("{}", dep.0);
         // let delim_pos =
         let (key, out_dir) = if let Some(delim_pos) = dep.1.find('=') {
@@ -63,10 +65,13 @@ pub fn build_main() {
         };
         assert_eq!(key, "OUT_DIR=");
 
+        #[cfg(debug_assertions)]
         print_build!("{} {}", key, out_dir);
         println!("cargo:rustc-link-search={}", out_dir);
 
+        #[cfg(debug_assertions)]
         let count = dep.0.split("_").count();
+        #[cfg(debug_assertions)]
         let name = dep
             .0
             .split("_")
@@ -75,11 +80,13 @@ pub fn build_main() {
             .collect::<Vec<&str>>()
             .join("_")
             .to_lowercase();
+        #[cfg(debug_assertions)]
         print_build!("{}", name);
 
         for entry in read_dir(out_dir).unwrap() {
             let entry = entry.unwrap();
             let file_path = entry.path();
+            #[cfg(debug_assertions)]
             print_build!("Link {}", file_path.display());
             println!("cargo:rustc-link-arg=-T{}", file_path.display());
         }
@@ -127,6 +134,7 @@ pub fn build_app() {
         .into_iter()
         .filter(|(key, _)| key.starts_with("DEP") && !key.contains("COMPILER"))
     {
+        #[cfg(debug_assertions)]
         print_build!("{}", dep.0);
         let component_type = dep.0.split("_").skip(1).take(1).collect::<String>();
         assert_eq!(component_type, "LIBOS");
