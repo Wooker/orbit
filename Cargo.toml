@@ -12,6 +12,7 @@ members = [
     "orbit-apps/orbit-app-proc-macro",
     "orbit-apps/orbit-driver-proc-macro",
 ]
+exclude = [ "orbit-build" ]
 
 # [patch.crates-io]
 # orbit-bin = { path = "orbit-bin" }
