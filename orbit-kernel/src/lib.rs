@@ -31,8 +31,6 @@ pub mod kernel;
 #[cfg(feature = "rt")]
 pub mod pmp_entry;
 #[cfg(feature = "rt")]
-pub mod port;
-#[cfg(feature = "rt")]
 pub mod task;
 #[cfg(feature = "rt")]
 pub use orbit_arch as arch;

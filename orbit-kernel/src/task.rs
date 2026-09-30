@@ -39,6 +39,7 @@ pub(crate) struct Task<'t> {
     payload: [u8],
 }
 
+// TODO: implement without allocator
 impl<'t> Task<'t> {
     pub fn new<'p>(packet: Packet<'p>, priority: usize, addr: usize) -> Option<Pin<Box<Self>>>
     where

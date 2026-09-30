@@ -16,10 +16,6 @@ use crate::{
     context::Context,
     id::ID,
     kernel::{message_handlers::handle_invoke, scheduler::Scheduler},
-    port::{
-        Port,
-        port_kind::{PORT_INTERRUPTS, PORT_NUM},
-    },
     ringbuf::RingBuf,
     syscall::{InvokeLocalError, SysCall},
     task::{TASK_ID, Task, TaskState},
@@ -58,10 +54,8 @@ pub struct Kernel<'k> {
     containers: [Option<Container<'k>>; CONTAINERS],
     systems: [Option<[usize; DRIVERS_PER_SYSTEM]>; SystemId::MAX as usize],
     interrupts: [Option<u8>; 255],
-    ports: [Port<'k>; PORT_NUM],
     claims: [bool; KernelPeripherals::MAX as usize],
     core: Core<PMP>,
-    clock: Clocks,
     scheduler: Scheduler<'k>,
 }
 
@@ -100,9 +94,6 @@ impl<'k> Kernel<'k> {
     pub fn new() -> Self {
         let core: Core<PMP> = Core::new();
 
-        // Enable clocks
-        let mut clock = Clocks::default();
-        clock.freeze();
         unsafe { init_memory() };
 
         // Initialize allocator
@@ -122,14 +113,6 @@ impl<'k> Kernel<'k> {
                     }
             );
         }
-
-        // Initialize ports
-        let ports: [Port; PORT_NUM] = core::array::from_fn(|i| {
-            let (ptr, interrupt, kind) = PORT_INTERRUPTS.0[i];
-            core.enable_interrupt(interrupt);
-            Port::new(unsafe { &*ptr }, kind)
-        });
-
         // Save trap handler
         core.setup_mtvec(
             asm::handler as *const fn() as usize,
@@ -139,12 +122,10 @@ impl<'k> Kernel<'k> {
         let mut kernel = Self {
             context: Context::new(),
             core: Core::new(),
-            ports,
             containers: [None; CONTAINERS],
             systems: [None; SystemId::MAX as usize],
             interrupts: [None; 255],
             claims: [false; KernelPeripherals::MAX as usize],
-            clock,
             scheduler: Scheduler::new(),
         };
 
@@ -187,8 +168,8 @@ impl<'k> Kernel<'k> {
             {
                 task.for_driver(data.data());
                 self.scheduler.add(task);
-                *c = Some(container);
             }
+            *c = Some(container);
         }
     }
 
@@ -202,11 +183,6 @@ impl<'k> Kernel<'k> {
     //         let _ = self.core.pmp.write_addr(i, pe.address);
     //     }
     // }
-
-    #[inline(never)]
-    pub fn clock(&self) -> usize {
-        self.clock.hclk
-    }
 
     #[inline(never)]
     #[unsafe(no_mangle)]
@@ -476,16 +452,17 @@ impl<'k> Kernel<'k> {
                     )
                 };
                 let mut out = [0u8; MAX_BUFFER_LENGTH];
-                task.header
-                    .packet
-                    .reply(buf)
-                    .encode(&mut out)
-                    .and_then(|size| {
-                        self.ports[0]
-                            .send(&out[..size])
-                            .map_err(|_| EncodeError::BufferTooSmall)
-                    })
-                    .unwrap_or(0);
+                // TODO: handle via Port system
+                // task.header
+                //     .packet
+                //     .reply(buf)
+                //     .encode(&mut out)
+                //     .and_then(|size| {
+                //         self.ports[0]
+                //             .send(&out[..size])
+                //             .map_err(|_| EncodeError::BufferTooSmall)
+                //     })
+                //     .unwrap_or(0);
             }
             SysCall::InvokeLocal => {
                 // Copy the syscall arguments before creating the new task.
@@ -498,15 +475,13 @@ impl<'k> Kernel<'k> {
                             task.header.context.a1 as *const u8,
                             task.header.context.a2,
                         )
-                    }
-                    .to_vec();
+                    };
                     let arg = unsafe {
                         core::slice::from_raw_parts(
                             task.header.context.a3 as *const u8,
                             task.header.context.a4,
                         )
-                    }
-                    .to_vec();
+                    };
                     (name, arg, task.header.priority.saturating_add(1))
                 };
 
@@ -516,7 +491,7 @@ impl<'k> Kernel<'k> {
                     self.containers.iter().find(|app| {
                         app.is_some()
                             && app.unwrap().named.is_some()
-                            && app.unwrap().named.unwrap().name().as_bytes().eq(&name)
+                            && app.unwrap().named.unwrap().name().as_bytes().eq(name)
                     })
                     && let Some(container) = app
                     && let Some(invokable) = container.invokable
@@ -533,7 +508,7 @@ impl<'k> Kernel<'k> {
                 } else if let Some(driver) = self.containers.iter().find(|app| {
                     app.is_some()
                         && app.unwrap().named.is_some()
-                        && app.unwrap().named.unwrap().name().as_bytes().eq(&name)
+                        && app.unwrap().named.unwrap().name().as_bytes().eq(name)
                 }) && let Some(container) = driver
                     && let Some(invokable) = container.invokable
                     && let Some(data) = container.data
@@ -591,9 +566,10 @@ impl<'k> Kernel<'k> {
                 let packet = Packet::new(Flags::empty(), packet_id, 0, 0, Message::Invoke, payload);
                 let mut arr = [0; MAX_BUFFER_LENGTH];
                 if let Ok(size) = packet.encode(&mut arr) {
-                    self.ports.iter_mut().for_each(|p| {
-                        p.send(&arr);
-                    });
+                    // TODO: handle via Port system
+                    // self.ports.iter_mut().for_each(|p| {
+                    //     p.send(&arr);
+                    // });
                     task.header.context.a0 = size;
                 } else {
                     task.header.context.a0 = 0;
@@ -625,6 +601,16 @@ impl<'k> Kernel<'k> {
         //         port.write(chunk);
         //     }
         // }
+    }
+
+    #[unsafe(no_mangle)]
+    #[inline(never)]
+    pub fn setup_registers(&mut self) {
+        unsafe {
+            orbit_arch::riscv::register::mscratch::write(self as *const Kernel as usize);
+            core::arch::asm!("csrr gp, mscratch");
+            asm::save_context();
+        }
     }
 
     #[unsafe(naked)]
