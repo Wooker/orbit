@@ -151,13 +151,13 @@ pub fn orbit(
 
     // Process ItemFn
     let extends = if let Some(_) = args.kind.iter().find(|k| matches!(k, OrbitKind::App)) {
+        let crate_name = std::env::var("CARGO_PKG_NAME").unwrap();
         let item2 = item.clone();
         let fn_item = parse_macro_input!(item2 as ItemFn);
-        let struct_name = format_ident!("App_{}", fn_item.sig.ident);
+        let struct_name = format_ident!("App_{}", crate_name);
         let fn_name = &fn_item.sig.ident;
 
         let expanded = quote! {
-            #[repr(C,align(4))]
             #[orbit(invokable)]
             pub struct #struct_name {}
 
