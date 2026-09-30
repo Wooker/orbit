@@ -423,6 +423,8 @@ impl<'k> Kernel<'k> {
                         && let Some(system_index) = system_users.get(0)
                         && let Some(Some(system_driver)) = self.containers.get(*system_index)
                         && let Some(invokable) = system_driver.invokable
+                        && let Some(systems) = system_driver.systems
+                        && let Some(eic) = systems.external_interrupt_controller
                         && let Some(data) = system_driver.data
                     {
                         let packet = Packet {
@@ -431,7 +433,7 @@ impl<'k> Kernel<'k> {
                             payload: &[index.to_le_bytes(), interrupt.to_le_bytes()].concat(),
                             ..Default::default()
                         };
-                        if let Some(mut task) = Task::new(packet, 1, invokable.main_addr()) {
+                        if let Some(mut task) = Task::new(packet, 1, eic.addrs[0]) {
                             task.for_driver(data.data());
                             self.scheduler.add(task);
                         }

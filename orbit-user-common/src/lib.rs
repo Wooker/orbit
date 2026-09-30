@@ -114,7 +114,8 @@ macro_rules! register_interrupt {
 
 #[macro_export]
 macro_rules! register_system {
-    ($sys:expr) => {
+    ($sys:expr) => {{
+        let status: usize;
         unsafe {
             let system = $sys as u8;
             let syscall = orbit_kernel::syscall::SysCall::RegisterSystem.discriminant();
@@ -123,10 +124,12 @@ macro_rules! register_system {
                 "ecall",
                 in("a0") syscall,
                 in("a1") system,
+                lateout("t0") status,
                 clobber_abi("C"),
             );
         }
-    };
+        status
+    }};
 }
 
 #[macro_export]
