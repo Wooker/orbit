@@ -12,7 +12,7 @@ use crate::{
     application_container::{AppContainer, RunApplication},
     claim::KernelPeripherals,
     clock::Clocks,
-    containers::systems::SystemId,
+    containers::{Container, systems::SystemId},
     context::Context,
     id::ID,
     kernel::{message_handlers::handle_invoke, scheduler::Scheduler},
@@ -46,6 +46,8 @@ use spaceport::{
 };
 
 const DRIVERS_PER_SYSTEM: usize = 2;
+const CONTAINERS: usize =
+    usize::from_str_radix(option_env!("ORBIT_KERNEL_CONTAINERS").unwrap_or("0"), 10).unwrap_or(0);
 
 pub(crate) static PACKET_ID: ID<u16> = ID::new(0);
 pub static KERNEL_VERSION: &'static str = env!("CARGO_PKG_VERSION");
@@ -53,8 +55,7 @@ pub static KERNEL_VERSION: &'static str = env!("CARGO_PKG_VERSION");
 #[repr(C, align(4))]
 pub struct Kernel<'k> {
     context: Context,
-    apps: Vec<AppContainer<'k>>,
-    drivers: Vec<AppContainer<'k>>,
+    containers: [Option<Container<'k>>; CONTAINERS],
     systems: [Option<[usize; DRIVERS_PER_SYSTEM]>; SystemId::MAX as usize],
     interrupts: [Option<u8>; 255],
     ports: [Port<'k>; PORT_NUM],
@@ -139,8 +140,7 @@ impl<'k> Kernel<'k> {
             context: Context::new(),
             core: Core::new(),
             ports,
-            apps: Vec::new(),
-            drivers: Vec::new(),
+            containers: [None; CONTAINERS],
             systems: [None; SystemId::MAX as usize],
             interrupts: [None; 255],
             claims: [false; KernelPeripherals::MAX as usize],
@@ -162,27 +162,33 @@ impl<'k> Kernel<'k> {
     }
 
     #[inline(never)]
-    pub fn add_application(&mut self, app_cont: AppContainer<'k>) {
-        self.apps.push(app_cont);
-    }
-
-    #[inline(never)]
-    pub fn add_driver(&mut self, app_cont: AppContainer<'k>, priority: usize) {
-        if let Some(mut task) = Task::new(
-            Packet::new(
-                Flags::empty(),
-                0,
-                0,
-                0,
-                Message::Invoke,
-                app_cont.name().as_bytes(),
-            ),
-            priority,
-            app_cont.init_addr(),
-        ) {
-            task.for_driver(app_cont.driver_struct().unwrap());
-            self.drivers.push(app_cont);
-            self.scheduler.add(task);
+    pub fn add_container(&mut self, container: Container<'k>) {
+        if let Some((index, c)) = self
+            .containers
+            .iter_mut()
+            .enumerate()
+            .find(|c| c.1.is_none())
+        {
+            if let Some(named) = container.named
+                && let Some(data) = container.data
+                && let Some(driver) = container.driver
+                && let Some(mut task) = Task::new(
+                    Packet::new(
+                        Flags::empty(),
+                        0,
+                        0,
+                        0,
+                        Message::Invoke,
+                        named.name().as_bytes(),
+                    ),
+                    index,
+                    driver.init_addr(),
+                )
+            {
+                task.for_driver(data.data());
+                self.scheduler.add(task);
+                *c = Some(container);
+            }
         }
     }
 
@@ -204,60 +210,27 @@ impl<'k> Kernel<'k> {
 
     #[inline(never)]
     #[unsafe(no_mangle)]
-    fn port_handler(&mut self, i: usize) {
-        if let Some(packet) = self.ports[i].handle() {
-            match packet.msg_type {
-                Message::Invoke => {
-                    if let Some(resp) = handle_invoke(
-                        &mut self.apps,
-                        &mut self.drivers,
-                        &mut self.scheduler,
-                        packet,
-                    ) {
-                        self.ports[i].respond(resp);
-                    }
-                }
-                Message::KernelVersion => {
-                    let (id, src, dst) = (packet.packet_id + 1, packet.dst, packet.src);
-                    self.ports[i].respond(Packet::new(
-                        Flags::empty(),
-                        id,
-                        src,
-                        dst,
-                        Message::Reply,
-                        KERNEL_VERSION.as_bytes(),
-                    ))
-                }
-                _ => self.ports[i].respond(Packet {
-                    flags: Flags::ERROR,
-                    msg_type: Message::Reply,
-                    payload: b"Not implemented",
-                    ..Default::default()
-                }),
-            }
-            self.ports[i].fragments = Vec::new();
-        }
-    }
-
-    #[inline(never)]
-    #[unsafe(no_mangle)]
     fn interrupt_handler(&mut self) {
         let code = orbit_arch::riscv::register::mcause::read().code();
 
         // Check if it's an external interrupt
-        if let Some(driver_index) = self.interrupts.get(code).and_then(|entry| *entry) {
+        if let Some(container_index) = self.interrupts.get(code).and_then(|entry| *entry) {
             // Spawn the registered driver's interrupt routine.
-            if let Some(driver) = self.drivers.get(driver_index as usize) {
+            if let Some(container) = self.containers.get(container_index as usize).unwrap()
+                && let Some(named) = container.named
+                && let Some(driver) = container.driver
+                && let Some(data) = container.data
+            {
                 let packet = Packet::new(
                     Flags::empty(),
                     PACKET_ID.get_id(),
                     0,
                     0,
                     Message::Invoke,
-                    driver.name().as_bytes(),
+                    named.name().as_bytes(),
                 );
                 if let Some(mut task) = Task::new(packet, 1, driver.interrupt_addr()) {
-                    task.for_driver(driver.driver_struct().unwrap());
+                    task.for_driver(data.data());
                     self.core.disable_interrupt(code);
                     self.scheduler.add(task);
                 }
@@ -319,11 +292,17 @@ impl<'k> Kernel<'k> {
             SysCall::ReturnInit => if let Some(task) = self.scheduler.pop() {},
             SysCall::ReturnInterrupt => {
                 if let Some(task) = self.scheduler.pop() {
-                    if let Some((driver_index, _)) = self
-                        .drivers
-                        .iter()
-                        .enumerate()
-                        .find(|(i, d)| d.name().as_bytes() == task.header.packet.payload)
+                    if let Some((driver_index, _)) =
+                        self.containers.iter().enumerate().find(|(i, d)| {
+                            d.is_some()
+                                && d.unwrap().named.is_some()
+                                && d.unwrap()
+                                    .named
+                                    .unwrap()
+                                    .name()
+                                    .as_bytes()
+                                    .eq(task.header.packet.payload)
+                        })
                     {
                         for (interrupt, i) in self.interrupts.iter().enumerate() {
                             if let Some(index) = i
@@ -339,12 +318,11 @@ impl<'k> Kernel<'k> {
                 let task = self.scheduler.current_mut().unwrap();
                 let system_id = task.header.context.a1;
                 let driver_name = task.header.packet.payload;
-                if let Some((index, driver)) = self
-                    .drivers
-                    .iter()
-                    .enumerate()
-                    .find(|(i, d)| d.name().as_bytes().eq(driver_name))
-                {
+                if let Some((index, driver)) = self.containers.iter().enumerate().find(|(i, d)| {
+                    d.is_some()
+                        && d.unwrap().named.is_some()
+                        && d.unwrap().named.unwrap().name().as_bytes().eq(driver_name)
+                }) {
                     if self.systems[system_id].is_none() {
                         let mut populate = [0; DRIVERS_PER_SYSTEM];
                         populate[0] = index;
@@ -358,7 +336,9 @@ impl<'k> Kernel<'k> {
                                 *c = index;
                                 task.header.context.t0 = 1;
                             } else {
-                                self.drivers.remove(index);
+                                if let Some(c) = self.containers.get_mut(index) {
+                                    *c = None;
+                                };
                                 self.scheduler.pop();
                             }
                         }
@@ -370,34 +350,38 @@ impl<'k> Kernel<'k> {
                 let task = scheduler.current().unwrap();
                 let system_id = task.header.context.a1;
                 let driver_name = task.header.packet.payload;
-                if let Some((index, driver)) = self
-                    .drivers
-                    .iter()
-                    .enumerate()
-                    .find(|(i, d)| d.name().as_bytes().eq(driver_name))
-                    && let Some(system_index) = self.systems[system_id]
+                if let Some((index, driver)) = self.containers.iter().enumerate().find(|(i, d)| {
+                    d.is_some()
+                        && d.unwrap().named.is_some()
+                        && d.unwrap().named.unwrap().name().as_bytes().eq(driver_name)
+                }) && let Some(system_index) = self.systems[system_id]
                     && system_index.contains(&index)
                 {
                     if let Ok(system_id) = SystemId::try_from(system_id) {
                         match system_id {
                             SystemId::ExternalInterruptController => {
                                 let driver_index = task.header.context.t0;
-                                let call_driver = self.drivers[driver_index];
+                                let call_driver = self.containers[driver_index];
 
                                 // Create new task to handle the interrupt by driver
                                 let new_task_id = TASK_ID.get_id();
-                                if let Some(mut new_task) = Task::new(
-                                    Packet {
-                                        packet_id: new_task_id as u16,
-                                        msg_type: Message::Invoke,
-                                        payload: call_driver.name().as_bytes(),
-                                        ..Default::default()
-                                    },
-                                    task.header.priority.saturating_sub(1),
-                                    call_driver.interrupt_addr(),
-                                ) {
+                                if let Some(call_container) = self.containers[driver_index]
+                                    && let Some(call_named) = call_container.named
+                                    && let Some(call_data) = call_container.data
+                                    && let Some(call_driver) = call_container.driver
+                                    && let Some(mut new_task) = Task::new(
+                                        Packet {
+                                            packet_id: new_task_id as u16,
+                                            msg_type: Message::Invoke,
+                                            payload: call_named.name().as_bytes(),
+                                            ..Default::default()
+                                        },
+                                        task.header.priority.saturating_sub(1),
+                                        call_driver.interrupt_addr(),
+                                    )
+                                {
                                     // Add driver struct to task context
-                                    new_task.for_driver(call_driver.driver_struct().unwrap());
+                                    new_task.for_driver(call_data.data());
 
                                     // Mark current task as blocked by a new one
                                     scheduler.current_mut().unwrap().header.state =
@@ -414,17 +398,21 @@ impl<'k> Kernel<'k> {
                             SystemId::Port => {
                                 // Create new task to handle the interrupt by driver
                                 let new_task_id = TASK_ID.get_id();
-                                if let Some(mut new_task) = Task::new(
-                                    Packet {
-                                        packet_id: new_task_id as u16,
-                                        msg_type: Message::Invoke,
-                                        ..Default::default()
-                                    },
-                                    task.header.priority.saturating_sub(1),
-                                    driver.main_addr(),
-                                ) {
+                                if let Some(container) = driver
+                                    && let Some(invokable) = container.invokable
+                                    && let Some(data) = container.data
+                                    && let Some(mut new_task) = Task::new(
+                                        Packet {
+                                            packet_id: new_task_id as u16,
+                                            msg_type: Message::Invoke,
+                                            ..Default::default()
+                                        },
+                                        task.header.priority.saturating_sub(1),
+                                        invokable.main_addr(),
+                                    )
+                                {
                                     // Add driver struct to task context
-                                    new_task.for_driver(driver.driver_struct().unwrap());
+                                    new_task.for_driver(data.data());
 
                                     scheduler.current_mut().unwrap().header.context.t0 = 0;
 
@@ -449,16 +437,17 @@ impl<'k> Kernel<'k> {
                 let task = self.scheduler.current().unwrap();
                 let interrupt = task.header.context.a1;
                 let driver_name = task.header.packet.payload;
-                if let Some((index, driver)) = self
-                    .drivers
-                    .iter()
-                    .enumerate()
-                    .find(|(i, d)| d.name().as_bytes().eq(driver_name))
-                {
+                if let Some((index, driver)) = self.containers.iter().enumerate().find(|(i, d)| {
+                    d.is_some()
+                        && d.unwrap().named.is_some()
+                        && d.unwrap().named.unwrap().name().as_bytes().eq(driver_name)
+                }) {
                     if let Some(system_users) =
                         self.systems[SystemId::ExternalInterruptController as usize]
                         && let Some(system_index) = system_users.get(0)
-                        && let Some(system_driver) = self.drivers.get(*system_index)
+                        && let Some(Some(system_driver)) = self.containers.get(*system_index)
+                        && let Some(invokable) = system_driver.invokable
+                        && let Some(data) = system_driver.data
                     {
                         let packet = Packet {
                             packet_id: PACKET_ID.get_id(),
@@ -466,8 +455,8 @@ impl<'k> Kernel<'k> {
                             payload: &[index.to_le_bytes(), interrupt.to_le_bytes()].concat(),
                             ..Default::default()
                         };
-                        if let Some(mut task) = Task::new(packet, 1, system_driver.main_addr()) {
-                            task.for_driver(system_driver.driver_struct().unwrap());
+                        if let Some(mut task) = Task::new(packet, 1, invokable.main_addr()) {
+                            task.for_driver(data.data());
                             self.scheduler.add(task);
                         }
                     } else {
@@ -524,29 +513,38 @@ impl<'k> Kernel<'k> {
                 let packet_id = PACKET_ID.get_id();
                 let payload = [&name[..], b" ", &arg[..]].concat();
                 let (mut invokee, is_application, error) = if let Some(app) =
-                    self.apps.iter().find(|app| app.name().as_bytes() == name)
+                    self.containers.iter().find(|app| {
+                        app.is_some()
+                            && app.unwrap().named.is_some()
+                            && app.unwrap().named.unwrap().name().as_bytes().eq(&name)
+                    })
+                    && let Some(container) = app
+                    && let Some(invokable) = container.invokable
                 {
                     (
                         Task::new(
                             Packet::new(Flags::empty(), packet_id, 0, 0, Message::Invoke, &payload),
                             priority,
-                            app.main_addr(),
+                            invokable.main_addr(),
                         ),
                         true,
                         InvokeLocalError::TaskCreationFailed,
                     )
-                } else if let Some(driver) = self
-                    .drivers
-                    .iter()
-                    .find(|driver| driver.name().as_bytes() == name)
+                } else if let Some(driver) = self.containers.iter().find(|app| {
+                    app.is_some()
+                        && app.unwrap().named.is_some()
+                        && app.unwrap().named.unwrap().name().as_bytes().eq(&name)
+                }) && let Some(container) = driver
+                    && let Some(invokable) = container.invokable
+                    && let Some(data) = container.data
                 {
                     let mut task = Task::new(
                         Packet::new(Flags::empty(), packet_id, 0, 0, Message::Invoke, &payload),
                         priority,
-                        driver.main_addr(),
+                        invokable.main_addr(),
                     );
                     if let Some(task) = task.as_mut() {
-                        task.for_driver(driver.driver_struct().unwrap());
+                        task.for_driver(data.data());
                     }
                     (task, false, InvokeLocalError::TaskCreationFailed)
                 } else {

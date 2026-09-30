@@ -4,7 +4,7 @@ pub mod invokable;
 pub mod named;
 pub mod systems;
 
-#[derive(Debug, Default)]
+#[derive(Debug, Default, Copy, Clone)]
 pub struct Container<'c> {
     pub named: Option<named::NamedContainer<'c>>,
     pub invokable: Option<invokable::InvokableContainer>,

@@ -6,6 +6,7 @@
 #![feature(ptr_metadata)]
 #![feature(const_option_ops)]
 #![feature(const_trait_impl)]
+#![feature(const_result_trait_fn)]
 
 //! Orbit kernel
 

@@ -33,7 +33,7 @@ pub struct SystemRecord<const N: usize> {
     pub(crate) addrs: [usize; N],
 }
 
-#[derive(Debug, Default)]
+#[derive(Debug, Default, Copy, Clone)]
 pub struct SystemContainer {
     pub external_interrupt_controller:
         Option<SystemRecord<{ external_interrupt_controller::SYSTEM_SIZE }>>,

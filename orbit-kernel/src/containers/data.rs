@@ -7,8 +7,8 @@ impl<'d> DataContainer {
         Self { data }
     }
 
-    pub fn data(&self) -> &usize {
-        &self.data
+    pub fn data(&self) -> usize {
+        self.data
     }
 }
 
