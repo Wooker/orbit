@@ -97,7 +97,8 @@ macro_rules! send {
 
 #[macro_export]
 macro_rules! register_interrupt {
-    ($int:expr) => {
+    ($int:expr) => {{
+        let status: usize;
         unsafe {
             let interrupt = $int as u8;
             let syscall = orbit_kernel::syscall::SysCall::RegisterInterrupt.discriminant();
@@ -106,10 +107,12 @@ macro_rules! register_interrupt {
                 "ecall",
                 in("a0") syscall,
                 in("a1") interrupt,
+                lateout("t0") status,
                 clobber_abi("C"),
             );
         }
-    };
+        status
+    }};
 }
 
 #[macro_export]

@@ -1,4 +1,5 @@
 /* CONTEXT */
+#[repr(C)]
 #[derive(Clone, Copy)]
 pub struct Context {
     pub ra: usize,

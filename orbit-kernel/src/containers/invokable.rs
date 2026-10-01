@@ -32,6 +32,7 @@ pub trait InvokableAuto<'s>: Invokable<'s> {
             Ok(res) => (0, res),
             Err(e) => (1, e),
         };
+        unsafe { core::arch::asm!("li a0, 1;li a1, 0; ecall") };
     }
 
     #[inline(never)]
