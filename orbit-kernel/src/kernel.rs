@@ -1,6 +1,7 @@
 #![allow(unused)]
 pub mod asm;
 mod scheduler;
+pub mod systems;
 
 #[cfg(any(feature = "alloc_tlsf", feature = "alloc_llff"))]
 use crate::allocator::ALLOCATOR;
@@ -14,7 +15,7 @@ use crate::{
     containers::{Container, systems::SystemId},
     context::Context,
     id::ID,
-    kernel::scheduler::Scheduler,
+    kernel::{scheduler::Scheduler, systems::Systems},
     ringbuf::RingBuf,
     syscall::{InvokeLocalError, SysCall},
     task::{TASK_ID, Task, TaskState},
@@ -40,7 +41,6 @@ use spaceport::{
     types::Flags,
 };
 
-const DRIVERS_PER_SYSTEM: usize = 2;
 const CONTAINERS: usize =
     usize::from_str_radix(option_env!("ORBIT_KERNEL_CONTAINERS").unwrap_or("0"), 10).unwrap_or(0);
 
@@ -51,7 +51,7 @@ pub static KERNEL_VERSION: &'static str = env!("CARGO_PKG_VERSION");
 pub struct Kernel<'k> {
     context: Context,
     containers: [Option<Container<'k>>; CONTAINERS],
-    systems: [Option<[Option<usize>; DRIVERS_PER_SYSTEM]>; SystemId::MAX as usize],
+    systems: systems::Systems,
     interrupts: [Option<u8>; 255],
     claims: [bool; KernelPeripherals::MAX as usize],
     core: Core<PMP>,
@@ -122,7 +122,7 @@ impl<'k> Kernel<'k> {
             context: Context::new(),
             core: Core::new(),
             containers: [None; CONTAINERS],
-            systems: [None; SystemId::MAX as usize],
+            systems: Systems::default(),
             interrupts: [None; 255],
             claims: [false; KernelPeripherals::MAX as usize],
             scheduler: Scheduler::new(),

@@ -6,10 +6,10 @@ pub mod port;
 pub enum SystemId {
     ExternalInterruptController = 0,
     Port,
-    MAX,
 }
 
 #[repr(u8)]
+#[derive(Debug, Clone, Copy)]
 pub enum SystemIdError {
     UnknownId = 0,
 }
