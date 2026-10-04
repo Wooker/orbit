@@ -575,27 +575,51 @@ impl<'k> Kernel<'k> {
     #[unsafe(no_mangle)]
     #[inline(never)]
     fn handle_eic_system(&self, container: &Container) -> (Option<Pin<Box<Task>>>, usize) {
+        let task_syscall = SysCall::from_usize(self.scheduler.current().unwrap().header.context.a0);
         let system_id = self.scheduler.current().unwrap().header.context.a1;
+        let container_index = self.scheduler.current().unwrap().header.context.a2;
         let task_data = self.scheduler.current().unwrap().header.context.tp;
         let priority = self.scheduler.current().unwrap().header.priority;
-        let container_index = self.scheduler.current().unwrap().header.context.t0;
 
-        // Create new task to handle the interrupt by driver
-        let new_task_id = TASK_ID.get_id();
-        if let Some(Some(call_container)) = self.containers.get(container_index)
-            && let Some(call_named) = call_container.named
-            && let Some(call_data) = call_container.data
-            && let Some(call_driver) = call_container.driver
-            && let Some(mut new_task) = Task::new(
-                &[],
-                priority.saturating_sub(1),
-                call_driver.interrupt_addr(),
-            )
-        {
-            new_task.for_driver(call_data.data());
-            return (Some(new_task), 0);
-        } else {
-            return (None, 1);
+        match task_syscall {
+            SysCall::ReturnSystem if container_index == usize::MAX => (None, 2),
+            SysCall::ReturnSystem if container_index != usize::MAX => {
+                let new_task_id = TASK_ID.get_id();
+                if let Some(Some(call_container)) = self.containers.get(container_index)
+                    && let Some(call_named) = call_container.named
+                    && let Some(call_data) = call_container.data
+                    && let Some(call_driver) = call_container.driver
+                    && let Some(mut new_task) = Task::new(
+                        &[],
+                        priority.saturating_sub(1),
+                        call_driver.interrupt_addr(),
+                    )
+                {
+                    new_task.for_driver(call_data.data());
+                    return (Some(new_task), 0);
+                } else {
+                    return (None, 3);
+                }
+            }
+            SysCall::HandleSystem => {
+                // Create new task to handle the interrupt by driver
+                let new_task_id = TASK_ID.get_id();
+                if let Some(data) = container.data
+                    && let Some(systems) = container.systems
+                    && let Some(data) = container.data
+                    && let Some(mut new_task) = Task::new(
+                        &[],
+                        priority.saturating_sub(1),
+                        systems.external_interrupt_controller.unwrap().addrs[2], // dispatch
+                    )
+                {
+                    new_task.for_driver(data.data());
+                    return (Some(new_task), 0);
+                } else {
+                    return (None, 1);
+                }
+            }
+            _ => (None, 99),
         }
     }
 

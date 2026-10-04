@@ -1,10 +1,13 @@
-use crate::containers::systems::SystemRecord;
+use crate::{
+    containers::systems::{SystemId, SystemRecord},
+    syscall::SysCall,
+};
 
 pub(crate) const SYSTEM_SIZE: usize = 3;
 pub trait ExternalInterruptController {
     fn enable_interrupt(&mut self, index: usize, irq: usize);
     fn disable_interrupt(&mut self, irq: usize);
-    fn dispatch(&mut self, irq: usize) -> usize;
+    fn dispatch(&mut self) -> usize;
 }
 
 pub trait ExternalInterruptControllerAuto: ExternalInterruptController {
@@ -22,17 +25,47 @@ pub trait ExternalInterruptControllerAuto: ExternalInterruptController {
 
     // TODO: Handle system returns properly by kernel
     // Now they return as from main
-    fn _enable_interrupt(&mut self, index: usize, irq: usize) {
+    fn _enable_interrupt(&mut self, index: usize, irq: usize) -> ! {
         self.enable_interrupt(index, irq);
-        unsafe { core::arch::asm!("li a0, 1;li a1, 0; ecall") };
+        let syscall = SysCall::ReturnSystem as usize;
+        let system_id = SystemId::ExternalInterruptController as usize;
+        unsafe {
+            core::arch::asm!(
+                "ecall",
+                in("a0") syscall,
+                in("a1") system_id,
+                in("a2") 0,
+                options(noreturn)
+            )
+        };
     }
-    fn _disable_interrupt(&mut self, irq: usize) {
+    fn _disable_interrupt(&mut self, irq: usize) -> ! {
         self.disable_interrupt(irq);
-        unsafe { core::arch::asm!("li a0, 1;li a1, 0; ecall") };
+        let syscall = SysCall::ReturnSystem as usize;
+        let system_id = SystemId::ExternalInterruptController as usize;
+        unsafe {
+            core::arch::asm!(
+                "ecall",
+                in("a0") syscall,
+                in("a1") system_id,
+                in("a2") usize::MAX,
+                options(noreturn)
+            )
+        };
     }
-    fn _dispatch(&mut self, irq: usize) {
-        let _index = self.dispatch(irq);
-        unsafe { core::arch::asm!("li a0, 1;li a1, 0; ecall") };
+    fn _dispatch(&mut self) -> ! {
+        let index = self.dispatch();
+        let syscall = SysCall::ReturnSystem as usize;
+        let system_id = SystemId::ExternalInterruptController as usize;
+        unsafe {
+            core::arch::asm!(
+                "ecall",
+                in("a0") syscall,
+                in("a1") system_id,
+                in("a2") index,
+                options(noreturn)
+            )
+        };
     }
 
     fn to_system_record(&self) -> SystemRecord<SYSTEM_SIZE> {
