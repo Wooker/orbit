@@ -1,4 +1,7 @@
-use crate::containers::systems::SystemRecord;
+use crate::{
+    containers::systems::{SystemId, SystemRecord},
+    syscall::SysCall,
+};
 
 pub(crate) const SYSTEM_SIZE: usize = 2;
 pub trait Port {
@@ -8,11 +11,42 @@ pub trait Port {
 
 pub trait PortAuto: Port {
     fn get_read_addr(&self) -> usize {
-        Self::read as *const fn() as usize
+        Self::_read as *const fn() as usize
     }
 
     fn get_write_addr(&self) -> usize {
-        Self::write as *const fn() as usize
+        Self::_write as *const fn() as usize
+    }
+
+    fn _read(&mut self) -> ! {
+        let slice = self.read();
+        let syscall = SysCall::ReturnSystem as usize;
+        let system_id = SystemId::Port as usize;
+        unsafe {
+            core::arch::asm!(
+                "ecall",
+                in("a0") syscall,
+                in("a1") system_id,
+                in("a2") slice.as_ptr(),
+                in("a3") slice.len(),
+                options(noreturn)
+            )
+        }
+    }
+    fn _write(&mut self, buf: &[u8]) -> ! {
+        self.write(buf);
+        let syscall = SysCall::ReturnSystem as usize;
+        let system_id = SystemId::Port as usize;
+        unsafe {
+            core::arch::asm!(
+                "ecall",
+                in("a0") syscall,
+                in("a1") system_id,
+                in("a2") 0,
+                in("a3") 0,
+                options(noreturn)
+            )
+        };
     }
 
     fn to_system_record(&self) -> SystemRecord<SYSTEM_SIZE> {

@@ -275,7 +275,7 @@ impl<'k> Kernel<'k> {
                 }
             }
             SysCall::RegisterSystem => self.handle_register_system(),
-            SysCall::HandleSystem => self.handle_system(),
+            SysCall::HandleSystem | SysCall::ReturnSystem => self.handle_system(),
             SysCall::RegisterInterrupt => {
                 self.handle_register_interrupt();
             }
@@ -548,12 +548,24 @@ impl<'k> Kernel<'k> {
 
             self.scheduler.current_mut().unwrap().header.context.t0 = res;
             if let Some(new_task) = opt_task {
-                // Mark current task as blocked by a new one
-                self.scheduler.current_mut().unwrap().header.state =
-                    TaskState::Blocked(new_task.header.task_id);
+                if self.scheduler.current().unwrap().header.context.a0
+                    == SysCall::ReturnSystem.discriminant()
+                {
+                    self.scheduler.pop();
+                } else {
+                    // Mark current task as blocked by a new one
+                    self.scheduler.current_mut().unwrap().header.state =
+                        TaskState::Blocked(new_task.header.task_id);
+                }
 
                 // Add new task to the scheduler
                 self.scheduler.add(new_task);
+            } else {
+                if self.scheduler.current().unwrap().header.context.a0
+                    == SysCall::ReturnSystem.discriminant()
+                {
+                    self.scheduler.pop();
+                }
             }
         } else {
             self.scheduler.current_mut().unwrap().header.context.t0 = 3;
@@ -593,22 +605,49 @@ impl<'k> Kernel<'k> {
         let mut scheduler = &self.scheduler;
         let task = scheduler.current().unwrap();
         let task_data = task.header.context.tp;
+        let task_syscall = SysCall::from_usize(task.header.context.a0);
         let system_id = SystemId::try_from(task.header.context.a1).unwrap();
 
-        // Create new task to handle the interrupt by driver
-        let new_task_id = TASK_ID.get_id();
-        if let Some(invokable) = container.invokable
-            && let Some(data) = container.data
-            && let Some(mut new_task) = Task::new(
-                &[],
-                task.header.priority.saturating_sub(1),
-                invokable.main_addr(),
-            )
-        {
-            new_task.for_driver(data.data());
-            return (Some(new_task), 0);
-        } else {
-            return (None, 1);
+        match task_syscall {
+            SysCall::HandleSystem => {
+                // Create new task to handle the interrupt by driver
+                let new_task_id = TASK_ID.get_id();
+                if let Some(data) = container.data
+                    && let Some(systems) = container.systems
+                    && let Some(mut new_task) = Task::new(
+                        &[],
+                        task.header.priority.saturating_sub(1),
+                        systems.port.unwrap().addrs[0], // read
+                    )
+                {
+                    new_task.for_driver(data.data());
+                    (Some(new_task), 0)
+                } else {
+                    (None, 1)
+                }
+            }
+            // From read system callback
+            SysCall::ReturnSystem if task.header.context.a2 != 0 && task.header.context.a3 != 0 => {
+                let new_task_id = TASK_ID.get_id();
+                if let Some(data) = container.data
+                    && let Some(systems) = container.systems
+                    && let Some(mut new_task) = Task::new(
+                        &[],
+                        task.header.priority.saturating_sub(1),
+                        systems.port.unwrap().addrs[1], // write
+                    )
+                {
+                    new_task.for_driver(data.data());
+                    (Some(new_task), 0)
+                } else {
+                    (None, 2)
+                }
+            }
+            // From write system callback
+            SysCall::ReturnSystem if task.header.context.a2 == 0 && task.header.context.a3 == 0 => {
+                (None, 3)
+            }
+            _ => (None, 99),
         }
     }
 }
