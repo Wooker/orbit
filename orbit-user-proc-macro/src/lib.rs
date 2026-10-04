@@ -444,7 +444,7 @@ pub fn orbit(
                 fn to_container(&self) -> orbit_kernel::containers::Container<'orbit> {
                     orbit_kernel::containers::Container {
                         named: Some(self.to_named_container()),
-                        data: Some(self.to_data_container()),
+                        data: if core::mem::size_of::<Self>() == 0 { None} else { Some(self.to_data_container())},
                         #(#container_impls)*
                         #systems_field
                         ..Default::default()
