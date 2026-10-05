@@ -11,7 +11,6 @@ use crate::{
     application::Application,
     application_container::{AppContainer, RunApplication},
     claim::KernelPeripherals,
-    clock::Clocks,
     containers::{Container, systems::SystemId},
     context::Context,
     id::ID,
