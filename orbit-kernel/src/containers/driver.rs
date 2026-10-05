@@ -1,3 +1,5 @@
+use crate::syscall::SysCall;
+
 #[derive(Debug, Clone, Copy)]
 pub struct DriverContainer {
     driver_init_addr: usize,
@@ -36,15 +38,31 @@ pub trait DriverAuto<'d>: Driver<'d> {
     }
 
     #[inline(never)]
-    fn _init(&mut self) {
+    fn _init(&mut self) -> ! {
         self.init();
-        unsafe { core::arch::asm!("li a0, 0;li a1, 0; ecall") };
+        let syscall = SysCall::ReturnInit as usize;
+        unsafe {
+            core::arch::asm!(
+                "ecall",
+                in("a0") syscall,
+                in("a1") 0,
+                options(noreturn)
+            )
+        };
     }
 
     #[inline(never)]
-    fn _interrupt(&mut self) {
+    fn _interrupt(&mut self) -> ! {
         self.interrupt();
-        unsafe { core::arch::asm!("li a0, 2; li a1, 0;ecall;") };
+        let syscall = SysCall::ReturnInterrupt as usize;
+        unsafe {
+            core::arch::asm!(
+                "ecall",
+                in("a0") syscall,
+                in("a1") 0,
+                options(noreturn)
+            )
+        };
     }
 
     #[inline(never)]
