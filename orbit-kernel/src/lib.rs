@@ -6,6 +6,7 @@
 #![feature(ptr_metadata)]
 #![feature(const_option_ops)]
 #![feature(const_trait_impl)]
+#![feature(const_result_trait_fn)]
 
 //! Orbit kernel
 
@@ -13,11 +14,11 @@ pub mod application;
 pub mod application_container;
 pub mod claim;
 pub mod clock;
+pub mod containers;
 pub mod context;
 pub mod id;
 pub mod ringbuf;
 pub mod syscall;
-pub mod systems;
 pub mod usizebuf;
 
 pub use spaceport;
@@ -29,8 +30,6 @@ mod allocator;
 pub mod kernel;
 #[cfg(feature = "rt")]
 pub mod pmp_entry;
-#[cfg(feature = "rt")]
-pub mod port;
 #[cfg(feature = "rt")]
 pub mod task;
 #[cfg(feature = "rt")]

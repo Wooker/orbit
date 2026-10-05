@@ -1,7 +1,0 @@
-[workspace]
-resolver = "2"
-members = [
-    "orbit-user-common",
-    "orbit-app-proc-macro",
-    "orbit-driver-proc-macro",
-]

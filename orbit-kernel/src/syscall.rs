@@ -7,6 +7,8 @@ pub enum SysCall {
     ReturnMain,
     /// Only used after driver interrupt handling
     ReturnInterrupt,
+    /// Only used after System execution
+    ReturnSystem,
     /// Register interrupt for driver
     RegisterInterrupt,
     /// Register system for driver

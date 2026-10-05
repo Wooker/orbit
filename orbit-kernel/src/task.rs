@@ -9,7 +9,6 @@ use core::{
 };
 
 use alloc::{boxed::Box, vec::Vec};
-use spaceport::packet::Packet;
 
 use crate::{context::Context, id::ID};
 
@@ -17,10 +16,9 @@ pub(crate) static TASK_ID: ID<usize> = ID::new(0);
 const STACK_SIZE: usize = 512;
 
 #[repr(C, align(4))]
-pub(crate) struct TaskHeader<'t> {
+pub(crate) struct TaskHeader {
     pub(crate) context: Context,
     pub(crate) task_id: usize,
-    pub(crate) packet: Packet<'t>,
     pub(crate) priority: usize,
     pub(crate) state: TaskState,
     pub(crate) stack: [usize; STACK_SIZE],
@@ -34,17 +32,15 @@ pub(crate) enum TaskState {
 }
 
 #[repr(C, align(4))]
-pub(crate) struct Task<'t> {
-    pub(crate) header: TaskHeader<'t>,
-    payload: [u8],
+pub(crate) struct Task {
+    pub(crate) header: TaskHeader,
+    pub(crate) payload: [u8],
 }
 
-impl<'t> Task<'t> {
-    pub fn new<'p>(packet: Packet<'p>, priority: usize, addr: usize) -> Option<Pin<Box<Self>>>
-    where
-        't: 'p,
-    {
-        let payload_len = packet.payload.len();
+// TODO: implement without allocator
+impl Task {
+    pub fn new<'p>(packet: &'p [u8], priority: usize, addr: usize) -> Option<Pin<Box<Self>>> {
+        let payload_len = packet.len();
 
         // layout = header + payload
         let (layout, payload_offset) = Layout::new::<TaskHeader>()
@@ -69,7 +65,6 @@ impl<'t> Task<'t> {
                     context: Context::new(),
                     task_id: TASK_ID.get_id(),
                     stack: [0; STACK_SIZE],
-                    packet: packet,
                     priority,
                     state: TaskState::Waiting,
                 },
@@ -79,16 +74,11 @@ impl<'t> Task<'t> {
             // payload pointer (correctly aligned!)
             let payload_ptr = raw.add(payload_offset);
 
-            core::ptr::copy_nonoverlapping(packet.payload.as_ptr(), payload_ptr, payload_len);
-
-            (*header_ptr).packet.payload =
-                core::slice::from_raw_parts_mut(payload_ptr, payload_len);
+            core::ptr::copy_nonoverlapping(packet.as_ptr(), payload_ptr, payload_len);
 
             (*header_ptr).context.mepc = addr;
             (*header_ptr).context.gp = raw as usize;
             // SP must point to the end of the stack buffer in bytes.
-            // Using `+ STACK_SIZE` here underflows stack capacity because STACK_SIZE is
-            // number of `usize` elements, not number of bytes.
             (*header_ptr).context.sp = (&(*header_ptr).stack as *const [usize; STACK_SIZE]
                 as usize)
                 + (STACK_SIZE * size_of::<usize>());
@@ -106,5 +96,6 @@ impl<'t> Task<'t> {
         self.header.context.a2 = self.header.context.a1;
         self.header.context.a1 = self.header.context.a0;
         self.header.context.a0 = driver_addr;
+        self.header.context.tp = driver_addr;
     }
 }

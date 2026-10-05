@@ -8,9 +8,8 @@ members = [
     "orbit-bin",
     "orbit-common",
     "orbit-common-proc-macro",
-    "orbit-apps/orbit-user-common",
-    "orbit-apps/orbit-app-proc-macro",
-    "orbit-apps/orbit-driver-proc-macro",
+    "orbit-user-common",
+    "orbit-user-proc-macro",
 ]
 exclude = [ "orbit-build" ]
 
@@ -22,6 +21,5 @@ exclude = [ "orbit-build" ]
 # orbit-common-proc-macro = { path = "orbit-common-proc-macro" }
 # orbit-common = { path = "orbit-common" }
 
-# orbit-user-common = { path = "orbit-apps/orbit-user-common" }
-# orbit-app-proc-macro = { path = "orbit-apps/orbit-app-proc-macro" }
-# orbit-driver-proc-macro = { path = "orbit-apps/orbit-driver-proc-macro" }
+# orbit-user-common = { path = "orbit-user-common" }
+# orbit-user-proc-macro = { path = "orbit-user-common" }

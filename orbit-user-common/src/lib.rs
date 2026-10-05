@@ -82,7 +82,7 @@ macro_rules! send {
             let data = $buf;
             let ptr = data.as_ptr();
             let len = data.len();
-            let syscall = SysCall::Send.discriminant();
+            let syscall = orbit_kernel::syscall::SysCall::Send.discriminant();
 
             core::arch::asm!(
                 "ecall",
@@ -97,36 +97,42 @@ macro_rules! send {
 
 #[macro_export]
 macro_rules! register_interrupt {
-    ($int:expr) => {
+    ($int:expr) => {{
+        let status: usize;
         unsafe {
             let interrupt = $int as u8;
-            let syscall = SysCall::RegisterInterrupt.discriminant();
+            let syscall = orbit_kernel::syscall::SysCall::RegisterInterrupt.discriminant();
 
             core::arch::asm!(
                 "ecall",
                 in("a0") syscall,
                 in("a1") interrupt,
+                lateout("t0") status,
                 clobber_abi("C"),
             );
         }
-    };
+        status
+    }};
 }
 
 #[macro_export]
 macro_rules! register_system {
-    ($sys:expr) => {
+    ($sys:expr) => {{
+        let status: usize;
         unsafe {
             let system = $sys as u8;
-            let syscall = SysCall::RegisterSystem.discriminant();
+            let syscall = orbit_kernel::syscall::SysCall::RegisterSystem.discriminant();
 
             core::arch::asm!(
                 "ecall",
                 in("a0") syscall,
                 in("a1") system,
+                lateout("t0") status,
                 clobber_abi("C"),
             );
         }
-    };
+        status
+    }};
 }
 
 #[macro_export]
@@ -137,7 +143,7 @@ macro_rules! handle_system {
             // By binding to a local variable 'data' here, we force the
             // temporary to live until the end of this unsafe block.
             let system = $sys as u8;
-            let syscall = SysCall::HandleSystem.discriminant();
+            let syscall = orbit_kernel::syscall::SysCall::HandleSystem.discriminant();
 
             core::arch::asm!(
                 "ecall",
@@ -156,7 +162,7 @@ macro_rules! handle_system {
             // temporary to live until the end of this unsafe block.
             let system = $sys as u8;
             let value = $val as usize;
-            let syscall = SysCall::HandleSystem.discriminant();
+            let syscall = orbit_kernel::syscall::SysCall::HandleSystem.discriminant();
 
             core::arch::asm!(
                 "ecall",
@@ -183,7 +189,7 @@ macro_rules! invoke_local {
             let data = $buf;
             let ptr = data.as_ptr();
             let len = data.len();
-            let syscall = SysCall::InvokeLocal.discriminant();
+            let syscall = orbit_kernel::syscall::SysCall::InvokeLocal.discriminant();
 
             core::arch::asm!(
                 "ecall",
@@ -216,7 +222,7 @@ macro_rules! invoke {
             let data = $buf;
             let ptr = data.as_ptr();
             let len = data.len();
-            let syscall = SysCall::Invoke.discriminant();
+            let syscall = orbit_kernel::syscall::SysCall::Invoke.discriminant();
 
             core::arch::asm!(
                 "ecall",
