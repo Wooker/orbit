@@ -1,3 +1,4 @@
+pub const RAM_SIZE: usize = 2 * 1024;
 pub use ch32v0::{Reg, RegisterSpec, ch32v003 as pac};
 
 pub use ch32v0::ch32v003::usart1::RegisterBlock as PortPeripheral;
