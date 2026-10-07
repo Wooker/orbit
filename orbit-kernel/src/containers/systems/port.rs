@@ -5,7 +5,7 @@ use crate::{
 
 pub(crate) const SYSTEM_SIZE: usize = 2;
 pub trait Port {
-    fn read(&mut self) -> &[u8];
+    fn read(&mut self) -> (Option<usize>, &[u8]);
     fn write(&mut self, buf: &[u8]);
 }
 
@@ -19,7 +19,7 @@ pub trait PortAuto: Port {
     }
 
     fn _read(&mut self) -> ! {
-        let slice = self.read();
+        let (opt_task_id, slice) = self.read();
         let syscall = SysCall::ReturnSystem as usize;
         let system_id = SystemId::Port as usize;
         unsafe {
@@ -27,8 +27,9 @@ pub trait PortAuto: Port {
                 "ecall",
                 in("a0") syscall,
                 in("a1") system_id,
-                in("a2") slice.as_ptr(),
-                in("a3") slice.len(),
+                in("a2") opt_task_id.unwrap_or(usize::MAX),
+                in("a3") if slice.len() == 0 { 0 as *const u8 } else { slice.as_ptr() },
+                in("a4") slice.len(),
                 options(noreturn)
             )
         }

@@ -44,7 +44,13 @@ const CONTAINERS: usize =
     usize::from_str_radix(option_env!("ORBIT_KERNEL_CONTAINERS").unwrap_or("0"), 10).unwrap_or(0);
 
 pub(crate) static PACKET_ID: ID<u16> = ID::new(0);
-pub static KERNEL_VERSION: &'static str = env!("CARGO_PKG_VERSION");
+
+#[macro_export]
+macro_rules! kernel_version {
+    () => {
+        "0.1.2"
+    };
+}
 
 #[repr(C, align(4))]
 pub struct Kernel<'k> {
@@ -134,11 +140,11 @@ impl<'k> Kernel<'k> {
         kernel
     }
 
-    #[inline(never)]
-    #[unsafe(link_section = ".text")]
-    pub fn version(&self) -> (&'static str) {
-        (KERNEL_VERSION)
-    }
+    // #[inline(never)]
+    // #[unsafe(link_section = ".text")]
+    // pub fn version(&self) -> (&'static str) {
+    //     (KERNEL_VERSION)
+    // }
 
     #[inline(never)]
     pub fn add_container(&mut self, container: Container<'k>) {
@@ -590,7 +596,7 @@ impl<'k> Kernel<'k> {
                     && let Some(call_driver) = call_container.driver
                     && let Some(mut new_task) = Task::new(
                         &[],
-                        priority.saturating_sub(1),
+                        priority.saturating_add(1),
                         call_driver.interrupt_addr(),
                     )
                 {
@@ -630,6 +636,9 @@ impl<'k> Kernel<'k> {
         let task_data = task.header.context.tp;
         let task_syscall = SysCall::from_usize(task.header.context.a0);
         let system_id = SystemId::try_from(task.header.context.a1).unwrap();
+        let port_task_packet = task.header.context.a2;
+        let slice_ptr = task.header.context.a3;
+        let slice_len = task.header.context.a4;
 
         match task_syscall {
             SysCall::HandleSystem => {
@@ -639,7 +648,7 @@ impl<'k> Kernel<'k> {
                     && let Some(systems) = container.systems
                     && let Some(mut new_task) = Task::new(
                         &[],
-                        task.header.priority.saturating_sub(1),
+                        task.header.priority.saturating_add(1),
                         systems.port.unwrap().addrs[0], // read
                     )
                 {
@@ -650,13 +659,17 @@ impl<'k> Kernel<'k> {
                 }
             }
             // From read system callback
-            SysCall::ReturnSystem if task.header.context.a2 != 0 && task.header.context.a3 != 0 => {
+            // SAFETY: read port system callback has ended,
+            // so task priority is the same.
+            SysCall::ReturnSystem if slice_ptr != 0 && slice_len != 0 => {
+                let slice =
+                    unsafe { core::slice::from_raw_parts(slice_ptr as *const u8, slice_len) };
                 let new_task_id = TASK_ID.get_id();
                 if let Some(data) = container.data
                     && let Some(systems) = container.systems
                     && let Some(mut new_task) = Task::new(
-                        &[],
-                        task.header.priority.saturating_sub(1),
+                        slice,
+                        task.header.priority,
                         systems.port.unwrap().addrs[1], // write
                     )
                 {
@@ -667,9 +680,7 @@ impl<'k> Kernel<'k> {
                 }
             }
             // From write system callback
-            SysCall::ReturnSystem if task.header.context.a2 == 0 && task.header.context.a3 == 0 => {
-                (None, 3)
-            }
+            SysCall::ReturnSystem if slice_ptr == 0 && slice_len == 0 => (None, 3),
             _ => (None, 99),
         }
     }

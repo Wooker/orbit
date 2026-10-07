@@ -11,5 +11,4 @@ Next issue id: 11
 
 - [1](configure-pmp-registers-before-switching-context-to-user.md)
 - [3](check-claim-status-of-peripherals-on-driver-initialization.md)
-- [6](port-system.md)
 - [10](track-systems-in-kernel.md)

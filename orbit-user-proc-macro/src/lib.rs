@@ -209,8 +209,9 @@ pub fn orbit(
                     match ty {
                         Type::Array(arr) => {
                             let arr_len = &arr.len;
+                            let arr_elem = &arr.elem;
 
-                            quote! { #name: [0; #arr_len], }
+                            quote! { #name: [<#arr_elem>::default(); #arr_len], }
                         }
                         _ => quote! {
                             #name: <#ty>::default(),
