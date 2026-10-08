@@ -1,23 +1,22 @@
 #![allow(unused)]
 pub mod asm;
-mod scheduler;
 pub mod systems;
 
 #[cfg(any(feature = "alloc_tlsf", feature = "alloc_llff"))]
 use crate::allocator::ALLOCATOR;
 
 use crate::{
-    RINGBUF_SIZE,
     application::Application,
     application_container::{AppContainer, RunApplication},
     claim::KernelPeripherals,
     containers::{Container, systems::SystemId},
     context::Context,
     id::ID,
-    kernel::{scheduler::Scheduler, systems::Systems},
+    kernel::systems::Systems,
     ringbuf::RingBuf,
+    scheduler::Scheduler,
     syscall::{InvokeLocalError, SysCall},
-    task::{TASK_ID, Task, TaskState},
+    task::Task,
 };
 use alloc::{boxed::Box, collections::linked_list::LinkedList, slice, vec::Vec};
 use core::{
@@ -60,7 +59,7 @@ pub struct Kernel<'k> {
     interrupts: [Option<u8>; 255],
     claims: [bool; KernelPeripherals::MAX as usize],
     core: Core<PMP>,
-    scheduler: Scheduler,
+    scheduler: Scheduler<Task>,
 }
 
 unsafe extern "C" {
@@ -140,12 +139,6 @@ impl<'k> Kernel<'k> {
         kernel
     }
 
-    // #[inline(never)]
-    // #[unsafe(link_section = ".text")]
-    // pub fn version(&self) -> (&'static str) {
-    //     (KERNEL_VERSION)
-    // }
-
     #[inline(never)]
     pub fn add_container(&mut self, container: Container<'k>) {
         if let Some((index, c)) = self
@@ -159,7 +152,7 @@ impl<'k> Kernel<'k> {
                 && let Some(driver) = container.driver
                 && let name = named.name()
             {
-                if let Some(mut task) = Task::new(name.as_bytes(), index, driver.init_addr()) {
+                if let Some(mut task) = Task::new(&[], driver.init_addr()) {
                     task.for_driver(data.data());
                     self.scheduler.add(task);
                 }
@@ -193,7 +186,7 @@ impl<'k> Kernel<'k> {
                 && let name = named.name()
                 && let Some(data) = container.data
             {
-                if let Some(mut task) = Task::new(name.as_bytes(), 1, driver.interrupt_addr()) {
+                if let Some(mut task) = Task::new(name.as_bytes(), driver.interrupt_addr()) {
                     task.for_driver(data.data());
                     self.core.disable_interrupt(code);
                     self.scheduler.add(task);
@@ -210,11 +203,11 @@ impl<'k> Kernel<'k> {
     fn syscall_handler(&mut self) {
         let self_addr = self as *const Kernel as usize;
         let syscall = {
-            let task = self.scheduler.current_mut().unwrap();
+            let entry = self.scheduler.current_mut().unwrap();
 
-            task.header.context.mepc = orbit_arch::riscv::register::mepc::read() + 4;
-            let task_addr = &**task as *const Task as *const () as usize;
-            SysCall::from_usize(task.header.context.a0)
+            entry.task.header.context.mepc = orbit_arch::riscv::register::mepc::read() + 4;
+            let task_addr = &*(entry.task) as *const Task as *const () as usize;
+            SysCall::from_usize(entry.task.header.context.a0)
         };
 
         match syscall {
@@ -226,47 +219,29 @@ impl<'k> Kernel<'k> {
                 let result = self.context.a1;
 
                 let mut out = [0u8; MAX_BUFFER_LENGTH];
-                if let Some(task) = self.scheduler.pop() {
-                    if let Some(blocked) = self
-                        .scheduler
-                        .list_mut()
-                        .iter_mut()
-                        .find(|t| t.header.state == TaskState::Blocked(task.header.task_id))
-                    {
+                if let Some((task, blocked_id)) = self.scheduler.pop() {
+                    if let Some(blocked) = self.scheduler.find_mut(blocked_id) {
                         // `a0` is the completion status and `a1` carries the
                         // successful return value.  Keeping them separate
                         // makes every `usize` value, including `usize::MAX`, a
                         // valid application result.
-                        blocked.header.context.a0 = 0;
-                        blocked.header.context.a1 = result;
-                        blocked.header.state = TaskState::Ready;
+                        blocked.1.task.header.context.a0 = 0;
+                        blocked.1.task.header.context.a1 = result;
                     }
-                    // task.header
-                    //     .packet
-                    //     .reply(&task.payload.len().to_le_bytes())
-                    //     .encode(&mut out)
-                    //     .and_then(|size| {
-                    //         self.ports[0]
-                    //             .send(&out[..size])
-                    //             .map_err(|_| EncodeError::BufferTooSmall)
-                    //     })
-                    //     .unwrap_or(0);
                 }
             }
             SysCall::ReturnInit => if let Some(task) = self.scheduler.pop() {},
             SysCall::ReturnInterrupt => {
-                if let Some(task) = self.scheduler.pop() {
+                let task = &mut self.scheduler.current_mut().unwrap().task;
+                let task_data = task.header.context.tp;
+                if let Some((entry, blocked_id)) = self.scheduler.pop() {
                     if let Some((driver_index, _)) =
-                        self.containers.iter().enumerate().find(|(i, d)| {
-                            if let Some(c) = d
-                                && let Some(named) = c.named
-                                && let name = named.name()
-                                && task.payload.get(..name.len()) == Some(name.as_bytes())
-                            {
-                                true
-                            } else {
-                                false
-                            }
+                        self.containers.iter().enumerate().find(|(i, opt)| {
+                            // such that its data matches task data
+                            opt.and_then(|cont| cont.data)
+                                .and_then(|data| Some(data.data()))
+                                .and_then(|data| (data == task_data).then_some(data))
+                                .is_some()
                         })
                     {
                         for (interrupt, i) in self.interrupts.iter().enumerate() {
@@ -279,32 +254,10 @@ impl<'k> Kernel<'k> {
                     }
                 }
             }
+            SysCall::RegisterInterrupt => self.handle_register_interrupt(),
             SysCall::RegisterSystem => self.handle_register_system(),
             SysCall::HandleSystem | SysCall::ReturnSystem => self.handle_system(),
-            SysCall::RegisterInterrupt => {
-                self.handle_register_interrupt();
-            }
-            SysCall::Send => {
-                let task = self.scheduler.current_mut().unwrap();
-                let buf = unsafe {
-                    core::slice::from_raw_parts(
-                        task.header.context.a1 as *const u8,
-                        task.header.context.a2,
-                    )
-                };
-                let mut out = [0u8; MAX_BUFFER_LENGTH];
-                // TODO: handle via Port system
-                // task.header
-                //     .packet
-                //     .reply(buf)
-                //     .encode(&mut out)
-                //     .and_then(|size| {
-                //         self.ports[0]
-                //             .send(&out[..size])
-                //             .map_err(|_| EncodeError::BufferTooSmall)
-                //     })
-                //     .unwrap_or(0);
-            }
+            /*
             SysCall::InvokeLocal => {
                 // Copy the syscall arguments before creating the new task.
                 // The invoker's context is then free to be updated after
@@ -381,7 +334,7 @@ impl<'k> Kernel<'k> {
                 }
             }
             SysCall::Invoke => {
-                let task = self.scheduler.current_mut().unwrap();
+                let task = &mut self.scheduler.current_mut().unwrap().task;
                 let name = unsafe {
                     core::slice::from_raw_parts(
                         task.header.context.a1 as *const u8,
@@ -396,6 +349,7 @@ impl<'k> Kernel<'k> {
                 };
                 // TODO: handle via Port system
             }
+            */
             _ => {}
         };
     }
@@ -403,10 +357,9 @@ impl<'k> Kernel<'k> {
     #[unsafe(no_mangle)]
     #[inline(never)]
     pub fn setup_event_loop(&mut self) -> ! {
-        if let Some(task) = self.scheduler.current_mut() {
-            let task_addr = task.as_ref().get_ref() as *const Task as *const ();
-            let addr = task.header.context.mepc;
-            task.header.state = TaskState::Ready;
+        if let Some(entry) = self.scheduler.current_mut() {
+            let task_addr = entry.task.as_ref().get_ref() as *const Task as *const ();
+            let addr = entry.task.header.context.mepc;
             // self.set_pmp(&app_cont);
             unsafe { asm::context_switch(self as *const Kernel as usize, task_addr as usize, addr) }
         } else {
@@ -450,7 +403,7 @@ impl<'k> Kernel<'k> {
     #[unsafe(no_mangle)]
     #[inline(never)]
     pub fn handle_register_interrupt(&mut self) {
-        let task = self.scheduler.current_mut().unwrap();
+        let task = &mut self.scheduler.current_mut().unwrap().task;
         let task_data = task.header.context.tp;
         let interrupt = task.header.context.a1;
 
@@ -475,9 +428,7 @@ impl<'k> Kernel<'k> {
                 && let Some(endpoint) = eic.addrs.get(0)
             {
                 // create a task for the system to enable the interrupt
-                if let Some(mut new_task) =
-                    Task::new(&[], task.header.priority.saturating_sub(1), *endpoint)
-                {
+                if let Some(mut new_task) = Task::new(&[], *endpoint) {
                     task.header.context.t0 = 0;
                     new_task.for_driver(data.data());
 
@@ -507,7 +458,7 @@ impl<'k> Kernel<'k> {
     #[unsafe(no_mangle)]
     #[inline(never)]
     pub fn handle_register_system(&mut self) {
-        let task = self.scheduler.current_mut().unwrap();
+        let task = &mut self.scheduler.current_mut().unwrap().task;
         let task_data = task.header.context.tp;
         let system_id = SystemId::try_from(task.header.context.a1).unwrap();
 
@@ -531,9 +482,9 @@ impl<'k> Kernel<'k> {
     #[unsafe(no_mangle)]
     #[inline(never)]
     pub fn handle_system(&mut self) {
-        let system_id = self.scheduler.current().unwrap().header.context.a1;
-        let task_data = self.scheduler.current().unwrap().header.context.tp;
-        let system_id = SystemId::try_from(system_id).unwrap();
+        let task = &self.scheduler.current().unwrap().task;
+        let task_data = task.header.context.tp;
+        let system_id = SystemId::try_from(task.header.context.a1).unwrap();
 
         // Find a container for task
         if let Some((container_index, Some(container))) =
@@ -551,54 +502,47 @@ impl<'k> Kernel<'k> {
                 _ => (None, 2),
             };
 
-            self.scheduler.current_mut().unwrap().header.context.t0 = res;
+            self.scheduler.current_mut().unwrap().task.header.context.t0 = res;
             if let Some(new_task) = opt_task {
-                if self.scheduler.current().unwrap().header.context.a0
+                // Add new task to the scheduler
+                if self.scheduler.current().unwrap().task.header.context.a0
                     == SysCall::ReturnSystem.discriminant()
                 {
                     self.scheduler.pop();
+                    self.scheduler.add(new_task);
                 } else {
-                    // Mark current task as blocked by a new one
-                    self.scheduler.current_mut().unwrap().header.state =
-                        TaskState::Blocked(new_task.header.task_id);
+                    self.scheduler
+                        .add_blocking(new_task, self.scheduler.current_id().unwrap());
                 }
-
-                // Add new task to the scheduler
-                self.scheduler.add(new_task);
             } else {
-                if self.scheduler.current().unwrap().header.context.a0
+                if self.scheduler.current().unwrap().task.header.context.a0
                     == SysCall::ReturnSystem.discriminant()
                 {
                     self.scheduler.pop();
                 }
             }
         } else {
-            self.scheduler.current_mut().unwrap().header.context.t0 = 3;
+            self.scheduler.current_mut().unwrap().task.header.context.t0 = 3;
         }
     }
 
     #[unsafe(no_mangle)]
     #[inline(never)]
     fn handle_eic_system(&self, container: &Container) -> (Option<Pin<Box<Task>>>, usize) {
-        let task_syscall = SysCall::from_usize(self.scheduler.current().unwrap().header.context.a0);
-        let system_id = self.scheduler.current().unwrap().header.context.a1;
-        let container_index = self.scheduler.current().unwrap().header.context.a2;
-        let task_data = self.scheduler.current().unwrap().header.context.tp;
-        let priority = self.scheduler.current().unwrap().header.priority;
+        let task = &self.scheduler.current().unwrap().task;
+        let task_syscall = SysCall::from_usize(task.header.context.a0);
+        let system_id = task.header.context.a1;
+        let container_index = task.header.context.a2;
+        let task_data = task.header.context.tp;
 
         match task_syscall {
             SysCall::ReturnSystem if container_index == usize::MAX => (None, 2),
             SysCall::ReturnSystem if container_index != usize::MAX => {
-                let new_task_id = TASK_ID.get_id();
                 if let Some(Some(call_container)) = self.containers.get(container_index)
                     && let Some(call_named) = call_container.named
                     && let Some(call_data) = call_container.data
                     && let Some(call_driver) = call_container.driver
-                    && let Some(mut new_task) = Task::new(
-                        &[],
-                        priority.saturating_add(1),
-                        call_driver.interrupt_addr(),
-                    )
+                    && let Some(mut new_task) = Task::new(&[], call_driver.interrupt_addr())
                 {
                     new_task.for_driver(call_data.data());
                     return (Some(new_task), 0);
@@ -608,13 +552,11 @@ impl<'k> Kernel<'k> {
             }
             SysCall::HandleSystem => {
                 // Create new task to handle the interrupt by driver
-                let new_task_id = TASK_ID.get_id();
                 if let Some(data) = container.data
                     && let Some(systems) = container.systems
                     && let Some(data) = container.data
                     && let Some(mut new_task) = Task::new(
                         &[],
-                        priority.saturating_sub(1),
                         systems.external_interrupt_controller.unwrap().addrs[2], // dispatch
                     )
                 {
@@ -631,8 +573,7 @@ impl<'k> Kernel<'k> {
     #[unsafe(no_mangle)]
     #[inline(never)]
     fn handle_port_system(&self, container: &Container) -> (Option<Pin<Box<Task>>>, usize) {
-        let mut scheduler = &self.scheduler;
-        let task = scheduler.current().unwrap();
+        let task = &self.scheduler.current().unwrap().task;
         let task_data = task.header.context.tp;
         let task_syscall = SysCall::from_usize(task.header.context.a0);
         let system_id = SystemId::try_from(task.header.context.a1).unwrap();
@@ -643,12 +584,10 @@ impl<'k> Kernel<'k> {
         match task_syscall {
             SysCall::HandleSystem => {
                 // Create new task to handle the interrupt by driver
-                let new_task_id = TASK_ID.get_id();
                 if let Some(data) = container.data
                     && let Some(systems) = container.systems
                     && let Some(mut new_task) = Task::new(
                         &[],
-                        task.header.priority.saturating_add(1),
                         systems.port.unwrap().addrs[0], // read
                     )
                 {
@@ -658,18 +597,13 @@ impl<'k> Kernel<'k> {
                     (None, 1)
                 }
             }
-            // From read system callback
-            // SAFETY: read port system callback has ended,
-            // so task priority is the same.
             SysCall::ReturnSystem if slice_ptr != 0 && slice_len != 0 => {
                 let slice =
                     unsafe { core::slice::from_raw_parts(slice_ptr as *const u8, slice_len) };
-                let new_task_id = TASK_ID.get_id();
                 if let Some(data) = container.data
                     && let Some(systems) = container.systems
                     && let Some(mut new_task) = Task::new(
                         slice,
-                        task.header.priority,
                         systems.port.unwrap().addrs[1], // write
                     )
                 {

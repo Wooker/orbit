@@ -1,8 +1,9 @@
-#![no_std]
-#![no_main]
+#![cfg_attr(not(test), no_std)]
+#![cfg_attr(not(test), no_main)]
 #![feature(fn_align)]
 #![feature(naked_functions_rustic_abi)]
 #![feature(linked_list_cursors)]
+#![feature(linked_list_remove)]
 #![feature(ptr_metadata)]
 #![feature(const_option_ops)]
 #![feature(const_trait_impl)]
@@ -12,11 +13,10 @@
 
 pub mod application;
 pub mod application_container;
-pub mod claim;
-pub mod containers;
 pub mod context;
 pub mod id;
 pub mod ringbuf;
+mod scheduler;
 pub mod syscall;
 pub mod usizebuf;
 
@@ -30,19 +30,21 @@ pub mod kernel;
 #[cfg(feature = "rt")]
 pub mod pmp_entry;
 #[cfg(feature = "rt")]
-pub mod task;
-#[cfg(feature = "rt")]
 pub use orbit_arch as arch;
 #[cfg(feature = "rt")]
 pub use orbit_chip as chip;
-use spaceport::packet::MAX_BUFFER_LENGTH;
+#[cfg(feature = "rt")]
+pub mod claim;
+#[cfg(feature = "rt")]
+pub mod containers;
+pub mod task;
 
 // TODO: make use of PMP internal. Application code should
 // not rely on this const. to_container does rely at the moment
 pub const PMP: usize = 4;
-pub const RINGBUF_SIZE: usize = MAX_BUFFER_LENGTH;
 
-// #[cfg(feature = "rt")]
+#[cfg(not(test))]
+#[cfg(feature = "rt")]
 #[panic_handler]
 pub fn panic_handler<'a, 'b>(_info: &'a core::panic::PanicInfo<'b>) -> ! {
     // unsafe { save_context() };

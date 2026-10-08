@@ -12,23 +12,12 @@ use alloc::{boxed::Box, vec::Vec};
 
 use crate::{context::Context, id::ID};
 
-pub(crate) static TASK_ID: ID<usize> = ID::new(0);
 const STACK_SIZE: usize = 512;
 
 #[repr(C, align(4))]
 pub(crate) struct TaskHeader {
     pub(crate) context: Context,
-    pub(crate) task_id: usize,
-    pub(crate) priority: usize,
-    pub(crate) state: TaskState,
     pub(crate) stack: [usize; STACK_SIZE],
-}
-
-#[derive(PartialEq)]
-pub(crate) enum TaskState {
-    Ready,
-    Waiting,
-    Blocked(usize),
 }
 
 #[repr(C, align(4))]
@@ -39,7 +28,7 @@ pub(crate) struct Task {
 
 // TODO: implement without allocator
 impl Task {
-    pub fn new<'p>(packet: &'p [u8], priority: usize, addr: usize) -> Option<Pin<Box<Self>>> {
+    pub fn new<'p>(packet: &'p [u8], addr: usize) -> Option<Pin<Box<Self>>> {
         let payload_len = packet.len();
 
         // layout = header + payload
@@ -56,20 +45,15 @@ impl Task {
             }
 
             let header_ptr = raw as *mut TaskHeader;
-            let task_id = TASK_ID.get_id();
 
             // initialize header
             core::ptr::write(
                 header_ptr,
                 TaskHeader {
                     context: Context::new(),
-                    task_id: TASK_ID.get_id(),
                     stack: [0; STACK_SIZE],
-                    priority,
-                    state: TaskState::Waiting,
                 },
             );
-            TASK_ID.set(task_id + 1);
 
             // payload pointer (correctly aligned!)
             let payload_ptr = raw.add(payload_offset);
