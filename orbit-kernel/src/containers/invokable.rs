@@ -28,11 +28,19 @@ pub trait InvokableAuto<'s>: Invokable<'s> {
 
     #[inline(never)]
     fn _main(&mut self, buf: &[u8]) {
-        match self.main(buf) {
+        let r = match self.main(buf) {
             Ok(res) => (0, res),
             Err(e) => (1, e),
         };
-        unsafe { core::arch::asm!("li a0, 1;li a1, 0; ecall") };
+        unsafe {
+            core::arch::asm!(
+                "ecall",
+                in("a0") 1,
+                in("a1") r.0,
+                in("a2") r.1,
+                options(noreturn)
+            )
+        };
     }
 
     #[inline(never)]

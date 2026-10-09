@@ -216,7 +216,8 @@ impl<'k> Kernel<'k> {
                     orbit_arch::riscv::register::mepc::write(asm::wait as *const fn() as usize);
                 }
                 // Keep the return value from a1 before removing the completed task.
-                let result = self.context.a1;
+                let result = self.scheduler.current().unwrap().task.header.context.a1;
+                let val = self.scheduler.current().unwrap().task.header.context.a2;
 
                 let mut out = [0u8; MAX_BUFFER_LENGTH];
                 if let Some((task, blocked_id)) = self.scheduler.pop() {
@@ -225,8 +226,8 @@ impl<'k> Kernel<'k> {
                         // successful return value.  Keeping them separate
                         // makes every `usize` value, including `usize::MAX`, a
                         // valid application result.
-                        blocked.1.task.header.context.a0 = 0;
-                        blocked.1.task.header.context.a1 = result;
+                        blocked.1.task.header.context.a0 = result;
+                        blocked.1.task.header.context.a1 = val;
                     }
                 }
             }
@@ -257,99 +258,7 @@ impl<'k> Kernel<'k> {
             SysCall::RegisterInterrupt => self.handle_register_interrupt(),
             SysCall::RegisterSystem => self.handle_register_system(),
             SysCall::HandleSystem | SysCall::ReturnSystem => self.handle_system(),
-            /*
-            SysCall::InvokeLocal => {
-                // Copy the syscall arguments before creating the new task.
-                // The invoker's context is then free to be updated after
-                // the child has been built and enqueued.
-                let (name, arg, priority) = {
-                    let task = self.scheduler.current().unwrap();
-                    let name = unsafe {
-                        core::slice::from_raw_parts(
-                            task.header.context.a1 as *const u8,
-                            task.header.context.a2,
-                        )
-                    };
-                    let arg = unsafe {
-                        core::slice::from_raw_parts(
-                            task.header.context.a3 as *const u8,
-                            task.header.context.a4,
-                        )
-                    };
-                    (name, arg, task.header.priority.saturating_add(1))
-                };
-
-                let packet_id = PACKET_ID.get_id();
-                let (mut invokee, is_application, error) =
-                    if let Some(app) = self.containers.iter().find(|app| {
-                        app.is_some()
-                            && app.unwrap().named.is_some()
-                            && app.unwrap().named.unwrap().name().as_bytes().eq(name)
-                    }) && let Some(container) = app
-                        && let Some(invokable) = container.invokable
-                    {
-                        (
-                            Task::new(
-                                &[&name[..], b" ", &arg[..]].concat(),
-                                priority,
-                                invokable.main_addr(),
-                            ),
-                            true,
-                            InvokeLocalError::TaskCreationFailed,
-                        )
-                    } else if let Some(driver) = self.containers.iter().find(|app| {
-                        app.is_some()
-                            && app.unwrap().named.is_some()
-                            && app.unwrap().named.unwrap().name().as_bytes().eq(name)
-                    }) && let Some(container) = driver
-                        && let Some(invokable) = container.invokable
-                        && let Some(data) = container.data
-                    {
-                        let mut task = Task::new(
-                            &[&name[..], b" ", &arg[..]].concat(),
-                            priority,
-                            invokable.main_addr(),
-                        );
-                        if let Some(task) = task.as_mut() {
-                            task.for_driver(data.data());
-                        }
-                        (task, false, InvokeLocalError::TaskCreationFailed)
-                    } else {
-                        (None, false, InvokeLocalError::ApplicationNotFound)
-                    };
-
-                if let Some(mut invokee) = invokee.take() {
-                    if is_application {
-                        let arg_start = invokee.payload.as_ptr().wrapping_add(name.len() + 1);
-                        invokee.header.context.a0 = arg_start as usize;
-                        invokee.header.context.a1 = arg.len();
-                    }
-                    let invokee_id = invokee.header.task_id;
-                    self.scheduler.current_mut().unwrap().header.state =
-                        TaskState::Blocked(invokee_id);
-                    self.scheduler.add(invokee);
-                    PACKET_ID.set(packet_id + 1);
-                } else {
-                    self.scheduler.current_mut().unwrap().header.context.a0 = error.discriminant();
-                }
-            }
-            SysCall::Invoke => {
-                let task = &mut self.scheduler.current_mut().unwrap().task;
-                let name = unsafe {
-                    core::slice::from_raw_parts(
-                        task.header.context.a1 as *const u8,
-                        task.header.context.a2,
-                    )
-                };
-                let arg = unsafe {
-                    core::slice::from_raw_parts(
-                        task.header.context.a3 as *const u8,
-                        task.header.context.a4,
-                    )
-                };
-                // TODO: handle via Port system
-            }
-            */
+            SysCall::InvokeLocal | SysCall::Invoke => self.handle_invoke(),
             _ => {}
         };
     }
@@ -617,6 +526,40 @@ impl<'k> Kernel<'k> {
             // From write system callback
             SysCall::ReturnSystem if slice_ptr == 0 && slice_len == 0 => (None, 3),
             _ => (None, 99),
+        }
+    }
+
+    #[unsafe(no_mangle)]
+    #[inline(never)]
+    fn handle_invoke(&mut self) {
+        let name = unsafe {
+            core::slice::from_raw_parts(
+                self.scheduler.current().unwrap().task.header.context.a1 as *const u8,
+                self.scheduler.current().unwrap().task.header.context.a2,
+            )
+        };
+        let arg = unsafe {
+            core::slice::from_raw_parts(
+                self.scheduler.current().unwrap().task.header.context.a3 as *const u8,
+                self.scheduler.current().unwrap().task.header.context.a4,
+            )
+        };
+        if let Some(Some(container)) = self.containers.iter().find(|opt| {
+            opt.and_then(|c| c.named)
+                .and_then(|named| (named.name().as_bytes().eq(name)).then_some(true))
+                .is_some()
+        }) {
+            if let Some(mut new_task) = Task::new(arg, container.invokable.unwrap().main_addr()) {
+                new_task.header.context.a1 = arg.as_ptr() as usize;
+                new_task.header.context.a2 = arg.len();
+
+                self.scheduler
+                    .add_blocking(new_task, self.scheduler.current_id().unwrap());
+            }
+            self.scheduler.current_mut().unwrap().task.header.context.a0 = 2;
+        } else {
+            // TODO: handle via Port system
+            self.scheduler.current_mut().unwrap().task.header.context.a0 = 1;
         }
     }
 }

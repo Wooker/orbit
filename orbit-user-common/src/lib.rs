@@ -215,6 +215,7 @@ macro_rules! invoke_local {
 macro_rules! invoke {
     ($app:expr, $buf:expr) => {{
         let result: usize;
+        let val: usize;
         unsafe {
             let app = $app;
             let aptr = app.as_ptr();
@@ -232,9 +233,14 @@ macro_rules! invoke {
                 in("a3") ptr,
                 in("a4") len,
                 lateout("a0") result,
+                lateout("a1") val,
                 clobber_abi("C"),
             );
         }
-        result
+        if result == 0 {
+            Ok(val)
+        } else {
+            Err(val)
+        }
     }};
 }
