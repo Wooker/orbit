@@ -369,13 +369,14 @@ impl<'k> Kernel<'k> {
 
     #[unsafe(no_mangle)]
     #[inline(never)]
-    pub fn handle_panic(&mut self, panic_info: &PanicInfo) {
-        // for port in self.ports.iter_mut() {
-        //     let msg = panic_info.message().as_str().unwrap();
-        //     for chunk in msg.as_bytes().chunks(32) {
-        //         port.write(chunk);
-        //     }
-        // }
+    pub fn handle_panic(&mut self, panic_info: &PanicInfo) -> ! {
+        if let Some((entry, blocked_id)) = self.scheduler.pop() {
+            if let Some(blocked) = self.scheduler.find_mut(blocked_id) {
+                blocked.1.task.header.context.a0 = 0;
+                blocked.1.task.header.context.a1 = usize::MAX;
+            }
+        }
+        self.setup_event_loop()
     }
 
     #[unsafe(no_mangle)]

@@ -46,15 +46,14 @@ pub const PMP: usize = 4;
 #[cfg(not(test))]
 #[cfg(feature = "rt")]
 #[panic_handler]
-pub fn panic_handler<'a, 'b>(_info: &'a core::panic::PanicInfo<'b>) -> ! {
-    // unsafe { save_context() };
-    // use crate::kernel::{Kernel, asm::save_context};
+pub fn panic_handler<'a, 'b>(info: &'a core::panic::PanicInfo<'b>) -> ! {
+    unsafe { save_context() };
+    use crate::kernel::{Kernel, asm::save_context};
 
-    // let mut kernel_addr: usize;
-    // unsafe {
-    //     core::arch::asm!("csrr {0}, mscratch", out(reg) kernel_addr);
-    // }
-    // let kernel = unsafe { &mut *(kernel_addr as *mut Kernel) };
-    // kernel.handle_panic(info);
-    loop {}
+    let mut kernel_addr: usize;
+    unsafe {
+        core::arch::asm!("csrr {0}, mscratch", out(reg) kernel_addr);
+    }
+    let kernel = unsafe { &mut *(kernel_addr as *mut Kernel) };
+    kernel.handle_panic(info);
 }
