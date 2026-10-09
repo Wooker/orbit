@@ -156,8 +156,8 @@ impl<'k> Kernel<'k> {
                     task.for_driver(data.data());
                     self.scheduler.add(task);
                 }
-                *c = Some(container);
             }
+            *c = Some(container);
         }
     }
 
