@@ -31,13 +31,6 @@ use orbit_arch::{
     Core, PMP,
     interface::{Interruptable, SetupMtvec},
 };
-use spaceport::{
-    constants::{MAX_TTL, PROTOCOL_VERSION},
-    error::EncodeError,
-    message::Message,
-    packet::{HEADER_LEN, MAX_BUFFER_LENGTH, MAX_PAYLOAD_LENGTH},
-    types::Flags,
-};
 
 const CONTAINERS: usize =
     usize::from_str_radix(option_env!("ORBIT_KERNEL_CONTAINERS").unwrap_or("0"), 10).unwrap_or(0);
@@ -47,7 +40,7 @@ pub(crate) static PACKET_ID: ID<u16> = ID::new(0);
 #[macro_export]
 macro_rules! kernel_version {
     () => {
-        "0.1.2"
+        "0.1.3"
     };
 }
 
@@ -219,7 +212,6 @@ impl<'k> Kernel<'k> {
                 let result = self.scheduler.current().unwrap().task.header.context.a1;
                 let val = self.scheduler.current().unwrap().task.header.context.a2;
 
-                let mut out = [0u8; MAX_BUFFER_LENGTH];
                 if let Some((task, blocked_id)) = self.scheduler.pop() {
                     if let Some(blocked) = self.scheduler.find_mut(blocked_id) {
                         // `a0` is the completion status and `a1` carries the

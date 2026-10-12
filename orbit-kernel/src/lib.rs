@@ -20,8 +20,6 @@ mod scheduler;
 pub mod syscall;
 pub mod usizebuf;
 
-pub use spaceport;
-
 extern crate alloc;
 #[cfg(feature = "rt")]
 mod allocator;
